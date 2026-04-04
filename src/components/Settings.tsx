@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Settings2, Save, Globe, Bell, Shield, Database, Smartphone } from 'lucide-react';
+import { Settings2, Save, Globe, Bell, Shield, Database, Smartphone, Moon, Sun } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useTheme } from '../ThemeContext';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<'General' | 'Security' | 'Notifications' | 'System'>('General');
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-serif font-medium text-stone-900">Settings & Configuration</h1>
-        <p className="text-stone-500">Configure system preferences and global settings</p>
+        <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Settings & Configuration</h1>
+        <p className="text-stone-500 dark:text-stone-400">Configure system preferences and global settings</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -26,8 +28,8 @@ export default function Settings() {
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
                 activeTab === tab.id 
-                  ? "bg-stone-900 text-white shadow-sm" 
-                  : "text-stone-500 hover:bg-stone-50 hover:text-stone-900"
+                  ? "bg-stone-900 dark:bg-white text-white dark:text-stone-900 shadow-sm" 
+                  : "text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white"
               )}
             >
               <tab.icon size={18} />
@@ -37,10 +39,10 @@ export default function Settings() {
         </div>
 
         <div className="lg:col-span-3">
-          <div className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm space-y-8">
+          <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-8">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-serif font-medium text-stone-900">{activeTab} Settings</h2>
-              <button className="flex items-center gap-2 px-6 py-2 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors">
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">{activeTab} Settings</h2>
+              <button className="flex items-center gap-2 px-6 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors">
                 <Save size={18} />
                 Save Changes
               </button>
@@ -51,23 +53,44 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Society Name</label>
-                    <input type="text" className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none" placeholder="DugdhaSetu Society" />
+                    <input type="text" className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white" placeholder="DugdhaSetu Society" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Contact Email</label>
-                    <input type="email" className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none" placeholder="contact@dugdhasetu.com" />
+                    <input type="email" className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white" placeholder="contact@dugdhasetu.com" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Currency Symbol</label>
-                    <input type="text" className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none" placeholder="₹" />
+                    <input type="text" className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white" placeholder="₹" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Language</label>
-                    <select className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none">
+                    <select className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white">
                       <option>English</option>
                       <option>Hindi</option>
                       <option>Marathi</option>
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Appearance</label>
+                    <button 
+                      onClick={toggleTheme}
+                      className="w-full flex items-center justify-between p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      <span className="text-sm text-stone-600 dark:text-stone-300 flex items-center gap-2">
+                        {theme === 'light' ? <Sun size={16} /> : <Moon size={16} />}
+                        {theme === 'light' ? 'Light Mode' : 'Dark Mode'}
+                      </span>
+                      <div className={cn(
+                        "w-10 h-5 rounded-full relative transition-colors",
+                        theme === 'dark' ? "bg-stone-700" : "bg-stone-300"
+                      )}>
+                        <div className={cn(
+                          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
+                          theme === 'dark' ? "left-6" : "left-1"
+                        )} />
+                      </div>
+                    </button>
                   </div>
                 </div>
               )}

@@ -259,31 +259,31 @@ export default function CollectionEntry() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-serif font-medium text-stone-900">Milk Collection</h1>
-        <p className="text-stone-500">Record a new milk pour</p>
+        <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>
+        <p className="text-stone-500 dark:text-stone-400">Record a new milk pour</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column: Search & Farmer Info */}
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-            <h2 className="text-lg font-serif font-medium text-stone-900 mb-4">1. Identify Farmer</h2>
+          <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+            <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white mb-4">1. Identify Farmer</h2>
             <div className="flex gap-2 mb-4">
               <form onSubmit={handleSearch} className="flex flex-1 gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
                   <input
                     type="text"
                     placeholder="Enter Member ID (e.g. 101)"
                     value={searchId}
                     onChange={(e) => setSearchId(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors disabled:opacity-50"
+                  className="px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors disabled:opacity-50"
                 >
                   {loading ? '...' : 'Search'}
                 </button>
@@ -294,8 +294,8 @@ export default function CollectionEntry() {
                 className={cn(
                   "p-3 rounded-xl border transition-all flex items-center justify-center",
                   isScanning 
-                    ? "bg-red-50 border-red-100 text-red-600 hover:bg-red-100" 
-                    : "bg-stone-50 border-stone-100 text-stone-600 hover:bg-stone-100"
+                    ? "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30" 
+                    : "bg-stone-50 dark:bg-stone-800 border-stone-100 dark:border-stone-700 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700"
                 )}
                 title="Scan QR Code"
               >
@@ -304,28 +304,28 @@ export default function CollectionEntry() {
             </div>
 
             {isScanning && (
-              <div className="mb-6 overflow-hidden rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 p-2">
+              <div className="mb-6 overflow-hidden rounded-2xl border-2 border-dashed border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 p-2">
                 <div id="qr-reader" className="w-full"></div>
-                <p className="text-center text-xs text-stone-400 mt-2">Scan Farmer ID QR Code</p>
+                <p className="text-center text-xs text-stone-400 dark:text-stone-500 mt-2">Scan Farmer ID QR Code</p>
               </div>
             )}
 
             {error && (
-              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 text-sm">
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl flex items-center gap-2 text-sm">
                 <AlertCircle size={16} />
                 {error}
               </div>
             )}
 
             {farmer && (
-              <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100">
+              <div className="mt-6 p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-stone-100">
-                    <Users className="text-stone-400" size={24} />
+                  <div className="w-12 h-12 bg-white dark:bg-stone-900 rounded-xl flex items-center justify-center border border-stone-100 dark:border-stone-800">
+                    <Users className="text-stone-400 dark:text-stone-500" size={24} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-stone-900">{farmer.name}</p>
-                    <p className="text-xs text-stone-500">{farmer.village} • {farmer.cattleType}</p>
+                    <p className="text-sm font-medium text-stone-900 dark:text-white">{farmer.name}</p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">{farmer.village} • {farmer.cattleType}</p>
                   </div>
                 </div>
               </div>
@@ -333,14 +333,14 @@ export default function CollectionEntry() {
           </div>
 
           {farmer && (
-            <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-              <h2 className="text-lg font-serif font-medium text-stone-900 mb-4">Calculation Summary</h2>
+            <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+              <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white mb-4">Calculation Summary</h2>
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl">
-                  <span className="text-sm text-stone-500">Rate per kg</span>
-                  <span className="text-lg font-serif font-medium text-stone-900">₹{calculated.rate.toFixed(2)}</span>
+                <div className="flex justify-between items-center p-3 bg-stone-50 dark:bg-stone-800 rounded-xl">
+                  <span className="text-sm text-stone-500 dark:text-stone-400">Rate per kg</span>
+                  <span className="text-lg font-serif font-medium text-stone-900 dark:text-white">₹{calculated.rate.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-stone-900 text-white rounded-xl">
+                <div className="flex justify-between items-center p-4 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl">
                   <span className="text-sm opacity-70">Total Amount</span>
                   <span className="text-2xl font-serif font-medium">₹{calculated.amount.toFixed(2)}</span>
                 </div>
@@ -350,17 +350,17 @@ export default function CollectionEntry() {
         </div>
 
         {/* Right Column: Entry Form */}
-        <div className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm">
+        <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-serif font-medium text-stone-900">2. Collection Details</h2>
+            <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white">2. Collection Details</h2>
             <button
               type="button"
               onClick={() => setFormData({ ...formData, isManual: !formData.isManual })}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 formData.isManual 
-                  ? "bg-amber-50 text-amber-600 border border-amber-100" 
-                  : "bg-stone-50 text-stone-500 border border-stone-100 hover:bg-stone-100"
+                  ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30" 
+                  : "bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-100 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700"
               )}
             >
               <Settings2 size={14} />
@@ -370,19 +370,19 @@ export default function CollectionEntry() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {formData.isManual && (
-              <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl space-y-3">
-                <div className="flex items-center gap-2 text-amber-700 text-sm font-medium">
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm font-medium">
                   <ShieldAlert size={18} />
                   Manual Entry Fallback Active
                 </div>
-                <p className="text-xs text-amber-600 leading-relaxed">
+                <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
                   Device integration bypassed. Please provide a reason. This entry will require supervisor approval before final settlement.
                 </p>
                 <select
                   required={formData.isManual}
                   value={formData.manualReason}
                   onChange={(e) => setFormData({ ...formData, manualReason: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-amber-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  className="w-full p-2.5 bg-white dark:bg-stone-800 border border-amber-200 dark:border-amber-900/30 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-white"
                 >
                   <option value="">Select Reason for Manual Entry</option>
                   <option value="Weighing Scale Offline">Weighing Scale Offline</option>
@@ -399,7 +399,7 @@ export default function CollectionEntry() {
                 <select
                   value={formData.milkType}
                   onChange={(e) => setFormData({ ...formData, milkType: e.target.value as any })}
-                  className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                 >
                   <option value="Cow">Cow</option>
                   <option value="Buffalo">Buffalo</option>
@@ -414,7 +414,7 @@ export default function CollectionEntry() {
                   required
                   value={formData.quantity}
                   onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none font-mono"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none font-mono dark:text-white"
                   placeholder="0.0"
                 />
               </div>
@@ -429,7 +429,7 @@ export default function CollectionEntry() {
                   required
                   value={formData.fat}
                   onChange={(e) => setFormData({ ...formData, fat: e.target.value })}
-                  className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none font-mono"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none font-mono dark:text-white"
                   placeholder="0.0"
                 />
               </div>
@@ -441,7 +441,7 @@ export default function CollectionEntry() {
                   required
                   value={formData.snf}
                   onChange={(e) => setFormData({ ...formData, snf: e.target.value })}
-                  className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none font-mono"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none font-mono dark:text-white"
                   placeholder="8.5"
                 />
               </div>
@@ -452,7 +452,7 @@ export default function CollectionEntry() {
                   step="0.5"
                   value={formData.clr}
                   onChange={(e) => setFormData({ ...formData, clr: e.target.value })}
-                  className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none font-mono"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none font-mono dark:text-white"
                   placeholder="28"
                 />
               </div>
@@ -466,7 +466,7 @@ export default function CollectionEntry() {
                   "w-full py-4 rounded-2xl font-medium flex items-center justify-center gap-2 transition-all",
                   success 
                     ? "bg-emerald-500 text-white" 
-                    : "bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50"
+                    : "bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-50"
                 )}
               >
                 {success ? (

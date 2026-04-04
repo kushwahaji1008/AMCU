@@ -102,16 +102,16 @@ export default function Reports() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900">Reports</h1>
-          <p className="text-stone-500">Analyze collection and payment data</p>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Reports</h1>
+          <p className="text-stone-500 dark:text-stone-400">Analyze collection and payment data</p>
         </div>
         <div className="flex gap-2">
-          <div className="flex p-1 bg-stone-100 rounded-xl mr-4">
+          <div className="flex p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mr-4">
             <button
               onClick={() => setActiveTab('all')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                activeTab === 'all' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
+                activeTab === 'all' ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-sm" : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
               )}
             >
               All Records
@@ -120,7 +120,7 @@ export default function Reports() {
               onClick={() => setActiveTab('pending')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-                activeTab === 'pending' ? "bg-white text-amber-600 shadow-sm" : "text-stone-500 hover:text-stone-700"
+                activeTab === 'pending' ? "bg-white dark:bg-stone-700 text-amber-600 dark:text-amber-400 shadow-sm" : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
               )}
             >
               Pending Approvals
@@ -131,12 +131,12 @@ export default function Reports() {
           </div>
           <button 
             onClick={exportToCSV}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-stone-200 text-stone-600 rounded-xl text-sm font-medium hover:bg-stone-50 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400 rounded-xl text-sm font-medium hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
           >
             <Download size={16} />
             Export CSV
           </button>
-          <button className="flex items-center justify-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors">
+          <button className="flex items-center justify-center gap-2 px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl text-sm font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors">
             <FileText size={16} />
             Print Summary
           </button>
@@ -144,33 +144,33 @@ export default function Reports() {
       </div>
 
       {activeTab === 'all' && (
-        <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm flex flex-wrap items-end gap-4">
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm flex flex-wrap items-end gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Start Date</label>
+            <label className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Start Date</label>
             <div className="relative">
-              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={16} />
               <input
                 type="date"
                 value={dateRange.start}
                 onChange={e => setDateRange({...dateRange, start: e.target.value})}
-                className="pl-10 pr-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none"
+                className="pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl text-sm focus:outline-none dark:text-white"
               />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">End Date</label>
+            <label className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">End Date</label>
             <div className="relative">
-              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={16} />
               <input
                 type="date"
                 value={dateRange.end}
                 onChange={e => setDateRange({...dateRange, end: e.target.value})}
-                className="pl-10 pr-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none"
+                className="pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl text-sm focus:outline-none dark:text-white"
               />
             </div>
           </div>
           <div className="flex-1"></div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl text-stone-500 text-sm">
+          <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 dark:bg-stone-800 rounded-xl text-stone-500 dark:text-stone-400 text-sm">
             <Filter size={16} />
             <span>{transactions.length} Records</span>
           </div>
@@ -179,55 +179,55 @@ export default function Reports() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">Total Quantity</p>
-          <p className="text-2xl font-serif font-medium text-stone-900">{totalQty.toFixed(1)} kg</p>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Quantity</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{totalQty.toFixed(1)} kg</p>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">Total Amount</p>
-          <p className="text-2xl font-serif font-medium text-stone-900">₹{totalAmt.toLocaleString()}</p>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Amount</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">₹{totalAmt.toLocaleString()}</p>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">Average FAT</p>
-          <p className="text-2xl font-serif font-medium text-stone-900">{avgFat.toFixed(2)}%</p>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Average FAT</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{avgFat.toFixed(2)}%</p>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">Average SNF</p>
-          <p className="text-2xl font-serif font-medium text-stone-900">{avgSnf.toFixed(2)}%</p>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Average SNF</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{avgSnf.toFixed(2)}%</p>
         </div>
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-stone-50/50">
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Date/Time</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Farmer</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Shift</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Qty</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">FAT/SNF</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Rate</th>
-                <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Amount</th>
+              <tr className="bg-stone-50/50 dark:bg-stone-800/50">
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Date/Time</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Farmer</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Shift</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Qty</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT/SNF</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate</th>
+                <th className="px-6 py-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-50">
+            <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
               {transactions.map((t) => (
-                <tr key={t.id} className="hover:bg-stone-50/50 transition-colors">
-                  <td className="px-6 py-4 text-xs text-stone-500">
+                <tr key={t.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+                  <td className="px-6 py-4 text-xs text-stone-500 dark:text-stone-400">
                     {t.timestamp ? format(new Date(t.timestamp), 'dd MMM, hh:mm a') : 'Pending...'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <div>
-                        <p className="text-sm font-medium text-stone-900">{t.farmerName}</p>
-                        <p className="text-[10px] text-stone-400">ID: {t.farmerId}</p>
+                        <p className="text-sm font-medium text-stone-900 dark:text-white">{t.farmerName}</p>
+                        <p className="text-[10px] text-stone-400 dark:text-stone-500">ID: {t.farmerId}</p>
                       </div>
                       {t.isManual && (
                         <div className={cn(
                           "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-tighter",
-                          t.isApproved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          t.isApproved ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
                         )}>
                           {t.isApproved ? 'Manual (Appr)' : 'Manual (Pend)'}
                         </div>
@@ -237,21 +237,21 @@ export default function Reports() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      t.shift === 'Morning' ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                      t.shift === 'Morning' ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" : "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
                     )}>
                       {t.shift}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-stone-600 font-mono">{t.quantity.toFixed(1)}</td>
-                  <td className="px-6 py-4 text-sm text-stone-600 font-mono">{t.fat.toFixed(1)} / {t.snf.toFixed(1)}</td>
-                  <td className="px-6 py-4 text-sm text-stone-600 font-mono">₹{t.rate.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{t.quantity.toFixed(1)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{t.fat.toFixed(1)} / {t.snf.toFixed(1)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">₹{t.rate.toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-sm font-medium text-stone-900">₹{t.amount.toFixed(2)}</span>
+                      <span className="text-sm font-medium text-stone-900 dark:text-white">₹{t.amount.toFixed(2)}</span>
                       {activeTab === 'pending' && profile?.role === 'admin' && (
                         <button
                           onClick={() => handleApprove(t.id)}
-                          className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                          className="p-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
                           title="Approve Manual Entry"
                         >
                           <ShieldCheck size={16} />
@@ -263,7 +263,7 @@ export default function Reports() {
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-stone-400 italic">No records found for this period</td>
+                  <td colSpan={7} className="px-6 py-12 text-center text-stone-400 dark:text-stone-500 italic">No records found for this period</td>
                 </tr>
               )}
             </tbody>

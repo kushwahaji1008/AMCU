@@ -82,12 +82,12 @@ export default function RateChartManagement() {
     <div className="space-y-8">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900">Rate Chart Management</h1>
-          <p className="text-stone-500">Manage milk pricing based on FAT and SNF</p>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Rate Chart Management</h1>
+          <p className="text-stone-500 dark:text-stone-400">Manage milk pricing based on FAT and SNF</p>
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
+          className="flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
         >
           <Plus size={18} />
           Add New Rate
@@ -95,47 +95,47 @@ export default function RateChartManagement() {
       </div>
 
       {isAdding && (
-        <div className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-medium text-stone-900">Add New {activeTab} Rate</h2>
-            <button onClick={() => setIsAdding(false)} className="p-2 text-stone-400 hover:text-stone-900">
+            <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Add New {activeTab} Rate</h2>
+            <button onClick={() => setIsAdding(false)} className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white">
               <X size={20} />
             </button>
           </div>
           <form onSubmit={handleAddRate} className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">FAT %</label>
+              <label className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT %</label>
               <input
                 type="number"
                 step="0.1"
                 required
                 value={newRate.fat}
                 onChange={(e) => setNewRate({ ...newRate, fat: e.target.value })}
-                className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none"
+                className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                 placeholder="0.0"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">SNF %</label>
+              <label className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">SNF %</label>
               <input
                 type="number"
                 step="0.1"
                 required
                 value={newRate.snf}
                 onChange={(e) => setNewRate({ ...newRate, snf: e.target.value })}
-                className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none"
+                className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                 placeholder="0.0"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Rate (₹/kg)</label>
+              <label className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate (₹/kg)</label>
               <input
                 type="number"
                 step="0.01"
                 required
                 value={newRate.rate}
                 onChange={(e) => setNewRate({ ...newRate, rate: e.target.value })}
-                className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none"
+                className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                 placeholder="0.00"
               />
             </div>
@@ -143,7 +143,7 @@ export default function RateChartManagement() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
               >
                 <Check size={18} />
                 {loading ? 'Saving...' : 'Save Rate'}
@@ -153,8 +153,8 @@ export default function RateChartManagement() {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="flex border-b border-stone-100">
+      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
+        <div className="flex border-b border-stone-100 dark:border-stone-800">
           {(['Cow', 'Buffalo'] as const).map((tab) => (
             <button
               key={tab}
@@ -162,8 +162,8 @@ export default function RateChartManagement() {
               className={cn(
                 "flex-1 py-4 text-sm font-medium transition-colors",
                 activeTab === tab 
-                  ? "text-stone-900 border-b-2 border-stone-900" 
-                  : "text-stone-400 hover:text-stone-600"
+                  ? "text-stone-900 dark:text-white border-b-2 border-stone-900 dark:border-white" 
+                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400"
               )}
             >
               {tab} Rate Chart
@@ -174,11 +174,11 @@ export default function RateChartManagement() {
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
               <input
                 type="text"
                 placeholder="Search rates..."
-                className="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none text-sm"
+                className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
               />
             </div>
           </div>
@@ -186,29 +186,29 @@ export default function RateChartManagement() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-stone-100">
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 uppercase tracking-wider">FAT %</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 uppercase tracking-wider">SNF %</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Rate (₹/kg)</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Effective From</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 uppercase tracking-wider text-right">Actions</th>
+                <tr className="border-b border-stone-100 dark:border-stone-800">
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT %</th>
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">SNF %</th>
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate (₹/kg)</th>
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Effective From</th>
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-50">
+              <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
                 {rates.map((rate) => (
-                  <tr key={rate.id} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="py-4 px-4 text-sm text-stone-600 font-mono">{rate.fat.toFixed(1)}</td>
-                    <td className="py-4 px-4 text-sm text-stone-600 font-mono">{rate.snf.toFixed(1)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-stone-900 font-mono">₹{rate.rate.toFixed(2)}</td>
-                    <td className="py-4 px-4 text-sm text-stone-500">{rate.effectiveFrom}</td>
+                  <tr key={rate.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+                    <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.fat.toFixed(1)}</td>
+                    <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.snf.toFixed(1)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-stone-900 dark:text-white font-mono">₹{rate.rate.toFixed(2)}</td>
+                    <td className="py-4 px-4 text-sm text-stone-500 dark:text-stone-400">{rate.effectiveFrom}</td>
                     <td className="py-4 px-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="p-2 text-stone-400 hover:text-stone-900 transition-colors">
+                        <button className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
                           <Edit2 size={16} />
                         </button>
                         <button 
                           onClick={() => handleDeleteRate(rate.id!)}
-                          className="p-2 text-stone-400 hover:text-red-600 transition-colors"
+                          className="p-2 text-stone-400 dark:text-stone-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -218,7 +218,7 @@ export default function RateChartManagement() {
                 ))}
                 {rates.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-stone-400 italic">No rates defined for {activeTab}</td>
+                    <td colSpan={5} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">No rates defined for {activeTab}</td>
                   </tr>
                 )}
               </tbody>

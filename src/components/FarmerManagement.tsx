@@ -3,8 +3,10 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { Farmer } from '../types';
-import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye } from 'lucide-react';
+import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download } from 'lucide-react';
+import JsBarcode from 'jsbarcode';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export default function FarmerManagement() {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -13,6 +15,33 @@ export default function FarmerManagement() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
+
+  const downloadBarcode = (farmerId: string, farmerName: string) => {
+    const canvas = document.createElement('canvas');
+    try {
+      JsBarcode(canvas, farmerId, {
+        format: "CODE128",
+        lineColor: "#000",
+        width: 2,
+        height: 100,
+        displayValue: true,
+        fontSize: 20,
+        margin: 10
+      });
+
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Barcode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Barcode for ${farmerName} downloaded`);
+    } catch (err) {
+      console.error('Barcode generation failed:', err);
+      toast.error('Failed to generate barcode');
+    }
+  };
 
   const [newFarmer, setNewFarmer] = useState({
     farmerId: '',
@@ -36,6 +65,12 @@ export default function FarmerManagement() {
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!newFarmer.farmerId.trim()) newErrors.farmerId = 'Member ID is required';
+    
+    // Check for unique Farmer ID
+    if (farmers.some(f => f.farmerId === newFarmer.farmerId.trim())) {
+      newErrors.farmerId = 'Member ID already exists';
+    }
+
     if (!newFarmer.name.trim()) newErrors.name = 'Full Name is required';
     if (!newFarmer.village.trim()) newErrors.village = 'Village is required';
     
@@ -44,6 +79,8 @@ export default function FarmerManagement() {
       newErrors.mobile = 'Mobile number is required';
     } else if (!mobileRegex.test(newFarmer.mobile.trim())) {
       newErrors.mobile = 'Mobile number must be 10 digits';
+    } else if (farmers.some(f => f.mobile === newFarmer.mobile.trim())) {
+      newErrors.mobile = 'Mobile number already registered';
     }
 
     setErrors(newErrors);
@@ -61,8 +98,17 @@ export default function FarmerManagement() {
         status: 'Active',
         createdAt: new Date().toISOString(),
       };
-      await addDoc(collection(db, 'farmers'), farmerData);
+      const docRef = await addDoc(collection(db, 'farmers'), farmerData);
       setIsAdding(false);
+      
+      // Offer barcode download
+      toast.success('Farmer registered successfully!', {
+        action: {
+          label: 'Download Barcode',
+          onClick: () => downloadBarcode(newFarmer.farmerId, newFarmer.name)
+        }
+      });
+
       setNewFarmer({
         farmerId: '',
         name: '',
@@ -93,12 +139,12 @@ export default function FarmerManagement() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900">Farmers</h1>
-          <p className="text-stone-500">Manage your member database</p>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Farmers</h1>
+          <p className="text-stone-500 dark:text-stone-400">Manage your member database</p>
         </div>
         <button
           onClick={() => setIsAdding(true)}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
+          className="flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
         >
           <UserPlus size={18} />
           Add Farmer
@@ -106,11 +152,11 @@ export default function FarmerManagement() {
       </div>
 
       {isAdding && (
-        <div className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-stone-50 flex items-center justify-between">
-              <h2 className="text-xl font-serif font-medium text-stone-900">Register New Farmer</h2>
-              <button onClick={closeAdding} className="text-stone-400 hover:text-stone-900">
+        <div className="fixed inset-0 bg-stone-900/20 dark:bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden border border-stone-100 dark:border-stone-800">
+            <div className="p-6 border-b border-stone-50 dark:border-stone-800 flex items-center justify-between">
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Register New Farmer</h2>
+              <button onClick={closeAdding} className="text-stone-400 hover:text-stone-900 dark:hover:text-white">
                 <X size={24} />
               </button>
             </div>
@@ -126,8 +172,8 @@ export default function FarmerManagement() {
                       if (errors.farmerId) setErrors({...errors, farmerId: ''});
                     }}
                     className={cn(
-                      "w-full p-3 bg-stone-50 border rounded-xl focus:outline-none",
-                      errors.farmerId ? "border-red-300 bg-red-50" : "border-stone-100"
+                      "w-full p-3 bg-stone-50 dark:bg-stone-800 border rounded-xl focus:outline-none dark:text-white",
+                      errors.farmerId ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-stone-100 dark:border-stone-700"
                     )}
                     placeholder="e.g. 101"
                   />
@@ -138,7 +184,7 @@ export default function FarmerManagement() {
                   <select
                     value={newFarmer.cattleType}
                     onChange={e => setNewFarmer({...newFarmer, cattleType: e.target.value as any})}
-                    className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none"
+                    className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                   >
                     <option value="Cow">Cow</option>
                     <option value="Buffalo">Buffalo</option>
@@ -156,8 +202,8 @@ export default function FarmerManagement() {
                     if (errors.name) setErrors({...errors, name: ''});
                   }}
                   className={cn(
-                    "w-full p-3 bg-stone-50 border rounded-xl focus:outline-none",
-                    errors.name ? "border-red-300 bg-red-50" : "border-stone-100"
+                    "w-full p-3 bg-stone-50 dark:bg-stone-800 border rounded-xl focus:outline-none dark:text-white",
+                    errors.name ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-stone-100 dark:border-stone-700"
                   )}
                   placeholder="Enter farmer name"
                 />
@@ -173,8 +219,8 @@ export default function FarmerManagement() {
                       if (errors.mobile) setErrors({...errors, mobile: ''});
                     }}
                     className={cn(
-                      "w-full p-3 bg-stone-50 border rounded-xl focus:outline-none",
-                      errors.mobile ? "border-red-300 bg-red-50" : "border-stone-100"
+                      "w-full p-3 bg-stone-50 dark:bg-stone-800 border rounded-xl focus:outline-none dark:text-white",
+                      errors.mobile ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-stone-100 dark:border-stone-700"
                     )}
                     placeholder="10-digit number"
                   />
@@ -190,8 +236,8 @@ export default function FarmerManagement() {
                       if (errors.village) setErrors({...errors, village: ''});
                     }}
                     className={cn(
-                      "w-full p-3 bg-stone-50 border rounded-xl focus:outline-none",
-                      errors.village ? "border-red-300 bg-red-50" : "border-stone-100"
+                      "w-full p-3 bg-stone-50 dark:bg-stone-800 border rounded-xl focus:outline-none dark:text-white",
+                      errors.village ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-stone-100 dark:border-stone-700"
                     )}
                     placeholder="Village name"
                   />
@@ -202,7 +248,7 @@ export default function FarmerManagement() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 transition-colors disabled:opacity-50"
+                  className="w-full py-4 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-2xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Registering...' : 'Register Farmer'}
                 </button>
@@ -212,23 +258,23 @@ export default function FarmerManagement() {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-stone-50">
+      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-stone-50 dark:border-stone-800">
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
             <input
               type="text"
               placeholder="Search by name or ID..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
             />
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-stone-50/50">
+              <tr className="bg-stone-50/50 dark:bg-stone-800/50">
                 <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Farmer Name</th>
                 <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider">Village</th>
@@ -237,38 +283,55 @@ export default function FarmerManagement() {
                 <th className="px-6 py-4 text-xs font-medium text-stone-400 uppercase tracking-wider"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-50">
+            <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
               {filteredFarmers.map((f) => (
-                <tr key={f.id} className="hover:bg-stone-50/50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-mono text-stone-500">{f.farmerId}</td>
+                <tr key={f.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-stone-500 dark:text-stone-400">{f.farmerId}</span>
+                      <button 
+                        onClick={() => downloadBarcode(f.farmerId, f.name)}
+                        className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded transition-colors"
+                      >
+                        Download Barcode
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <Link to={`/farmers/${f.id}`} className="hover:underline group">
-                      <p className="text-sm font-medium text-stone-900 group-hover:text-blue-600 transition-colors">{f.name}</p>
-                      <p className="text-xs text-stone-400">{f.mobile}</p>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{f.name}</p>
+                      <p className="text-xs text-stone-400 dark:text-stone-500">{f.mobile}</p>
                     </Link>
                   </td>
-                  <td className="px-6 py-4 text-sm text-stone-600">{f.village}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{f.village}</td>
                   <td className="px-6 py-4">
-                    <span className="text-xs font-medium text-stone-500 bg-stone-100 px-2 py-1 rounded-lg">
+                    <span className="text-xs font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2 py-1 rounded-lg">
                       {f.cattleType}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                       <Check size={14} />
                       Active
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => downloadBarcode(f.farmerId, f.name)}
+                        className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
+                        title="Download Barcode"
+                      >
+                        <QrCode size={18} />
+                      </button>
                       <Link 
                         to={`/farmers/${f.id}`}
-                        className="p-2 text-stone-400 hover:text-stone-900 hover:bg-stone-50 rounded-lg transition-colors"
+                        className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
                         title="View Profile"
                       >
                         <Eye size={18} />
                       </Link>
-                      <button className="p-2 text-stone-400 hover:text-stone-900 rounded-lg">
+                      <button className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-lg">
                         <MoreVertical size={18} />
                       </button>
                     </div>
@@ -277,7 +340,7 @@ export default function FarmerManagement() {
               ))}
               {filteredFarmers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-stone-400 italic">No farmers found</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-stone-400 dark:text-stone-500 italic">No farmers found</td>
                 </tr>
               )}
             </tbody>
