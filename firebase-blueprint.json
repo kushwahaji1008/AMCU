@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "Farmer": {
+      "title": "Farmer",
+      "description": "A milk supplier member of the collection unit.",
+      "type": "object",
+      "properties": {
+        "farmerId": { "type": "string", "description": "Unique member code." },
+        "name": { "type": "string", "description": "Full name of the farmer." },
+        "mobile": { "type": "string", "description": "Contact number." },
+        "village": { "type": "string", "description": "Village name." },
+        "cattleType": { "type": "string", "enum": ["Cow", "Buffalo", "Mixed"] },
+        "bankAccount": { "type": "string", "description": "Bank account number for payments." },
+        "ifsc": { "type": "string", "description": "IFSC code of the bank." },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["farmerId", "name", "village", "cattleType", "status"]
+    },
+    "CollectionTransaction": {
+      "title": "Milk Collection Transaction",
+      "description": "A single milk pour transaction.",
+      "type": "object",
+      "properties": {
+        "txnId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "shift": { "type": "string", "enum": ["Morning", "Evening"] },
+        "farmerId": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "milkType": { "type": "string", "enum": ["Cow", "Buffalo", "Mixed"] },
+        "quantity": { "type": "number", "description": "Weight in kg/liters." },
+        "fat": { "type": "number", "description": "Fat percentage." },
+        "snf": { "type": "number", "description": "SNF percentage." },
+        "clr": { "type": "number", "description": "CLR reading." },
+        "rate": { "type": "number", "description": "Price per unit." },
+        "amount": { "type": "number", "description": "Total payable for this txn." },
+        "operatorId": { "type": "string" }
+      },
+      "required": ["timestamp", "shift", "farmerId", "milkType", "quantity", "fat", "snf", "rate", "amount"]
+    },
+    "RateChart": {
+      "title": "Rate Chart",
+      "description": "Pricing rules based on FAT and SNF.",
+      "type": "object",
+      "properties": {
+        "effectiveFrom": { "type": "string", "format": "date-time" },
+        "milkType": { "type": "string", "enum": ["Cow", "Buffalo", "Mixed"] },
+        "baseRate": { "type": "number" },
+        "fatStandard": { "type": "number" },
+        "snfStandard": { "type": "number" },
+        "fatStep": { "type": "number" },
+        "snfStep": { "type": "number" }
+      },
+      "required": ["effectiveFrom", "milkType", "baseRate"]
+    },
+    "ShiftSummary": {
+      "title": "Shift Summary",
+      "description": "Aggregated data for a completed shift.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "shift": { "type": "string", "enum": ["Morning", "Evening"] },
+        "totalFarmers": { "type": "integer" },
+        "totalQuantity": { "type": "number" },
+        "avgFat": { "type": "number" },
+        "avgSnf": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "closedAt": { "type": "string", "format": "date-time" },
+        "closedBy": { "type": "string" }
+      },
+      "required": ["date", "shift", "totalFarmers", "totalQuantity", "totalAmount"]
+    }
+  },
+  "firestore": {
+    "/farmers/{farmerId}": { "schema": "Farmer", "description": "Farmer master records." },
+    "/collections/{txnId}": { "schema": "CollectionTransaction", "description": "Daily milk collection entries." },
+    "/rateCharts/{chartId}": { "schema": "RateChart", "description": "Pricing configuration." },
+    "/shiftSummaries/{summaryId}": { "schema": "ShiftSummary", "description": "Shift-wise closure reports." }
+  }
+}

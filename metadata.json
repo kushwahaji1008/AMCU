@@ -1,0 +1,5 @@
+{
+  "name": "MilkFlow AMCU",
+  "description": "A comprehensive milk collection unit management system for dairy societies, featuring farmer records, quality-based pricing (FAT/SNF), shift management, and automated billing.",
+  "requestFramePermissions": ["camera"]
+}

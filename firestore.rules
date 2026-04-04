@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: farmers
+    // Fields: farmerId, name, mobile, village, cattleType, bankAccount, ifsc, status, createdAt
+    //
+    // Collection: collections
+    // Fields: txnId, timestamp, shift, farmerId, farmerName, milkType, quantity, fat, snf, clr, rate, amount, operatorId
+    //
+    // Collection: rateCharts
+    // Fields: effectiveFrom, milkType, baseRate, fatStandard, snfStandard, fatStep, snfStep
+    //
+    // Collection: shiftSummaries
+    // Fields: date, shift, totalFarmers, totalQuantity, avgFat, avgSnf, totalAmount, closedAt, closedBy
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "kushwahajishreeshree1008@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOperator() {
+      return isAuthenticated(); // For this prototype, all authenticated users can operate
+    }
+
+    // Validation Functions
+    function isValidFarmer(data) {
+      return data.farmerId is string && data.farmerId.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
+             data.village is string &&
+             data.cattleType in ['Cow', 'Buffalo', 'Mixed'] &&
+             data.status in ['Active', 'Inactive'];
+    }
+
+    function isValidCollection(data) {
+      return data.farmerId is string &&
+             data.quantity is number && data.quantity > 0 &&
+             data.fat is number && data.fat >= 0 &&
+             data.snf is number && data.snf >= 0 &&
+             data.amount is number && data.amount >= 0;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    match /farmers/{farmerId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOperator() && isValidFarmer(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /collections/{txnId} {
+      allow read: if isAuthenticated();
+      allow create: if isOperator() && isValidCollection(request.resource.data);
+      allow update: if isAdmin(); // Only admins can correct collection records
+      allow delete: if isAdmin();
+    }
+
+    match /rateCharts/{chartId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /shiftSummaries/{summaryId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOperator();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated(); // All users can log actions
+      allow update, delete: if false; // Audit logs are immutable
+    }
+
+    match /backups/{backupId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

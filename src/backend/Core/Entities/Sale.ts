@@ -1,0 +1,26 @@
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  status: 'active' | 'inactive';
+  createdAt: Date;
+}
+
+export interface MilkSale {
+  id: string;
+  customerId: string;
+  date: Date;
+  quantity: number;
+  rate: number;
+  totalAmount: number;
+  createdAt: Date;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  passwordHash: string;
+  role: 'admin' | 'operator';
+  createdAt: Date;
+}
