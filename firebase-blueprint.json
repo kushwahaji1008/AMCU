@@ -69,12 +69,46 @@
         "closedBy": { "type": "string" }
       },
       "required": ["date", "shift", "totalFarmers", "totalQuantity", "totalAmount"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A payment record to a farmer.",
+      "type": "object",
+      "properties": {
+        "farmerId": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["Cash", "UPI", "Check"] },
+        "reference": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "operatorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Completed", "Pending"] }
+      },
+      "required": ["farmerId", "farmerName", "amount", "method", "date", "timestamp", "operatorId", "status"]
+    },
+    "LedgerEntry": {
+      "title": "Ledger Entry",
+      "description": "A single entry in a farmer's financial ledger.",
+      "type": "object",
+      "properties": {
+        "farmerId": { "type": "string" },
+        "type": { "type": "string", "enum": ["Credit", "Debit"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "balanceAfter": { "type": "number" }
+      },
+      "required": ["farmerId", "type", "amount", "description", "referenceId", "timestamp", "balanceAfter"]
     }
   },
   "firestore": {
     "/farmers/{farmerId}": { "schema": "Farmer", "description": "Farmer master records." },
     "/collections/{txnId}": { "schema": "CollectionTransaction", "description": "Daily milk collection entries." },
     "/rateCharts/{chartId}": { "schema": "RateChart", "description": "Pricing configuration." },
-    "/shiftSummaries/{summaryId}": { "schema": "ShiftSummary", "description": "Shift-wise closure reports." }
+    "/shiftSummaries/{summaryId}": { "schema": "ShiftSummary", "description": "Shift-wise closure reports." },
+    "/payments/{paymentId}": { "schema": "Payment", "description": "Payment records to farmers." },
+    "/ledger/{entryId}": { "schema": "LedgerEntry", "description": "Farmer financial ledger." }
   }
 }

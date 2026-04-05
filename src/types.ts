@@ -9,6 +9,7 @@ export interface Farmer {
   ifsc?: string;
   status: 'Active' | 'Inactive';
   createdAt: string;
+  balance: number; // Current pending balance
 }
 
 export interface CollectionTransaction {
@@ -25,11 +26,6 @@ export interface CollectionTransaction {
   rate: number;
   amount: number;
   operatorId: string;
-  isManual?: boolean;
-  manualReason?: string;
-  isApproved?: boolean;
-  approvedBy?: string;
-  approvedAt?: string;
 }
 
 export interface RateChart {
@@ -41,6 +37,20 @@ export interface RateChart {
   snfStandard: number;
   fatStep: number;
   snfStep: number;
+  // These are for the table-based chart
+  fat?: number;
+  snf?: number;
+  rate?: number;
+}
+
+export interface RateSettings {
+  id?: string;
+  fatMultiplier1: number;
+  snfMultiplier1: number;
+  fatMultiplier2: number;
+  snfDeductions: { [key: string]: number };
+  minFatForFormula1: number;
+  maxFatForFormula1: number;
 }
 
 export interface ShiftSummary {
@@ -54,4 +64,28 @@ export interface ShiftSummary {
   totalAmount: number;
   closedAt: string;
   closedBy: string;
+}
+
+export interface Payment {
+  id: string;
+  farmerId: string;
+  farmerName: string;
+  amount: number;
+  method: 'Cash' | 'UPI' | 'Check';
+  reference?: string; // UPI ID, Check No, etc.
+  date: string;
+  timestamp: any;
+  operatorId: string;
+  status: 'Completed' | 'Pending';
+}
+
+export interface LedgerEntry {
+  id: string;
+  farmerId: string;
+  type: 'Credit' | 'Debit'; // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
+  amount: number;
+  description: string;
+  referenceId: string; // ID of the collection or payment record
+  timestamp: any;
+  balanceAfter: number;
 }

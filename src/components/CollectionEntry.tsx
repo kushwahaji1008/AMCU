@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
-import { collection, addDoc, query, where, getDocs, Timestamp, serverTimestamp, onSnapshot, orderBy } from 'firebase/firestore';
-import { Farmer, CollectionTransaction, RateChart } from '../types';
+import { collection, addDoc, query, where, getDocs, Timestamp, serverTimestamp, onSnapshot, orderBy, doc, runTransaction } from 'firebase/firestore';
+import { Farmer, CollectionTransaction, RateChart, RateSettings } from '../types';
+import { recordTransaction } from '../lib/ledger';
 import { format } from 'date-fns';
-import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, ShieldAlert, Settings2, QrCode } from 'lucide-react';
+import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, QrCode } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '../lib/utils';
 
@@ -22,8 +23,6 @@ export default function CollectionEntry() {
     snf: '',
     clr: '',
     milkType: 'Cow' as 'Cow' | 'Buffalo' | 'Mixed',
-    isManual: false,
-    manualReason: '',
   });
 
   const [calculated, setCalculated] = useState({
@@ -32,8 +31,14 @@ export default function CollectionEntry() {
   });
 
   const [rateCharts, setRateCharts] = useState<RateChart[]>([]);
+  const [rateSettings, setRateSettings] = useState<RateSettings | null>(null);
   const [isShiftClosed, setIsShiftClosed] = useState(false);
-  const shift = new Date().getHours() < 12 ? 'Morning' : 'Evening';
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedShift, setSelectedShift] = useState<'Morning' | 'Evening'>(
+    new Date().getHours() < 13 ? 'Morning' : 'Evening'
+  );
+  const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
+  const [selectedTxn, setSelectedTxn] = useState<CollectionTransaction | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'rateCharts'), orderBy('fat', 'asc'), orderBy('snf', 'asc'));
@@ -44,36 +49,142 @@ export default function CollectionEntry() {
   }, []);
 
   useEffect(() => {
-    const today = new Date();
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'rateSettings'), (snapshot) => {
+      if (snapshot.exists()) {
+        setRateSettings(snapshot.data() as RateSettings);
+      } else {
+        // Default settings if not found
+        setRateSettings({
+          fatMultiplier1: 3.96,
+          snfMultiplier1: 2.64,
+          fatMultiplier2: 7.77,
+          snfDeductions: {
+            '9.0': 0,
+            '8.9': 0.5,
+            '8.8': 1,
+            '8.7': 1.5,
+            '8.6': 2,
+            '8.5': 2.5,
+            '8.4': 3,
+            '8.3': 3.5,
+          },
+          minFatForFormula1: 3.0,
+          maxFatForFormula1: 6.0,
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const q = query(
       collection(db, 'shiftSummaries'),
-      where('date', '==', format(today, 'yyyy-MM-dd')),
-      where('shift', '==', shift)
+      where('date', '==', selectedDate),
+      where('shift', '==', selectedShift)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setIsShiftClosed(!snapshot.empty);
+      const isManuallyClosed = !snapshot.empty;
+      
+      // Auto-close logic based on time
+      const now = new Date();
+      const today = format(now, 'yyyy-MM-dd');
+      const currentHour = now.getHours();
+      
+      let isExpired = false;
+      if (selectedDate < today) {
+        isExpired = true;
+      } else if (selectedDate === today) {
+        if (selectedShift === 'Morning' && currentHour >= 13) {
+          isExpired = true;
+        }
+        // Evening shift technically closes at midnight, which becomes the next day (handled by selectedDate < today)
+      }
+
+      setIsShiftClosed(isManuallyClosed || isExpired);
     });
 
     return () => unsubscribe();
-  }, [shift]);
+  }, [selectedDate, selectedShift]);
 
-  // Rate calculation logic using RateChart from DB
+  useEffect(() => {
+    // We need to filter by date. Since timestamp is a Firestore Timestamp, 
+    // we need to calculate the start and end of the selected day.
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(db, 'collections'),
+      where('shift', '==', selectedShift),
+      where('timestamp', '>=', Timestamp.fromDate(startOfDay)),
+      where('timestamp', '<=', Timestamp.fromDate(endOfDay)),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CollectionTransaction[];
+      setTransactions(docs);
+    }, (err) => {
+      console.error("Error fetching transactions:", err);
+    });
+
+    return () => unsubscribe();
+  }, [selectedDate, selectedShift]);
+
+  // Rate calculation logic using RateChart from DB or Formula
   useEffect(() => {
     const qty = parseFloat(formData.quantity) || 0;
     const fat = parseFloat(formData.fat) || 0;
     const snf = parseFloat(formData.snf) || 0;
 
     if (qty > 0 && fat > 0) {
-      // Find matching rate in chart
-      // We look for the rate where fat and snf match (or are the closest lower values)
-      const matchingRate = rateCharts
-        .filter(r => r.milkType === formData.milkType && r.fat <= fat && r.snf <= snf)
-        .sort((a, b) => (b.fat + b.snf) - (a.fat + a.snf))[0];
+      let rate = 0;
 
-      let rate = matchingRate ? matchingRate.rate : 0;
+      if (rateSettings) {
+        if (fat >= rateSettings.minFatForFormula1 && fat < rateSettings.maxFatForFormula1) {
+          // Formula 1: Rate = fat * 3.96 + snf * 2.64
+          rate = fat * rateSettings.fatMultiplier1 + snf * rateSettings.snfMultiplier1;
+        } else {
+          // Formula 2: Rate based on SNF deductions
+          const snfKey = snf.toFixed(1);
+          const deductionPercent = rateSettings.snfDeductions[snfKey];
+          
+          if (deductionPercent !== undefined) {
+            // rate = fat * 7.77 - deduction%
+            const baseRate = fat * rateSettings.fatMultiplier2;
+            rate = baseRate * (1 - deductionPercent / 100);
+          } else {
+            // Fallback if SNF not in deduction list
+            // Find closest lower SNF in the list
+            const sortedSnfs = Object.keys(rateSettings.snfDeductions)
+              .map(Number)
+              .sort((a, b) => b - a);
+            
+            const closestSnf = sortedSnfs.find(s => s <= snf);
+            if (closestSnf !== undefined) {
+              const deductionPercent = rateSettings.snfDeductions[closestSnf.toFixed(1)];
+              const baseRate = fat * rateSettings.fatMultiplier2;
+              rate = baseRate * (1 - deductionPercent / 100);
+            }
+          }
+        }
+      }
 
-      // Fallback if no rate found in chart
+      // If formula didn't result in a rate, check the chart
+      if (!rate) {
+        const matchingRate = rateCharts
+          .filter(r => r.milkType === formData.milkType && r.fat !== undefined && r.snf !== undefined && r.fat <= fat && r.snf <= snf)
+          .sort((a, b) => ((b.fat || 0) + (b.snf || 0)) - ((a.fat || 0) + (a.snf || 0)))[0];
+
+        rate = matchingRate ? (matchingRate.rate || 0) : 0;
+      }
+
+      // Final fallback
       if (!rate) {
         const baseRate = formData.milkType === 'Cow' ? 35 : 45;
         const fatStd = formData.milkType === 'Cow' ? 3.5 : 6.0;
@@ -87,7 +198,7 @@ export default function CollectionEntry() {
     } else {
       setCalculated({ rate: 0, amount: 0 });
     }
-  }, [formData, rateCharts]);
+  }, [formData, rateCharts, rateSettings]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,16 +287,21 @@ export default function CollectionEntry() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isShiftClosed) {
-      toast.error(`The ${shift} shift for today is already closed. No further entries allowed.`);
+      toast.error(`The ${selectedShift} shift for ${selectedDate} is already closed. No further entries allowed.`);
       return;
     }
     if (!farmer || !calculated.amount) return;
 
     setLoading(true);
     try {
+      // Create a timestamp that matches the selected date but current time
+      const now = new Date();
+      const entryDate = new Date(selectedDate);
+      entryDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
       const txn: any = {
-        timestamp: serverTimestamp(),
-        shift: new Date().getHours() < 12 ? 'Morning' : 'Evening',
+        timestamp: Timestamp.fromDate(entryDate),
+        shift: selectedShift,
         farmerId: farmer.farmerId,
         farmerName: farmer.name,
         milkType: formData.milkType,
@@ -196,15 +312,18 @@ export default function CollectionEntry() {
         rate: calculated.rate,
         amount: calculated.amount,
         operatorId: auth.currentUser?.uid || 'unknown',
-        isManual: formData.isManual,
-        isApproved: formData.isManual ? false : true,
       };
 
-      if (formData.isManual) {
-        txn.manualReason = formData.manualReason;
-      }
-
-      await addDoc(collection(db, 'collections'), txn);
+      // Record in collections and update ledger atomically
+      const txnRef = await addDoc(collection(db, 'collections'), txn);
+      
+      await recordTransaction(
+        farmer.id,
+        'Credit',
+        txn.amount,
+        `Milk Collection: ${txn.quantity}kg @ ₹${txn.rate}/kg (${txn.fat}% FAT, ${txn.snf}% SNF)`,
+        txnRef.id
+      );
       
       // Trigger Notification (Fire and Forget)
       if (farmer.mobile) {
@@ -247,7 +366,7 @@ export default function CollectionEntry() {
         setSuccess(false);
         setFarmer(null);
         setSearchId('');
-        setFormData({ quantity: '', fat: '', snf: '', clr: '', milkType: 'Cow', isManual: false, manualReason: '' });
+        setFormData({ quantity: '', fat: '', snf: '', clr: '', milkType: 'Cow' });
       }, 3000);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'collections');
@@ -256,11 +375,44 @@ export default function CollectionEntry() {
     }
   };
 
+  const handlePrint = (txn: CollectionTransaction) => {
+    setSelectedTxn(txn);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>
-        <p className="text-stone-500 dark:text-stone-400">Record a new milk pour</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>
+          <p className="text-stone-500 dark:text-stone-400">Record a new milk pour</p>
+        </div>
+        
+        <div className="flex items-center gap-3 bg-white dark:bg-stone-900 p-2 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <div className="flex flex-col">
+            <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider px-2">Date</label>
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent border-none focus:ring-0 text-sm font-medium text-stone-900 dark:text-white px-2 py-1"
+            />
+          </div>
+          <div className="w-px h-8 bg-stone-100 dark:bg-stone-800" />
+          <div className="flex flex-col">
+            <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider px-2">Shift</label>
+            <select 
+              value={selectedShift}
+              onChange={(e) => setSelectedShift(e.target.value as 'Morning' | 'Evening')}
+              className="bg-transparent border-none focus:ring-0 text-sm font-medium text-stone-900 dark:text-white px-2 py-1 appearance-none cursor-pointer"
+            >
+              <option value="Morning">Morning</option>
+              <option value="Evening">Evening</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -353,46 +505,9 @@ export default function CollectionEntry() {
         <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white">2. Collection Details</h2>
-            <button
-              type="button"
-              onClick={() => setFormData({ ...formData, isManual: !formData.isManual })}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                formData.isManual 
-                  ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30" 
-                  : "bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-100 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700"
-              )}
-            >
-              <Settings2 size={14} />
-              {formData.isManual ? 'Manual Mode ON' : 'Manual Entry'}
-            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {formData.isManual && (
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl space-y-3">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm font-medium">
-                  <ShieldAlert size={18} />
-                  Manual Entry Fallback Active
-                </div>
-                <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
-                  Device integration bypassed. Please provide a reason. This entry will require supervisor approval before final settlement.
-                </p>
-                <select
-                  required={formData.isManual}
-                  value={formData.manualReason}
-                  onChange={(e) => setFormData({ ...formData, manualReason: e.target.value })}
-                  className="w-full p-2.5 bg-white dark:bg-stone-800 border border-amber-200 dark:border-amber-900/30 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-white"
-                >
-                  <option value="">Select Reason for Manual Entry</option>
-                  <option value="Weighing Scale Offline">Weighing Scale Offline</option>
-                  <option value="Milk Analyzer Error">Milk Analyzer Error</option>
-                  <option value="Bluetooth Connection Failed">Bluetooth Connection Failed</option>
-                  <option value="Device Calibration Required">Device Calibration Required</option>
-                  <option value="Other">Other (Specify in notes)</option>
-                </select>
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Milk Type</label>
@@ -485,6 +600,134 @@ export default function CollectionEntry() {
           </form>
         </div>
       </div>
+
+      {/* Bottom Section: Recent Transactions for Selected Date/Shift */}
+      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden mt-8">
+        <div className="p-6 border-b border-stone-100 dark:border-stone-800 flex justify-between items-center">
+          <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white">
+            Collection Transactions ({selectedShift} - {format(new Date(selectedDate), 'dd MMM yyyy')})
+          </h2>
+          <div className="text-sm text-stone-500 dark:text-stone-400">
+            Total: ₹{transactions.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-stone-100 dark:border-stone-800">
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Time</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Farmer</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Milk</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Qty (kg)</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT/SNF</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right">Amount</th>
+                <th className="py-4 px-6 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right print:hidden">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
+              {transactions.map((txn) => (
+                <tr key={txn.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">
+                    {txn.timestamp instanceof Timestamp ? format(txn.timestamp.toDate(), 'hh:mm a') : '...'}
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</div>
+                    <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerId}</div>
+                  </td>
+                  <td className="py-4 px-6">
+                    <span className={cn(
+                      "px-2 py-1 rounded-lg text-[10px] font-medium uppercase tracking-wider",
+                      txn.milkType === 'Cow' ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400" : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                    )}>
+                      {txn.milkType}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white">{txn.quantity.toFixed(1)}</td>
+                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">{txn.fat.toFixed(1)} / {txn.snf.toFixed(1)}</td>
+                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">₹{txn.rate.toFixed(2)}</td>
+                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white text-right">₹{txn.amount.toFixed(2)}</td>
+                  <td className="py-4 px-6 text-right print:hidden">
+                    <button 
+                      onClick={() => handlePrint(txn)}
+                      className="p-2 text-stone-400 hover:text-stone-900 transition-colors"
+                    >
+                      <Printer size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">
+                    No transactions recorded for this shift.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Print-only Receipt Layout */}
+      {selectedTxn && (
+        <div className="hidden print:block absolute top-0 left-0 w-full bg-white z-[100] p-4 text-stone-900">
+          <div className="max-w-xs mx-auto border border-stone-300 p-4 space-y-4 text-[12px]">
+            <div className="text-center border-b border-stone-200 pb-4">
+              <h1 className="text-lg font-serif font-bold uppercase tracking-widest">MilkFlow AMCU</h1>
+              <p className="text-[10px] text-stone-500">Collection Receipt</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-y-2">
+              <div className="text-stone-500">Receipt No:</div>
+              <div className="font-mono text-right">#RC-{selectedTxn.id.slice(-6).toUpperCase()}</div>
+              
+              <div className="text-stone-500">Date & Time:</div>
+              <div className="text-right">
+                {selectedTxn.timestamp instanceof Timestamp ? format(selectedTxn.timestamp.toDate(), 'dd/MM/yyyy HH:mm') : ''}
+              </div>
+
+              <div className="text-stone-500">Shift:</div>
+              <div className="text-right">{selectedTxn.shift}</div>
+
+              <div className="text-stone-500">Member:</div>
+              <div className="text-right font-bold">{selectedTxn.farmerName} ({selectedTxn.farmerId})</div>
+            </div>
+
+            <div className="border-y border-stone-200 py-2 space-y-1">
+              <div className="flex justify-between">
+                <span>Milk Type:</span>
+                <span className="font-bold">{selectedTxn.milkType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Quantity:</span>
+                <span className="font-bold">{selectedTxn.quantity.toFixed(2)} kg</span>
+              </div>
+              <div className="flex justify-between">
+                <span>FAT:</span>
+                <span className="font-bold">{selectedTxn.fat.toFixed(1)} %</span>
+              </div>
+              <div className="flex justify-between">
+                <span>SNF:</span>
+                <span className="font-bold">{selectedTxn.snf.toFixed(1)} %</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Rate:</span>
+                <span className="font-bold">₹{selectedTxn.rate.toFixed(2)} /kg</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-1">
+              <span className="font-bold uppercase">Total Amount:</span>
+              <span className="text-xl font-serif font-bold">₹{selectedTxn.amount.toFixed(2)}</span>
+            </div>
+
+            <div className="pt-4 text-center text-[8px] text-stone-400 border-t border-stone-100">
+              <p>Thank you for your business!</p>
+              <p>Generated by MilkFlow AMCU System</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

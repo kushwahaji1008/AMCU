@@ -93,8 +93,11 @@ export class CollectionRepository implements ICollectionRepository {
   }
 
   async getDailyReport(date: Date): Promise<MilkCollection[]> {
-    const dateStr = date.toISOString().split('T')[0];
-    return db.collections.filter(c => c.date.toISOString().split('T')[0] === dateStr);
+    const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : new Date(date).toISOString().split('T')[0];
+    return db.collections.filter(c => {
+      const cDate = c.date instanceof Date ? c.date : new Date(c.date);
+      return cDate.toISOString().split('T')[0] === dateStr;
+    });
   }
 }
 

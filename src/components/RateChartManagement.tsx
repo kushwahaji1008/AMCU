@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, orderBy, deleteDoc, doc } from 'firebase/firestore';
-import { RateChart } from '../types';
-import { Settings2, Plus, Search, FileText, Trash2, Edit2, X, Check } from 'lucide-react';
+import { collection, addDoc, onSnapshot, query, where, orderBy, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { RateChart, RateSettings } from '../types';
+import { Settings2, Plus, Search, Trash2, Edit2, X, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function RateChartManagement() {
-  const [activeTab, setActiveTab] = useState<'Cow' | 'Buffalo'>('Cow');
+  const [activeTab, setActiveTab] = useState<'Cow' | 'Buffalo' | 'Formula'>('Cow');
   const [rates, setRates] = useState<RateChart[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,8 +18,26 @@ export default function RateChartManagement() {
     rate: '',
     effectiveFrom: format(new Date(), 'yyyy-MM-dd'),
   });
+  const [rateSettings, setRateSettings] = useState<RateSettings>({
+    fatMultiplier1: 3.96,
+    snfMultiplier1: 2.64,
+    fatMultiplier2: 7.77,
+    snfDeductions: {
+      '9.0': 0,
+      '8.9': 0.5,
+      '8.8': 1,
+      '8.7': 1.5,
+      '8.6': 2,
+      '8.5': 2.5,
+      '8.4': 3,
+      '8.3': 3.5,
+    },
+    minFatForFormula1: 3.0,
+    maxFatForFormula1: 6.0,
+  });
 
   useEffect(() => {
+    if (activeTab === 'Formula') return;
     const q = query(
       collection(db, 'rateCharts'),
       where('milkType', '==', activeTab),
@@ -38,17 +56,36 @@ export default function RateChartManagement() {
     return () => unsubscribe();
   }, [activeTab]);
 
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'rateSettings'), (snapshot) => {
+      if (snapshot.exists()) {
+        setRateSettings(snapshot.data() as RateSettings);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'settings', 'rateSettings'), rateSettings);
+      toast.success('Formula settings saved successfully');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddRate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const rateData: Omit<RateChart, 'id'> = {
+      const rateData: any = {
         milkType: activeTab,
-        baseRate: parseFloat(newRate.rate),
-        fatStandard: parseFloat(newRate.fat),
-        snfStandard: parseFloat(newRate.snf),
-        fatStep: 0.1,
-        snfStep: 0.1,
+        rate: parseFloat(newRate.rate),
+        fat: parseFloat(newRate.fat),
+        snf: parseFloat(newRate.snf),
         effectiveFrom: newRate.effectiveFrom,
       };
 
@@ -85,16 +122,18 @@ export default function RateChartManagement() {
           <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Rate Chart Management</h1>
           <p className="text-stone-500 dark:text-stone-400">Manage milk pricing based on FAT and SNF</p>
         </div>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
-        >
-          <Plus size={18} />
-          Add New Rate
-        </button>
+        {activeTab !== 'Formula' && (
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
+          >
+            <Plus size={18} />
+            Add New Rate
+          </button>
+        )}
       </div>
 
-      {isAdding && (
+      {isAdding && activeTab !== 'Formula' && (
         <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Add New {activeTab} Rate</h2>
@@ -155,7 +194,7 @@ export default function RateChartManagement() {
 
       <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
         <div className="flex border-b border-stone-100 dark:border-stone-800">
-          {(['Cow', 'Buffalo'] as const).map((tab) => (
+          {(['Cow', 'Buffalo', 'Formula'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -166,64 +205,154 @@ export default function RateChartManagement() {
                   : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-400"
               )}
             >
-              {tab} Rate Chart
+              {tab} {tab === 'Formula' ? 'Settings' : 'Rate Chart'}
             </button>
           ))}
         </div>
 
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
-              <input
-                type="text"
-                placeholder="Search rates..."
-                className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
-              />
-            </div>
-          </div>
+          {activeTab === 'Formula' ? (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                    <Settings2 size={18} className="text-stone-400" />
+                    Formula 1 (3.0 ≤ FAT &lt; 6.0)
+                  </h3>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">FAT Multiplier</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={rateSettings.fatMultiplier1}
+                      onChange={(e) => setRateSettings({ ...rateSettings, fatMultiplier1: parseFloat(e.target.value) })}
+                      className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">SNF Multiplier</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={rateSettings.snfMultiplier1}
+                      onChange={(e) => setRateSettings({ ...rateSettings, snfMultiplier1: parseFloat(e.target.value) })}
+                      className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
+                    />
+                  </div>
+                </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-stone-100 dark:border-stone-800">
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT %</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">SNF %</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate (₹/kg)</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Effective From</th>
-                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
-                {rates.map((rate) => (
-                  <tr key={rate.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
-                    <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.fat.toFixed(1)}</td>
-                    <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.snf.toFixed(1)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-stone-900 dark:text-white font-mono">₹{rate.rate.toFixed(2)}</td>
-                    <td className="py-4 px-4 text-sm text-stone-500 dark:text-stone-400">{rate.effectiveFrom}</td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteRate(rate.id!)}
-                          className="p-2 text-stone-400 dark:text-stone-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {rates.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">No rates defined for {activeTab}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                    <Settings2 size={18} className="text-stone-400" />
+                    Formula 2 (FAT ≥ 6.0)
+                  </h3>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">FAT Multiplier</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={rateSettings.fatMultiplier2}
+                      onChange={(e) => setRateSettings({ ...rateSettings, fatMultiplier2: parseFloat(e.target.value) })}
+                      className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
+                    />
+                  </div>
+                  <p className="text-xs text-stone-500 italic">Rate = FAT * Multiplier - SNF Deduction %</p>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                    <Settings2 size={18} className="text-stone-400" />
+                    SNF Deductions (%)
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {Object.entries(rateSettings.snfDeductions)
+                      .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+                      .map(([snf, deduction]) => (
+                        <div key={snf} className="space-y-1">
+                          <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">SNF {snf}</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={deduction}
+                            onChange={(e) => {
+                              const newDeductions = { ...rateSettings.snfDeductions, [snf]: parseFloat(e.target.value) };
+                              setRateSettings({ ...rateSettings, snfDeductions: newDeductions });
+                            }}
+                            className="w-full p-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-lg focus:outline-none text-sm dark:text-white"
+                          />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-stone-100 dark:border-stone-800 flex justify-end">
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={loading}
+                  className="px-8 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors flex items-center gap-2"
+                >
+                  <Check size={18} />
+                  {loading ? 'Saving...' : 'Save Formula Settings'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="animate-in fade-in duration-300">
+              <div className="flex justify-between items-center mb-6">
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search rates..."
+                    className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-stone-100 dark:border-stone-800">
+                      <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">FAT %</th>
+                      <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">SNF %</th>
+                      <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Rate (₹/kg)</th>
+                      <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Effective From</th>
+                      <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
+                    {rates.map((rate) => (
+                      <tr key={rate.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+                        <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.fat?.toFixed(1) || '0.0'}</td>
+                        <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.snf?.toFixed(1) || '0.0'}</td>
+                        <td className="py-4 px-4 text-sm font-medium text-stone-900 dark:text-white font-mono">₹{rate.rate?.toFixed(2) || '0.00'}</td>
+                        <td className="py-4 px-4 text-sm text-stone-500 dark:text-stone-400">{rate.effectiveFrom}</td>
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteRate(rate.id!)}
+                              className="p-2 text-stone-400 dark:text-stone-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {rates.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">No rates defined for {activeTab}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

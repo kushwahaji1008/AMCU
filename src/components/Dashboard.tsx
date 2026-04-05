@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, handleFirestoreError, OperationType, toDate } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, where, Timestamp } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../LanguageContext';
 import { CollectionTransaction, Farmer } from '../types';
-import { format, startOfDay, endOfDay, subDays, parseISO } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { 
   TrendingUp, Users, Milk, IndianRupee, Calendar, ChevronDown, 
   AlertTriangle, CheckCircle2, Wifi, RefreshCw, ArrowRight,
@@ -149,7 +149,7 @@ export default function Dashboard() {
     }
 
     trendData.forEach(txn => {
-      const dateStr = format(parseISO(txn.timestamp), 'yyyy-MM-dd');
+      const dateStr = format(toDate(txn.timestamp), 'yyyy-MM-dd');
       if (dailyMap.has(dateStr)) {
         const current = dailyMap.get(dateStr)!;
         current.qty += txn.quantity;
@@ -163,7 +163,7 @@ export default function Dashboard() {
 
     return Array.from(dailyMap.entries())
       .map(([date, data]) => ({
-        date: format(parseISO(date), 'MMM dd'),
+        date: format(toDate(date), 'MMM dd'),
         quantity: Number(data.qty.toFixed(1)),
         morning: Number(data.morning.toFixed(1)),
         evening: Number(data.evening.toFixed(1)),

@@ -4,7 +4,7 @@ import { useLanguage } from '../LanguageContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
-  Beaker, Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone
+  Beaker, Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -40,10 +40,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('qualityTesting'), path: '/quality', icon: Beaker },
     { name: t('shifts'), path: '/shifts', icon: Clock },
     { name: t('farmers'), path: '/farmers', icon: Users },
-    { name: t('approvals'), path: '/approvals', icon: Shield, adminOnly: true },
     { name: t('rateCharts'), path: '/rates', icon: Settings2, adminOnly: true },
     { name: t('receipts'), path: '/receipts', icon: Printer },
     { name: t('payments'), path: '/payments', icon: DollarSign, adminOnly: true },
+    { name: t('ledger'), path: '/ledger', icon: BookOpen },
     { name: t('reports'), path: '/reports', icon: FileText },
     { name: t('devices'), path: '/devices', icon: Cpu, adminOnly: true },
     { name: t('sync'), path: '/sync', icon: RefreshCw, adminOnly: true },

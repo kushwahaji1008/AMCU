@@ -9,7 +9,6 @@ import Dashboard from './components/Dashboard';
 import CollectionEntry from './components/CollectionEntry';
 import FarmerManagement from './components/FarmerManagement';
 import FarmerProfile from './components/FarmerProfile';
-import Approvals from './components/Approvals';
 import Reports from './components/Reports';
 import ShiftManagement from './components/ShiftManagement';
 import QualityTesting from './components/QualityTesting';
@@ -26,6 +25,7 @@ import Synchronization from './components/Synchronization';
 import Login from './components/Login';
 import Register from './components/Register';
 import MobileApp from './components/MobileApp';
+import Ledger from './components/Ledger';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthReady } = useAuth();
@@ -61,13 +61,13 @@ function App() {
                 <Route path="/collection" element={<ProtectedRoute><CollectionEntry /></ProtectedRoute>} />
                 <Route path="/farmers" element={<ProtectedRoute><FarmerManagement /></ProtectedRoute>} />
                 <Route path="/farmers/:id" element={<ProtectedRoute><FarmerProfile /></ProtectedRoute>} />
-                <Route path="/approvals" element={<AdminRoute><Approvals /></AdminRoute>} />
                 <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
                 <Route path="/shifts" element={<ProtectedRoute><ShiftManagement /></ProtectedRoute>} />
                 <Route path="/quality" element={<ProtectedRoute><QualityTesting /></ProtectedRoute>} />
                 <Route path="/rates" element={<AdminRoute><RateChartManagement /></AdminRoute>} />
                 <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
                 <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
+                <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
                 <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
                 <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
                 <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />

@@ -15,6 +15,9 @@ service cloud.firestore {
     //
     // Collection: shiftSummaries
     // Fields: date, shift, totalFarmers, totalQuantity, avgFat, avgSnf, totalAmount, closedAt, closedBy
+    //
+    // Collection: payments
+    // Fields: farmerId, farmerName, amount, method, reference, date, timestamp, operatorId, status
     // ===============================================================
 
     // Helper Functions
@@ -47,6 +50,15 @@ service cloud.firestore {
              data.fat is number && data.fat >= 0 &&
              data.snf is number && data.snf >= 0 &&
              data.amount is number && data.amount >= 0;
+    }
+
+    function isValidPayment(data) {
+      return data.farmerId is string &&
+             data.farmerName is string &&
+             data.amount is number && data.amount > 0 &&
+             data.method in ['Cash', 'UPI', 'Check'] &&
+             data.date is string &&
+             data.status in ['Completed', 'Pending'];
     }
 
     match /users/{userId} {
@@ -97,7 +109,15 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create: if isOperator() && isValidPayment(request.resource.data);
+      allow update: if isAdmin() && isValidPayment(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /ledger/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isOperator(); // Created via recordTransaction
+      allow update, delete: if false; // Ledger entries are immutable
     }
   }
 }

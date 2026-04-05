@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { Farmer } from '../types';
-import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download } from 'lucide-react';
+import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download, Edit2, Trash2 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 export default function FarmerManagement() {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingFarmerId, setEditingFarmerId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,10 +67,13 @@ export default function FarmerManagement() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!newFarmer.farmerId.trim()) newErrors.farmerId = 'Member ID is required';
+    const trimmedFarmerId = newFarmer.farmerId.trim();
+    const trimmedMobile = newFarmer.mobile.trim();
+
+    if (!trimmedFarmerId) newErrors.farmerId = 'Member ID is required';
     
     // Check for unique Farmer ID
-    if (farmers.some(f => f.farmerId === newFarmer.farmerId.trim())) {
+    if (farmers.some(f => f.farmerId === trimmedFarmerId && f.id !== editingFarmerId)) {
       newErrors.farmerId = 'Member ID already exists';
     }
 
@@ -75,12 +81,13 @@ export default function FarmerManagement() {
     if (!newFarmer.village.trim()) newErrors.village = 'Village is required';
     
     const mobileRegex = /^[0-9]{10}$/;
-    if (!newFarmer.mobile.trim()) {
+    if (!trimmedMobile) {
       newErrors.mobile = 'Mobile number is required';
-    } else if (!mobileRegex.test(newFarmer.mobile.trim())) {
+    } else if (!mobileRegex.test(trimmedMobile)) {
       newErrors.mobile = 'Mobile number must be 10 digits';
-    } else if (farmers.some(f => f.mobile === newFarmer.mobile.trim())) {
+    } else if (farmers.some(f => f.mobile === trimmedMobile && f.id !== editingFarmerId)) {
       newErrors.mobile = 'Mobile number already registered';
+      toast.error(`Mobile number ${trimmedMobile} is already assigned to another farmer`);
     }
 
     setErrors(newErrors);
@@ -89,26 +96,42 @@ export default function FarmerManagement() {
 
   const handleAddFarmer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate()) {
+      if (!errors.mobile && !errors.farmerId && !errors.name && !errors.village) {
+        // This handles cases where errors state might not have updated yet for the toast
+      }
+      return;
+    }
     
     setLoading(true);
     try {
-      const farmerData: Omit<Farmer, 'id'> = {
-        ...newFarmer,
-        status: 'Active',
-        createdAt: new Date().toISOString(),
-      };
-      const docRef = await addDoc(collection(db, 'farmers'), farmerData);
+      if (isEditing && editingFarmerId) {
+        const farmerRef = doc(db, 'farmers', editingFarmerId);
+        await updateDoc(farmerRef, {
+          ...newFarmer,
+        });
+        toast.success('Farmer details updated successfully!');
+        setIsEditing(false);
+        setEditingFarmerId(null);
+      } else {
+        const farmerData: Omit<Farmer, 'id'> = {
+          ...newFarmer,
+          status: 'Active',
+          createdAt: new Date().toISOString(),
+          balance: 0,
+        };
+        await addDoc(collection(db, 'farmers'), farmerData);
+        
+        // Offer barcode download
+        toast.success('Farmer registered successfully!', {
+          action: {
+            label: 'Download Barcode',
+            onClick: () => downloadBarcode(newFarmer.farmerId, newFarmer.name)
+          }
+        });
+      }
       setIsAdding(false);
       
-      // Offer barcode download
-      toast.success('Farmer registered successfully!', {
-        action: {
-          label: 'Download Barcode',
-          onClick: () => downloadBarcode(newFarmer.farmerId, newFarmer.name)
-        }
-      });
-
       setNewFarmer({
         farmerId: '',
         name: '',
@@ -119,7 +142,35 @@ export default function FarmerManagement() {
         ifsc: '',
       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'farmers');
+      handleFirestoreError(err, isEditing ? OperationType.UPDATE : OperationType.CREATE, 'farmers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = (farmer: Farmer) => {
+    setNewFarmer({
+      farmerId: farmer.farmerId,
+      name: farmer.name,
+      mobile: farmer.mobile,
+      village: farmer.village,
+      cattleType: farmer.cattleType,
+      bankAccount: farmer.bankAccount || '',
+      ifsc: farmer.ifsc || '',
+    });
+    setEditingFarmerId(farmer.id);
+    setIsEditing(true);
+    setIsAdding(true);
+  };
+
+  const handleDeleteFarmer = async (id: string) => {
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'farmers', id));
+      toast.success('Farmer deleted successfully');
+      setDeleteConfirmId(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'farmers');
     } finally {
       setLoading(false);
     }
@@ -132,7 +183,18 @@ export default function FarmerManagement() {
 
   const closeAdding = () => {
     setIsAdding(false);
+    setIsEditing(false);
+    setEditingFarmerId(null);
     setErrors({});
+    setNewFarmer({
+      farmerId: '',
+      name: '',
+      mobile: '',
+      village: '',
+      cattleType: 'Cow',
+      bankAccount: '',
+      ifsc: '',
+    });
   };
 
   return (
@@ -155,7 +217,9 @@ export default function FarmerManagement() {
         <div className="fixed inset-0 bg-stone-900/20 dark:bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden border border-stone-100 dark:border-stone-800">
             <div className="p-6 border-b border-stone-50 dark:border-stone-800 flex items-center justify-between">
-              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Register New Farmer</h2>
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
+                {isEditing ? 'Edit Farmer Details' : 'Register New Farmer'}
+              </h2>
               <button onClick={closeAdding} className="text-stone-400 hover:text-stone-900 dark:hover:text-white">
                 <X size={24} />
               </button>
@@ -250,7 +314,7 @@ export default function FarmerManagement() {
                   disabled={loading}
                   className="w-full py-4 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-2xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors disabled:opacity-50"
                 >
-                  {loading ? 'Registering...' : 'Register Farmer'}
+                  {loading ? (isEditing ? 'Updating...' : 'Registering...') : (isEditing ? 'Update Farmer' : 'Register Farmer')}
                 </button>
               </div>
             </form>
@@ -331,6 +395,20 @@ export default function FarmerManagement() {
                       >
                         <Eye size={18} />
                       </Link>
+                      <button 
+                        onClick={() => handleEditClick(f)}
+                        className="p-2 text-stone-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
+                        title="Edit Farmer"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => setDeleteConfirmId(f.id)}
+                        className="p-2 text-stone-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
+                        title="Delete Farmer"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                       <button className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-lg">
                         <MoreVertical size={18} />
                       </button>
@@ -347,6 +425,37 @@ export default function FarmerManagement() {
           </table>
         </div>
       </div>
+
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-stone-900/20 dark:bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-md rounded-3xl shadow-xl overflow-hidden border border-stone-100 dark:border-stone-800 p-6 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} />
+              </div>
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Delete Farmer?</h2>
+              <p className="text-stone-500 dark:text-stone-400">
+                Are you sure you want to delete this farmer? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 py-3 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 rounded-xl font-medium hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteConfirmId && handleDeleteFarmer(deleteConfirmId)}
+                disabled={loading}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

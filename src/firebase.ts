@@ -5,7 +5,8 @@ import {
   enableIndexedDbPersistence, 
   onSnapshotsInSync,
   disableNetwork,
-  enableNetwork
+  enableNetwork,
+  Timestamp
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -24,7 +25,18 @@ enableIndexedDbPersistence(db).catch((err) => {
   }
 });
 
-export { onSnapshotsInSync, disableNetwork, enableNetwork };
+export { onSnapshotsInSync, disableNetwork, enableNetwork, Timestamp };
+
+/**
+ * Helper to convert Firestore Timestamp or ISO string to Date object
+ */
+export function toDate(value: any): Date {
+  if (!value) return new Date();
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
 
 export enum OperationType {
   CREATE = 'create',

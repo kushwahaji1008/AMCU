@@ -10,7 +10,7 @@ import { cn } from '../lib/utils';
 export default function ShiftManagement() {
   const { t } = useLanguage();
   const [currentShift, setCurrentShift] = useState<'Morning' | 'Evening'>(
-    new Date().getHours() < 12 ? 'Morning' : 'Evening'
+    new Date().getHours() < 13 ? 'Morning' : 'Evening'
   );
   const [shiftStats, setShiftStats] = useState({
     totalFarmers: 0,
@@ -22,14 +22,15 @@ export default function ShiftManagement() {
   const [pastSummaries, setPastSummaries] = useState<ShiftSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [isShiftClosed, setIsShiftClosed] = useState(false);
+  const [isShiftSummarized, setIsShiftSummarized] = useState(false);
+  const [isShiftExpired, setIsShiftExpired] = useState(false);
 
   useEffect(() => {
     const today = new Date();
     const q = query(
       collection(db, 'collections'),
-      where('timestamp', '>=', startOfDay(today).toISOString()),
-      where('timestamp', '<=', endOfDay(today).toISOString()),
+      where('timestamp', '>=', Timestamp.fromDate(startOfDay(today))),
+      where('timestamp', '<=', Timestamp.fromDate(endOfDay(today))),
       where('shift', '==', currentShift)
     );
 
@@ -65,8 +66,19 @@ export default function ShiftManagement() {
       where('shift', '==', currentShift)
     );
     const unsubscribeSummary = onSnapshot(qSummary, (snapshot) => {
-      setIsShiftClosed(!snapshot.empty);
+      setIsShiftSummarized(!snapshot.empty);
     });
+
+    // Auto-close logic based on time
+    const timer = setInterval(() => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      let expired = false;
+      if (currentShift === 'Morning' && currentHour >= 13) {
+        expired = true;
+      }
+      setIsShiftExpired(expired);
+    }, 10000); // Check every 10 seconds
 
     // Past summaries
     const qPast = query(collection(db, 'shiftSummaries'), orderBy('closedAt', 'desc'), limit(10));
@@ -78,11 +90,12 @@ export default function ShiftManagement() {
       unsubscribe();
       unsubscribeSummary();
       unsubscribePast();
+      clearInterval(timer);
     };
   }, [currentShift]);
 
   const handleCloseShift = async () => {
-    if (isShiftClosed) return;
+    if (isShiftSummarized) return;
     setLoading(true);
     try {
       const summary: Omit<ShiftSummary, 'id'> = {
@@ -147,7 +160,9 @@ export default function ShiftManagement() {
             <div className="flex items-center gap-4 mb-8">
               <div className={cn(
                 "w-12 h-12 rounded-2xl flex items-center justify-center",
-                isShiftClosed ? "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500" : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                isShiftSummarized ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400" : 
+                isShiftExpired ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400" :
+                "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
               )}>
                 <Clock size={24} />
               </div>
@@ -157,9 +172,13 @@ export default function ShiftManagement() {
                 </h2>
                 <p className={cn(
                   "text-sm font-medium",
-                  isShiftClosed ? "text-stone-400 dark:text-stone-500" : "text-emerald-600 dark:text-emerald-400"
+                  isShiftSummarized ? "text-emerald-600 dark:text-emerald-400" : 
+                  isShiftExpired ? "text-amber-600 dark:text-amber-400" :
+                  "text-blue-600 dark:text-blue-400"
                 )}>
-                  {isShiftClosed ? 'Shift Closed' : 'Shift Active & Open'}
+                  {isShiftSummarized ? 'Shift Closed & Summarized' : 
+                   isShiftExpired ? 'Shift Expired (Auto-Closed)' : 
+                   'Shift Active & Open'}
                 </p>
               </div>
             </div>
@@ -183,25 +202,27 @@ export default function ShiftManagement() {
               </div>
             </div>
 
-            {!isShiftClosed ? (
+            {!isShiftSummarized ? (
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   onClick={handleCloseShift}
                   disabled={loading || shiftStats.totalFarmers === 0}
                   className={cn(
                     "flex-1 py-4 rounded-2xl font-medium flex items-center justify-center gap-2 transition-all",
-                    success ? "bg-emerald-500 text-white" : "bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-50"
+                    success ? "bg-emerald-500 text-white" : 
+                    isShiftExpired ? "bg-amber-600 hover:bg-amber-700 text-white" :
+                    "bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-50"
                   )}
                 >
                   {success ? (
                     <>
                       <CheckCircle2 size={20} />
-                      Shift Closed Successfully
+                      Shift Summarized Successfully
                     </>
                   ) : (
                     <>
                       <CheckCircle2 size={20} />
-                      {loading ? 'Closing...' : 'Close Shift & Save Summary'}
+                      {loading ? 'Processing...' : isShiftExpired ? 'Finalize & Generate Summary' : 'Close Shift & Save Summary'}
                     </>
                   )}
                 </button>
@@ -211,8 +232,8 @@ export default function ShiftManagement() {
               </div>
             ) : (
               <div className="p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 flex items-center gap-3 text-stone-500 dark:text-stone-400">
-                <AlertCircle size={20} />
-                <p className="text-sm">This shift has already been closed and recorded.</p>
+                <CheckCircle2 size={20} className="text-emerald-500" />
+                <p className="text-sm font-medium">This shift has been closed and summarized.</p>
               </div>
             )}
           </div>
