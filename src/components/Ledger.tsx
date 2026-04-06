@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, toDate } from '../firebase';
+import { handleFirestoreError, OperationType, toDate } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { useLanguage } from '../LanguageContext';
+import { useAuth } from '../AuthContext';
 import { LedgerEntry, Farmer } from '../types';
 import { format } from 'date-fns';
 import { 
@@ -12,6 +13,7 @@ import { cn } from '../lib/utils';
 
 export default function Ledger() {
   const { t } = useLanguage();
+  const { db } = useAuth();
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [farmers, setFarmers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);

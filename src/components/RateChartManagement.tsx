@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, orderBy, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../AuthContext';
 import { RateChart, RateSettings } from '../types';
 import { Settings2, Plus, Search, Trash2, Edit2, X, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -8,6 +9,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function RateChartManagement() {
+  const { profile, db } = useAuth();
   const [activeTab, setActiveTab] = useState<'Cow' | 'Buffalo' | 'Formula'>('Cow');
   const [rates, setRates] = useState<RateChart[]>([]);
   const [isAdding, setIsAdding] = useState(false);

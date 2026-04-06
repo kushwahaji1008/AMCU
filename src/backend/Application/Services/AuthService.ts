@@ -1,12 +1,15 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { IUserRepository } from '../Interfaces/IRepositories';
+import { IUserRepository, IDairyRepository } from '../Interfaces/IRepositories';
 import { User } from '../../Core/Entities/Sale';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export class AuthService {
-  constructor(private userRepo: IUserRepository) {}
+  constructor(
+    private userRepo: IUserRepository,
+    private dairyRepo: IDairyRepository
+  ) {}
 
   async login(username: string, password: string): Promise<{ token: string; user: Omit<User, 'passwordHash'> }> {
     const user = await this.userRepo.getByUsername(username);
@@ -20,7 +23,7 @@ export class AuthService {
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      { id: user.id, username: user.username, role: user.role, databaseId: user.databaseId },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
@@ -29,18 +32,50 @@ export class AuthService {
     return { token, user: userWithoutPassword };
   }
 
-  async register(username: string, password: string, role: 'admin' | 'operator'): Promise<Omit<User, 'passwordHash'>> {
+  async register(
+    username: string, 
+    password: string, 
+    role: 'admin' | 'operator' | 'super_admin',
+    dairyData?: { name: string; address: string; contact: string; databaseId?: string },
+    existingDairyId?: string,
+    existingDatabaseId?: string
+  ): Promise<Omit<User, 'passwordHash'>> {
     const existingUser = await this.userRepo.getByUsername(username);
     if (existingUser) {
       throw new Error('Username already exists.');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Determine databaseId and dairyId
+    let databaseId = existingDatabaseId || '(default)';
+    let dairyId = existingDairyId;
+
+    if (role === 'admin' && dairyData) {
+      databaseId = dairyData.databaseId || `dairy-${Date.now()}`;
+      dairyId = databaseId;
+    } else if (role === 'super_admin') {
+      databaseId = 'dugdhaset.superadmin';
+      dairyId = 'global';
+    }
+
     const user = await this.userRepo.create({
       username,
       passwordHash,
       role,
+      dairyId,
+      databaseId
     });
+
+    if (role === 'admin' && dairyData) {
+      await this.dairyRepo.create({
+        name: dairyData.name,
+        address: dairyData.address,
+        contact: dairyData.contact,
+        ownerId: user.id,
+        databaseId: databaseId
+      });
+    }
 
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../LanguageContext';
 import { Printer, Search, FileText, Calendar, Download, Share2, X, CheckCircle2 } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { useAuth } from '../AuthContext';
 import { CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -10,6 +11,7 @@ import { toast } from 'sonner';
 
 export default function ReceiptPrint() {
   const { t } = useLanguage();
+  const { db } = useAuth();
   const [searchId, setSearchId] = useState('');
   const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -192,8 +194,8 @@ export default function ReceiptPrint() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right mr-4">
-                      <p className="text-sm font-medium text-stone-900 dark:text-white font-mono">₹{txn.amount.toFixed(2)}</p>
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wider">{txn.quantity}kg • {txn.fat}% FAT</p>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white font-mono">₹{(txn.amount || 0).toFixed(2)}</p>
+                      <p className="text-[10px] text-stone-400 uppercase tracking-wider">{(txn.quantity || 0).toFixed(1)}kg • {(txn.fat || 0).toFixed(1)}% FAT</p>
                     </div>
                     <button 
                       onClick={() => handlePrint(txn)}
@@ -248,25 +250,25 @@ export default function ReceiptPrint() {
                 </div>
                 <div className="flex justify-between">
                   <span>Quantity:</span>
-                  <span className="font-bold">{selectedTxn.quantity.toFixed(2)} kg</span>
+                  <span className="font-bold">{(selectedTxn.quantity || 0).toFixed(2)} kg</span>
                 </div>
                 <div className="flex justify-between">
                   <span>FAT:</span>
-                  <span className="font-bold">{selectedTxn.fat.toFixed(1)} %</span>
+                  <span className="font-bold">{(selectedTxn.fat || 0).toFixed(1)} %</span>
                 </div>
                 <div className="flex justify-between">
                   <span>SNF:</span>
-                  <span className="font-bold">{selectedTxn.snf.toFixed(1)} %</span>
+                  <span className="font-bold">{(selectedTxn.snf || 0).toFixed(1)} %</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Rate:</span>
-                  <span className="font-bold">₹{selectedTxn.rate.toFixed(2)} /kg</span>
+                  <span className="font-bold">₹{(selectedTxn.rate || 0).toFixed(2)} /kg</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-center pt-1">
                 <span className="font-bold uppercase">Total Amount:</span>
-                <span className="text-xl font-serif font-bold">₹{selectedTxn.amount.toFixed(2)}</span>
+                <span className="text-xl font-serif font-bold">₹{(selectedTxn.amount || 0).toFixed(2)}</span>
               </div>
 
               <div className="pt-4 text-center text-[8px] text-stone-400 border-t border-stone-100">

@@ -41,5 +41,12 @@ export interface ICustomerRepository {
 
 export interface IUserRepository {
   getByUsername(username: string): Promise<User | null>;
+  getAll(role?: string): Promise<User[]>;
   create(user: Omit<User, 'id' | 'createdAt'>): Promise<User>;
+}
+
+export interface IDairyRepository {
+  create(dairy: any): Promise<any>;
+  getByOwnerId(ownerId: string): Promise<any | null>;
+  getById(id: string): Promise<any | null>;
 }

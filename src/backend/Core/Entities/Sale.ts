@@ -21,6 +21,8 @@ export interface User {
   id: string;
   username: string;
   passwordHash: string;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'super_admin';
+  dairyId?: string;
+  databaseId: string;
   createdAt: Date;
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { handleFirestoreError, OperationType, auth } from '../firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, orderBy, limit, Timestamp, startAt, endAt } from 'firebase/firestore';
+import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { ShiftSummary, CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay } from 'date-fns';
@@ -8,6 +9,7 @@ import { Clock, CheckCircle2, AlertCircle, History, ArrowRight, User } from 'luc
 import { cn } from '../lib/utils';
 
 export default function ShiftManagement() {
+  const { profile, db } = useAuth();
   const { t } = useLanguage();
   const [currentShift, setCurrentShift] = useState<'Morning' | 'Evening'>(
     new Date().getHours() < 13 ? 'Morning' : 'Evening'
@@ -107,7 +109,8 @@ export default function ShiftManagement() {
         avgSnf: shiftStats.avgSnf,
         totalAmount: shiftStats.totalAmount,
         closedAt: new Date().toISOString(),
-        closedBy: auth.currentUser?.displayName || 'Unknown',
+        closedBy: profile?.name || 'Unknown',
+        dairyId: profile?.dairyId || 'global'
       };
 
       await addDoc(collection(db, 'shiftSummaries'), summary);
@@ -190,11 +193,11 @@ export default function ShiftManagement() {
               </div>
               <div>
                 <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Quantity</p>
-                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{shiftStats.totalQuantity.toFixed(1)} kg</p>
+                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{(shiftStats.totalQuantity || 0).toFixed(1)} kg</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Avg FAT</p>
-                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{shiftStats.avgFat.toFixed(1)}%</p>
+                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{(shiftStats.avgFat || 0).toFixed(1)}%</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Amount</p>
@@ -269,7 +272,7 @@ export default function ShiftManagement() {
                           {summary.shift}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{summary.totalQuantity.toFixed(1)}</td>
+                      <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{(summary.totalQuantity || 0).toFixed(1)}</td>
                       <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">₹{summary.totalAmount.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">

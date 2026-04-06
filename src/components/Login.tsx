@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { Milk, LogIn, Mail, Lock, AlertCircle, Globe, Clock, User as UserIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,9 @@ export default function Login() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signInWithGoogle } = useAuth();
+  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const { signInWithGoogle, signInWithEmail, signInSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,12 +25,27 @@ export default function Login() {
     return () => clearInterval(timer);
   }, []);
 
+  const handleLogoClick = () => {
+    setClickCount(prev => prev + 1);
+    if (clickCount + 1 >= 3) {
+      setIsSuperAdminMode(true);
+      setClickCount(0);
+      toast.info('SuperAdmin Mode Activated');
+    }
+    // Reset click count after 2 seconds
+    setTimeout(() => setClickCount(0), 2000);
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      if (isSuperAdminMode) {
+        await signInSuperAdmin(email, password);
+      } else {
+        await signInWithEmail(email, password);
+      }
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
@@ -40,11 +58,18 @@ export default function Login() {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 flex items-center justify-center p-6">
       <div className="max-w-md w-full space-y-8 bg-white dark:bg-stone-900 p-10 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-xl">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-stone-900 dark:bg-white rounded-2xl mb-2">
+          <div 
+            onClick={handleLogoClick}
+            className="inline-flex items-center justify-center w-16 h-16 bg-stone-900 dark:bg-white rounded-2xl mb-2 cursor-pointer active:scale-95 transition-transform"
+          >
             <Milk className="text-white dark:text-stone-900 w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">DugdhaSetu</h1>
-          <p className="text-stone-500 dark:text-stone-400">{t('welcome')}</p>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">
+            {isSuperAdminMode ? 'DugdhaSetu Admin' : 'DugdhaSetu'}
+          </h1>
+          <p className="text-stone-500 dark:text-stone-400">
+            {isSuperAdminMode ? 'Authorized Personnel Only' : t('welcome')}
+          </p>
           
           <div className="flex items-center justify-center gap-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-widest pt-2">
             <div className="flex items-center gap-1">
@@ -105,8 +130,7 @@ export default function Login() {
               >
                 <option value="en" className="dark:bg-stone-900">English</option>
                 <option value="hi" className="dark:bg-stone-900">Hindi (हिन्दी)</option>
-                <option className="dark:bg-stone-900">Marathi (મરાठी)</option>
-                
+                <option value="mr" className="dark:bg-stone-900">Marathi (मराठी)</option>
               </select>
             </div>
             <button type="button" className="text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">

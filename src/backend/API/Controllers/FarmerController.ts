@@ -32,6 +32,24 @@ export class FarmerController {
     }
   }
 
+  async updateFarmer(req: Request, res: Response) {
+    try {
+      const farmer = await this.farmerService.updateFarmer(req.params.id, req.body);
+      res.json(farmer);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  }
+
+  async deleteFarmer(req: Request, res: Response) {
+    try {
+      await this.farmerService.deleteFarmer(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
   async getFarmerSummary(req: Request, res: Response) {
     try {
       const summary = await this.farmerService.getFarmerSummary(req.params.id);

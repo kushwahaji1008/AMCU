@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, handleFirestoreError, OperationType, toDate } from '../firebase';
+import { handleFirestoreError, OperationType, toDate } from '../firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, orderBy, limit, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { useAuth } from '../AuthContext';
 import { Farmer, CollectionTransaction, LedgerEntry } from '../types';
 import { 
   User, Phone, MapPin, Milk, IndianRupee, Calendar, 
@@ -20,6 +21,7 @@ import { toast } from 'sonner';
 export default function FarmerProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { db } = useAuth();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -420,9 +422,9 @@ export default function FarmerProfile() {
                               {t.shift}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm font-mono text-stone-600 dark:text-stone-300">{t.quantity.toFixed(1)}</td>
-                          <td className="px-6 py-4 text-sm font-mono text-stone-600 dark:text-stone-300">{t.fat.toFixed(1)} / {t.snf.toFixed(1)}</td>
-                          <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">₹{t.amount.toFixed(2)}</td>
+                          <td className="px-6 py-4 text-sm font-mono text-stone-600 dark:text-stone-300">{(t.quantity || 0).toFixed(1)}</td>
+                          <td className="px-6 py-4 text-sm font-mono text-stone-600 dark:text-stone-300">{(t.fat || 0).toFixed(1)} / {(t.snf || 0).toFixed(1)}</td>
+                          <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">₹{(t.amount || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                       {transactions.length === 0 && (
@@ -475,10 +477,10 @@ export default function FarmerProfile() {
                           "px-6 py-4 text-sm font-bold text-right",
                           entry.type === 'Credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                         )}>
-                          {entry.type === 'Credit' ? '+' : '-'} ₹{entry.amount.toFixed(2)}
+                          {entry.type === 'Credit' ? '+' : '-'} ₹{(entry.amount || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-sm font-mono font-medium text-stone-900 dark:text-white text-right">
-                          ₹{entry.balanceAfter.toFixed(2)}
+                          ₹{(entry.balanceAfter || 0).toFixed(2)}
                         </td>
                       </tr>
                     ))}

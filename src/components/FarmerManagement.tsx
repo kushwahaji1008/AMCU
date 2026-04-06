@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { farmerApi } from '../services/api';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+import { useLanguage } from '../LanguageContext';
 import { Farmer } from '../types';
 import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download, Edit2, Trash2 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
@@ -9,6 +10,8 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
 export default function FarmerManagement() {
+  const { t } = useLanguage();
+  const { profile } = useAuth();
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -18,6 +21,20 @@ export default function FarmerManagement() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
+
+  const fetchFarmers = async () => {
+    try {
+      const response = await farmerApi.getAll();
+      setFarmers(response.data);
+    } catch (err) {
+      console.error('Failed to fetch farmers:', err);
+      toast.error('Failed to load farmers');
+    }
+  };
+
+  useEffect(() => {
+    fetchFarmers();
+  }, []);
 
   const downloadBarcode = (farmerId: string, farmerName: string) => {
     const canvas = document.createElement('canvas');
@@ -56,15 +73,6 @@ export default function FarmerManagement() {
     ifsc: '',
   });
 
-  useEffect(() => {
-    const q = query(collection(db, 'farmers'), orderBy('farmerId', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setFarmers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Farmer)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
-
-    return () => unsubscribe();
-  }, []);
-
   const validate = () => {
     const newErrors: Record<string, string> = {};
     const trimmedFarmerId = newFarmer.farmerId.trim();
@@ -96,33 +104,24 @@ export default function FarmerManagement() {
 
   const handleAddFarmer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) {
-      if (!errors.mobile && !errors.farmerId && !errors.name && !errors.village) {
-        // This handles cases where errors state might not have updated yet for the toast
-      }
-      return;
-    }
+    if (!validate()) return;
     
     setLoading(true);
     try {
       if (isEditing && editingFarmerId) {
-        const farmerRef = doc(db, 'farmers', editingFarmerId);
-        await updateDoc(farmerRef, {
-          ...newFarmer,
-        });
+        await farmerApi.update(editingFarmerId, newFarmer);
         toast.success('Farmer details updated successfully!');
         setIsEditing(false);
         setEditingFarmerId(null);
       } else {
-        const farmerData: Omit<Farmer, 'id'> = {
+        const farmerData = {
           ...newFarmer,
           status: 'Active',
-          createdAt: new Date().toISOString(),
           balance: 0,
+          dairyId: profile?.dairyId || '',
         };
-        await addDoc(collection(db, 'farmers'), farmerData);
+        await farmerApi.create(farmerData);
         
-        // Offer barcode download
         toast.success('Farmer registered successfully!', {
           action: {
             label: 'Download Barcode',
@@ -131,6 +130,7 @@ export default function FarmerManagement() {
         });
       }
       setIsAdding(false);
+      fetchFarmers();
       
       setNewFarmer({
         farmerId: '',
@@ -141,8 +141,8 @@ export default function FarmerManagement() {
         bankAccount: '',
         ifsc: '',
       });
-    } catch (err) {
-      handleFirestoreError(err, isEditing ? OperationType.UPDATE : OperationType.CREATE, 'farmers');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to save farmer');
     } finally {
       setLoading(false);
     }
@@ -166,11 +166,12 @@ export default function FarmerManagement() {
   const handleDeleteFarmer = async (id: string) => {
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'farmers', id));
+      await farmerApi.delete(id);
       toast.success('Farmer deleted successfully');
       setDeleteConfirmId(null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'farmers');
+      fetchFarmers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete farmer');
     } finally {
       setLoading(false);
     }

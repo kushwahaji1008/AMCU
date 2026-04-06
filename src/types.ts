@@ -10,11 +10,13 @@ export interface Farmer {
   status: 'Active' | 'Inactive';
   createdAt: string;
   balance: number; // Current pending balance
+  dairyId: string; // The dairy this farmer belongs to
 }
 
 export interface CollectionTransaction {
   id: string;
-  timestamp: string | any; // Allow FieldValue for serverTimestamp
+  timestamp: string | any;
+  date: string | Date;
   shift: 'Morning' | 'Evening';
   farmerId: string;
   farmerName: string;
@@ -26,6 +28,7 @@ export interface CollectionTransaction {
   rate: number;
   amount: number;
   operatorId: string;
+  dairyId: string;
 }
 
 export interface RateChart {
@@ -37,6 +40,7 @@ export interface RateChart {
   snfStandard: number;
   fatStep: number;
   snfStep: number;
+  dairyId: string; // The dairy this rate chart belongs to
   // These are for the table-based chart
   fat?: number;
   snf?: number;
@@ -51,6 +55,7 @@ export interface RateSettings {
   snfDeductions: { [key: string]: number };
   minFatForFormula1: number;
   maxFatForFormula1: number;
+  dairyId: string; // The dairy these settings belong to
 }
 
 export interface ShiftSummary {
@@ -64,6 +69,7 @@ export interface ShiftSummary {
   totalAmount: number;
   closedAt: string;
   closedBy: string;
+  dairyId: string; // The dairy this shift belongs to
 }
 
 export interface Payment {
@@ -77,6 +83,7 @@ export interface Payment {
   timestamp: any;
   operatorId: string;
   status: 'Completed' | 'Pending';
+  dairyId: string; // The dairy this payment belongs to
 }
 
 export interface LedgerEntry {
@@ -88,4 +95,5 @@ export interface LedgerEntry {
   referenceId: string; // ID of the collection or payment record
   timestamp: any;
   balanceAfter: number;
+  dairyId: string; // The dairy this ledger entry belongs to
 }

@@ -9,9 +9,10 @@ import {
 import { cn } from '../lib/utils';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading, logout, isAuthReady } = useAuth();
+  const { user, profile, loading, logout, switchDatabase, isAuthReady } = useAuth();
   const { t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [dbIdInput, setDbIdInput] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -55,7 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('help'), path: '/help', icon: HelpCircle },
   ];
 
-  const filteredNavItems = navItems.filter(item => !item.adminOnly || profile?.role === 'admin');
+  const filteredNavItems = navItems.filter(item => !item.adminOnly || profile?.role === 'admin' || profile?.role === 'super_admin');
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 flex flex-col md:flex-row transition-colors">
@@ -73,6 +74,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
+            {profile?.role === 'super_admin' && (
+              <div className="px-4 py-3 mb-4 bg-stone-50 dark:bg-stone-800 rounded-xl border border-stone-100 dark:border-stone-700">
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Database size={10} /> Database Switcher
+                </p>
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={dbIdInput}
+                    onChange={(e) => setDbIdInput(e.target.value)}
+                    placeholder="DB ID"
+                    className="w-full px-2 py-1 text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-600 rounded focus:outline-none dark:text-white"
+                  />
+                  <button
+                    onClick={() => {
+                      if (dbIdInput) switchDatabase(dbIdInput);
+                    }}
+                    className="p-1 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded hover:opacity-80 transition-opacity"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
+                <p className="text-[9px] text-stone-400 mt-1 truncate">
+                  Active: <span className="text-stone-600 dark:text-stone-300 font-mono">{profile.databaseId || '(default)'}</span>
+                </p>
+              </div>
+            )}
             {filteredNavItems.map((item) => (
               <Link
                 key={item.path}

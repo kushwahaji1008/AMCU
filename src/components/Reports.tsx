@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { handleFirestoreError, OperationType, auth } from '../firebase';
 import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { CollectionTransaction, ShiftSummary } from '../types';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
 export default function Reports() {
-  const { profile } = useAuth();
+  const { profile, db } = useAuth();
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
   const [dateRange, setDateRange] = useState({
@@ -181,7 +181,7 @@ export default function Reports() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Quantity</p>
-          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{totalQty.toFixed(1)} kg</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{(totalQty || 0).toFixed(1)} kg</p>
         </div>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Amount</p>
@@ -189,11 +189,11 @@ export default function Reports() {
         </div>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Average FAT</p>
-          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{avgFat.toFixed(2)}%</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{(avgFat || 0).toFixed(2)}%</p>
         </div>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Average SNF</p>
-          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{avgSnf.toFixed(2)}%</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">{(avgSnf || 0).toFixed(2)}%</p>
         </div>
       </div>
 
@@ -242,12 +242,12 @@ export default function Reports() {
                       {t.shift}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{t.quantity.toFixed(1)}</td>
-                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{t.fat.toFixed(1)} / {t.snf.toFixed(1)}</td>
-                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">₹{t.rate.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{(t.quantity || 0).toFixed(1)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{(t.fat || 0).toFixed(1)} / {(t.snf || 0).toFixed(1)}</td>
+                  <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">₹{(t.rate || 0).toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-sm font-medium text-stone-900 dark:text-white">₹{t.amount.toFixed(2)}</span>
+                      <span className="text-sm font-medium text-stone-900 dark:text-white">₹{(t.amount || 0).toFixed(2)}</span>
                       {activeTab === 'pending' && profile?.role === 'admin' && (
                         <button
                           onClick={() => handleApprove(t.id)}

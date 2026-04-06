@@ -6,7 +6,8 @@ import {
   MongoLedgerRepository, 
   MongoUserRepository,
   MongoSaleRepository,
-  MongoCustomerRepository
+  MongoCustomerRepository,
+  MongoDairyRepository
 } from './Infrastructure/Repositories/MongoRepositories';
 import { FarmerService } from './Application/Services/FarmerService';
 import { CollectionService } from './Application/Services/CollectionService';
@@ -31,11 +32,12 @@ const ledgerRepo = new MongoLedgerRepository();
 const userRepo = new MongoUserRepository();
 const saleRepo = new MongoSaleRepository();
 const customerRepo = new MongoCustomerRepository();
+const dairyRepo = new MongoDairyRepository();
 
 const farmerService = new FarmerService(farmerRepo);
-const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo);
+const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo, farmerRepo);
 const paymentService = new PaymentService(ledgerRepo, farmerRepo);
-const authService = new AuthService(userRepo);
+const authService = new AuthService(userRepo, dairyRepo);
 const saleService = new SaleService(saleRepo, customerRepo);
 const customerService = new CustomerService(customerRepo);
 const reportingService = new ReportingService(collectionRepo, saleRepo, farmerRepo);
@@ -48,7 +50,8 @@ const reportingController = new ReportingController(reportingService);
 // 2. Routes
 app.post('/api/auth/register', async (req, res, next) => {
   try {
-    const user = await authService.register(req.body.username, req.body.password, req.body.role);
+    const { username, password, role, dairyData, dairyId, databaseId } = req.body;
+    const user = await authService.register(username, password, role, dairyData, dairyId, databaseId);
     res.status(201).json(user);
   } catch (error) { next(error); }
 });
@@ -60,10 +63,32 @@ app.post('/api/auth/login', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/admin/verify', async (req, res) => {
+  const { email, password } = req.body;
+  
+  // Secret SuperAdmin Credentials
+  const ADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'superadmin@rnsoft.in';
+  const ADMIN_PASS = process.env.SUPERADMIN_PASS || 'SuperAdmin@123';
+  const ADMIN_DB_ID = 'dugdhaset.superadmin'; // Fixed ID for SuperAdmin
+
+  if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
+    return res.json({
+      success: true,
+      role: 'super_admin',
+      databaseId: ADMIN_DB_ID,
+      token: 'secret-admin-token' // In a real app, use JWT
+    });
+  }
+
+  res.status(401).json({ success: false, message: 'Invalid credentials' });
+});
+
 // Farmer Routes
 app.get('/api/farmers', authenticate, (req, res, next) => farmerController.getAllFarmers(req, res).catch(next));
 app.get('/api/farmers/:id', authenticate, (req, res, next) => farmerController.getFarmer(req, res).catch(next));
 app.post('/api/farmers', authenticate, authorize(['admin']), (req, res, next) => farmerController.createFarmer(req, res).catch(next));
+app.put('/api/farmers/:id', authenticate, authorize(['admin']), (req, res, next) => farmerController.updateFarmer(req, res).catch(next));
+app.delete('/api/farmers/:id', authenticate, authorize(['admin']), (req, res, next) => farmerController.deleteFarmer(req, res).catch(next));
 app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerController.getFarmerSummary(req, res).catch(next));
 
 // Collection Routes
@@ -95,6 +120,23 @@ app.post('/api/payments', authenticate, authorize(['admin']), async (req, res, n
   } catch (error) { next(error); }
 });
 
+// User Management Routes
+app.get('/api/users', authenticate, async (req, res, next) => {
+  try {
+    const role = req.query.role as string;
+    const users = await userRepo.getAll(role);
+    res.json(users);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+  try {
+    const { username, password, role, dairyData, dairyId, databaseId } = req.body;
+    const user = await authService.register(username, password, role, dairyData, dairyId, databaseId);
+    res.status(201).json(user);
+  } catch (error) { next(error); }
+});
+
 // 3. Global Error Handling
 app.use(ErrorMiddleware.handleError);
 
@@ -103,7 +145,7 @@ async function seed() {
   try {
     const admin = await userRepo.getByUsername('admin');
     if (!admin) {
-      await authService.register('admin', 'admin123', 'admin');
+      await authService.register('admin', 'admin123', 'admin', { name: 'Default Dairy', address: 'Default Address', contact: '0000000000' }, 'default-dairy', '(default)');
       console.log('Admin user seeded.');
     }
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType, toDate } from '../firebase';
+import { handleFirestoreError, OperationType, toDate } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, where, Timestamp } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../LanguageContext';
+import { useAuth } from '../AuthContext';
 import { CollectionTransaction, Farmer } from '../types';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { 
@@ -28,6 +29,7 @@ import { cn } from '../lib/utils';
 
 export default function Dashboard() {
   const { t } = useLanguage();
+  const { profile, db } = useAuth();
   const [stats, setStats] = useState({
     todayQty: 0,
     morningQty: 0,
@@ -49,10 +51,13 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    if (!profile?.dairyId) return;
+
     // Stats for today
     const today = new Date();
     const q = query(
       collection(db, 'collections'),
+      where('dairyId', '==', profile.dairyId),
       where('timestamp', '>=', startOfDay(today).toISOString()),
       where('timestamp', '<=', endOfDay(today).toISOString())
     );
@@ -88,12 +93,19 @@ export default function Dashboard() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
 
     // Total farmers
-    const unsubscribeFarmers = onSnapshot(collection(db, 'farmers'), (snapshot) => {
-      setStats(prev => ({ ...prev, totalFarmers: snapshot.size }));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
+    const unsubscribeFarmers = onSnapshot(
+      query(collection(db, 'farmers'), where('dairyId', '==', profile.dairyId)),
+      (snapshot) => {
+        setStats(prev => ({ ...prev, totalFarmers: snapshot.size }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
 
     // Recent transactions
-    const qRecent = query(collection(db, 'collections'), orderBy('timestamp', 'desc'), limit(5));
+    const qRecent = query(
+      collection(db, 'collections'), 
+      where('dairyId', '==', profile.dairyId),
+      orderBy('timestamp', 'desc'), 
+      limit(5)
+    );
     const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
       setRecentTxns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
@@ -102,6 +114,7 @@ export default function Dashboard() {
     const weekStart = startOfDay(subDays(new Date(), 7));
     const qTop = query(
       collection(db, 'collections'),
+      where('dairyId', '==', profile.dairyId),
       where('timestamp', '>=', weekStart.toISOString())
     );
 
@@ -122,6 +135,7 @@ export default function Dashboard() {
     const startDate = startOfDay(subDays(new Date(), timeRange - 1));
     const qTrend = query(
       collection(db, 'collections'),
+      where('dairyId', '==', profile.dairyId),
       where('timestamp', '>=', startDate.toISOString()),
       orderBy('timestamp', 'asc')
     );
@@ -164,11 +178,11 @@ export default function Dashboard() {
     return Array.from(dailyMap.entries())
       .map(([date, data]) => ({
         date: format(toDate(date), 'MMM dd'),
-        quantity: Number(data.qty.toFixed(1)),
-        morning: Number(data.morning.toFixed(1)),
-        evening: Number(data.evening.toFixed(1)),
-        avgFat: data.count > 0 ? Number((data.fatSum / data.count).toFixed(2)) : 0,
-        avgSnf: data.count > 0 ? Number((data.snfSum / data.count).toFixed(2)) : 0,
+        quantity: Number((data.qty || 0).toFixed(1)),
+        morning: Number((data.morning || 0).toFixed(1)),
+        evening: Number((data.evening || 0).toFixed(1)),
+        avgFat: data.count > 0 ? Number(((data.fatSum || 0) / data.count).toFixed(2)) : 0,
+        avgSnf: data.count > 0 ? Number(((data.snfSum || 0) / data.count).toFixed(2)) : 0,
         fullDate: date
       }))
       .sort((a, b) => a.fullDate.localeCompare(b.fullDate));
@@ -230,15 +244,15 @@ export default function Dashboard() {
             <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-500 px-2 py-1 rounded-full">Live</span>
           </div>
           <p className="text-stone-400 text-xs font-medium uppercase tracking-wider mb-1">Today's Total</p>
-          <p className="text-3xl font-serif font-medium mb-4">{stats.todayQty.toFixed(1)} <span className="text-lg">kg</span></p>
+          <p className="text-3xl font-serif font-medium mb-4">{(stats.todayQty || 0).toFixed(1)} <span className="text-lg">kg</span></p>
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
             <div>
               <p className="text-[10px] text-stone-500 uppercase tracking-wider">Morning</p>
-              <p className="text-sm font-medium">{stats.morningQty.toFixed(1)} kg</p>
+              <p className="text-sm font-medium">{(stats.morningQty || 0).toFixed(1)} kg</p>
             </div>
             <div>
               <p className="text-[10px] text-stone-500 uppercase tracking-wider">Evening</p>
-              <p className="text-sm font-medium">{stats.eveningQty.toFixed(1)} kg</p>
+              <p className="text-sm font-medium">{(stats.eveningQty || 0).toFixed(1)} kg</p>
             </div>
           </div>
         </div>
@@ -268,7 +282,7 @@ export default function Dashboard() {
           <p className="text-3xl font-serif font-medium text-stone-900 dark:text-white mb-4">{stats.totalFarmers}</p>
           <div className="pt-4 border-t border-stone-50 dark:border-stone-800">
             <p className="text-[10px] text-stone-400 uppercase tracking-wider">Avg. Quality</p>
-            <p className="text-sm font-medium text-stone-600 dark:text-stone-300">{stats.avgFat.toFixed(1)}% FAT / {stats.avgSnf.toFixed(1)}% SNF</p>
+            <p className="text-sm font-medium text-stone-600 dark:text-stone-300">{(stats.avgFat || 0).toFixed(1)}% FAT / {(stats.avgSnf || 0).toFixed(1)}% SNF</p>
           </div>
         </div>
 
@@ -467,7 +481,7 @@ export default function Dashboard() {
                     </div>
                     <span className="text-sm font-medium text-stone-900 dark:text-white">{farmer.name}</span>
                   </div>
-                  <span className="text-sm font-mono text-stone-500 dark:text-stone-400">{farmer.qty.toFixed(1)} kg</span>
+                  <span className="text-sm font-mono text-stone-500 dark:text-stone-400">{(farmer.qty || 0).toFixed(1)} kg</span>
                 </div>
               ))}
               {topFarmers.length === 0 && (
@@ -486,10 +500,10 @@ export default function Dashboard() {
                 <div key={txn.id} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</p>
-                    <p className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider">{txn.shift} • {txn.quantity.toFixed(1)} kg</p>
+                    <p className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider">{txn.shift} • {(txn.quantity || 0).toFixed(1)} kg</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-stone-900 dark:text-white">₹{txn.amount.toFixed(0)}</p>
+                    <p className="text-sm font-medium text-stone-900 dark:text-white">₹{(txn.amount || 0).toFixed(0)}</p>
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Success</p>
                   </div>
                 </div>

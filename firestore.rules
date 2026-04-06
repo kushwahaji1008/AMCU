@@ -25,14 +25,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserData() {
+      // Always fetch user profile from the default database (Registry)
+      return get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'super_admin' || 
+        (request.auth.token.email == "superadmin@rnsoft.in" && request.auth.token.email_verified == true)
+      );
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "kushwahajishreeshree1008@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && (getUserData().role == 'admin' || isSuperAdmin());
     }
 
     function isOperator() {
-      return isAuthenticated(); // For this prototype, all authenticated users can operate
+      return isAuthenticated() && (getUserData().role == 'operator' || isAdmin());
+    }
+
+    function getDairyId() {
+      return getUserData().dairyId;
+    }
+
+    function isDairyOwner(data) {
+      return isSuperAdmin() || (data.dairyId == getDairyId());
     }
 
     // Validation Functions
@@ -41,7 +59,8 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 &&
              data.village is string &&
              data.cattleType in ['Cow', 'Buffalo', 'Mixed'] &&
-             data.status in ['Active', 'Inactive'];
+             data.status in ['Active', 'Inactive'] &&
+             data.dairyId is string && data.dairyId.size() > 0;
     }
 
     function isValidCollection(data) {
@@ -49,7 +68,8 @@ service cloud.firestore {
              data.quantity is number && data.quantity > 0 &&
              data.fat is number && data.fat >= 0 &&
              data.snf is number && data.snf >= 0 &&
-             data.amount is number && data.amount >= 0;
+             data.amount is number && data.amount >= 0 &&
+             data.dairyId is string && data.dairyId.size() > 0;
     }
 
     function isValidPayment(data) {
@@ -58,66 +78,68 @@ service cloud.firestore {
              data.amount is number && data.amount > 0 &&
              data.method in ['Cash', 'UPI', 'Check'] &&
              data.date is string &&
-             data.status in ['Completed', 'Pending'];
+             data.status in ['Completed', 'Pending'] &&
+             data.dairyId is string && data.dairyId.size() > 0;
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin() || (isAdmin() && resource.data.adminId == request.auth.uid));
+      allow create: if isAuthenticated() && (request.auth.uid == userId || (isAdmin() && request.resource.data.role == 'operator' && request.resource.data.adminId == request.auth.uid));
+      allow update: if isSuperAdmin() || (isAuthenticated() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
+      allow delete: if isSuperAdmin();
     }
 
     match /farmers/{farmerId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isOperator() && isValidFarmer(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow create: if isOperator() && isValidFarmer(request.resource.data) && isDairyOwner(request.resource.data);
+      allow update: if isOperator() && isValidFarmer(request.resource.data) && isDairyOwner(resource.data) && isDairyOwner(request.resource.data);
+      allow delete: if isAdmin() && isDairyOwner(resource.data);
     }
 
     match /collections/{txnId} {
-      allow read: if isAuthenticated();
-      allow create: if isOperator() && isValidCollection(request.resource.data);
-      allow update: if isAdmin(); // Only admins can correct collection records
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow create: if isOperator() && isValidCollection(request.resource.data) && isDairyOwner(request.resource.data);
+      allow update: if isAdmin() && isDairyOwner(resource.data) && isDairyOwner(request.resource.data);
+      allow delete: if isAdmin() && isDairyOwner(resource.data);
     }
 
     match /rateCharts/{chartId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow write: if isAdmin() && isDairyOwner(request.resource.data);
     }
 
     match /shiftSummaries/{summaryId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isOperator();
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow create, update: if isOperator() && isDairyOwner(request.resource.data);
+      allow delete: if isAdmin() && isDairyOwner(resource.data);
     }
 
     match /settings/{settingId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow write: if isAdmin() && isDairyOwner(request.resource.data);
     }
 
     match /auditLogs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated(); // All users can log actions
-      allow update, delete: if false; // Audit logs are immutable
+      allow read: if isAdmin() && isDairyOwner(resource.data);
+      allow create: if isAuthenticated() && isDairyOwner(request.resource.data);
+      allow update, delete: if false;
     }
 
     match /backups/{backupId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() && isDairyOwner(resource.data);
     }
 
     match /payments/{paymentId} {
-      allow read: if isAuthenticated();
-      allow create: if isOperator() && isValidPayment(request.resource.data);
-      allow update: if isAdmin() && isValidPayment(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow create: if isOperator() && isValidPayment(request.resource.data) && isDairyOwner(request.resource.data);
+      allow update: if isAdmin() && isDairyOwner(resource.data) && isDairyOwner(request.resource.data);
+      allow delete: if isAdmin() && isDairyOwner(resource.data);
     }
 
     match /ledger/{entryId} {
-      allow read: if isAuthenticated();
-      allow create: if isOperator(); // Created via recordTransaction
-      allow update, delete: if false; // Ledger entries are immutable
+      allow read: if isAuthenticated() && isDairyOwner(resource.data);
+      allow create: if isOperator() && isDairyOwner(request.resource.data);
+      allow update, delete: if false;
     }
   }
 }

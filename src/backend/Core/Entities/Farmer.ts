@@ -1,14 +1,16 @@
 export interface Farmer {
   id: string;
+  farmerId: string;
   name: string;
-  phone: string;
+  mobile: string;
   village: string;
-  address: string;
-  aadhaar?: string;
-  bankAccount: string;
-  ifsc: string;
-  status: 'active' | 'inactive';
-  createdAt: Date;
+  cattleType: 'Cow' | 'Buffalo' | 'Mixed';
+  bankAccount?: string;
+  ifsc?: string;
+  status: 'Active' | 'Inactive';
+  createdAt: string;
+  balance: number;
+  dairyId: string;
 }
 
 export interface FarmerSummary {

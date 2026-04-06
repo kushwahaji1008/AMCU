@@ -6,13 +6,26 @@ import {
   onSnapshotsInSync,
   disableNetwork,
   enableNetwork,
-  Timestamp
+  Timestamp,
+  Firestore
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Default database
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+/**
+ * Get a Firestore instance for a specific database ID
+ */
+export function getDb(databaseId?: string): Firestore {
+  if (!databaseId || databaseId === firebaseConfig.firestoreDatabaseId || databaseId === '(default)') {
+    return db;
+  }
+  return getFirestore(app, databaseId);
+}
 
 // Enable offline persistence
 enableIndexedDbPersistence(db).catch((err) => {

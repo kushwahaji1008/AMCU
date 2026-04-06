@@ -1,13 +1,18 @@
 export interface MilkCollection {
   id: string;
   farmerId: string;
+  farmerName: string;
   date: Date;
   shift: 'Morning' | 'Evening';
-  quantity: number; // liters
+  milkType: 'Cow' | 'Buffalo' | 'Mixed';
+  quantity: number;
   fat: number;
   snf: number;
-  rate: number; // auto calculated
+  clr: number;
+  rate: number;
   totalAmount: number;
+  operatorId: string;
+  dairyId: string;
   createdAt: Date;
 }
 
@@ -23,8 +28,11 @@ export interface RateChart {
 export interface LedgerEntry {
   id: string;
   farmerId: string;
-  type: 'credit' | 'debit'; // credit = milk collection, debit = payment done
+  type: 'credit' | 'debit';
   amount: number;
-  referenceId: string; // collectionId or paymentId
+  description: string;
+  referenceId: string;
   date: Date;
+  balanceAfter: number;
+  dairyId: string;
 }

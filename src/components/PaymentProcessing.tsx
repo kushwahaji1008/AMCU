@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Search, FileText, Calendar, DollarSign, CheckCircle2, User, ArrowRight, History, Wallet, IndianRupee } from 'lucide-react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, Timestamp, serverTimestamp, getDocs } from 'firebase/firestore';
+import { useAuth } from '../AuthContext';
 import { Farmer, CollectionTransaction, Payment } from '../types';
 import { recordTransaction } from '../lib/ledger';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -9,6 +10,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
 export default function PaymentProcessing() {
+  const { profile, db } = useAuth();
   const [searchId, setSearchId] = useState('');
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -79,13 +81,15 @@ export default function PaymentProcessing() {
         reference: reference,
         date: format(new Date(), 'yyyy-MM-dd'),
         timestamp: serverTimestamp(),
-        operatorId: auth.currentUser?.uid || 'system',
-        status: 'Completed'
+        operatorId: profile?.uid || 'system',
+        status: 'Completed',
+        dairyId: profile?.dairyId || 'global'
       };
 
       const paymentRef = await addDoc(collection(db, 'payments'), paymentData);
       
       await recordTransaction(
+        db,
         selectedFarmer.id,
         'Debit',
         amount,
@@ -153,7 +157,7 @@ export default function PaymentProcessing() {
                       <p className={cn("text-xs", selectedFarmer?.id === f.id ? "opacity-70" : "text-stone-400")}>ID: {f.farmerId}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-mono font-bold">₹{f.balance.toFixed(2)}</p>
+                      <p className="text-sm font-mono font-bold">₹{(f.balance || 0).toFixed(2)}</p>
                     </div>
                   </button>
                 ))}
@@ -175,7 +179,7 @@ export default function PaymentProcessing() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Pending Balance</span>
-                    <span className="text-lg font-mono font-bold text-stone-900 dark:text-white">₹{getFarmerBalance(selectedFarmer.farmerId).toFixed(2)}</span>
+                    <span className="text-lg font-mono font-bold text-stone-900 dark:text-white">₹{(getFarmerBalance(selectedFarmer) || 0).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -230,7 +234,7 @@ export default function PaymentProcessing() {
                 {showOverpayConfirm && (
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl space-y-2">
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Warning: Payment amount (₹{paymentAmount}) exceeds pending balance (₹{getFarmerBalance(selectedFarmer.farmerId).toFixed(2)}).
+                      Warning: Payment amount (₹{paymentAmount}) exceeds pending balance (₹{(getFarmerBalance(selectedFarmer) || 0).toFixed(2)}).
                     </p>
                     <div className="flex gap-2">
                       <button 
@@ -318,7 +322,7 @@ export default function PaymentProcessing() {
                         {p.reference || '-'}
                       </td>
                       <td className="px-6 py-4 text-sm font-mono font-bold text-stone-900 dark:text-white text-right">
-                        ₹{p.amount.toFixed(2)}
+                        ₹{(p.amount || 0).toFixed(2)}
                       </td>
                     </tr>
                   ))}
