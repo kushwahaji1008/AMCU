@@ -1,5 +1,5 @@
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
-import { MilkCollection, RateChart, LedgerEntry } from '../../Core/Entities/Collection';
+import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
 
 export interface IFarmerRepository {
@@ -17,9 +17,10 @@ export interface ICollectionRepository {
   getById(id: string): Promise<MilkCollection | null>;
   getAll(): Promise<MilkCollection[]>;
   create(collection: Omit<MilkCollection, 'id' | 'createdAt'>): Promise<MilkCollection>;
-  getDailyReport(date: Date): Promise<MilkCollection[]>;
+  getDailyReport(date: Date, endDate?: Date): Promise<MilkCollection[]>;
   getRecent(limit: number): Promise<MilkCollection[]>;
   getTrend(days: number): Promise<MilkCollection[]>;
+  update(id: string, collection: Partial<MilkCollection>): Promise<MilkCollection>;
 }
 
 export interface IRateChartRepository {
@@ -34,6 +35,12 @@ export interface ILedgerRepository {
   addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
   getByFarmerId(farmerId: string): Promise<LedgerEntry[]>;
   getAll(): Promise<LedgerEntry[]>;
+}
+
+export interface IShiftSummaryRepository {
+  create(summary: Omit<ShiftSummary, 'id'>): Promise<ShiftSummary>;
+  getByDateAndShift(date: string, shift: string): Promise<ShiftSummary | null>;
+  getRecent(limit: number): Promise<ShiftSummary[]>;
 }
 
 export interface ISaleRepository {

@@ -35,4 +35,21 @@ export interface LedgerEntry {
   date: Date;
   balanceAfter: number;
   dairyId: string;
+  method?: string;
+  reference?: string;
+  operatorId?: string;
+}
+
+export interface ShiftSummary {
+  id: string;
+  date: string;
+  shift: 'Morning' | 'Evening';
+  totalFarmers: number;
+  totalQuantity: number;
+  avgFat: number;
+  avgSnf: number;
+  totalAmount: number;
+  closedAt: Date;
+  closedBy: string;
+  dairyId: string;
 }

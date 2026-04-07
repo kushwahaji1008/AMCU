@@ -13,6 +13,9 @@ export class PaymentService {
     date: Date;
     description?: string;
     dairyId: string;
+    method?: string;
+    reference?: string;
+    operatorId?: string;
   }): Promise<void> {
     // 1. Verify Farmer exists
     const farmer = await this.farmerRepo.getById(data.farmerId);
@@ -33,7 +36,10 @@ export class PaymentService {
       date: data.date,
       description: data.description || `Payment: ₹${data.amount}`,
       balanceAfter: newBalance,
-      dairyId: data.dairyId
+      dairyId: data.dairyId,
+      method: data.method,
+      reference: data.reference,
+      operatorId: data.operatorId
     });
   }
 

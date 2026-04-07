@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../LanguageContext';
 import { Printer, Search, FileText, Calendar, Download, Share2, X, CheckCircle2 } from 'lucide-react';
-import { handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 import { CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { collectionApi } from '../services/api';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function ReceiptPrint() {
   const { t } = useLanguage();
-  const { db } = useAuth();
+  const { handleError } = useErrorHandler();
   const [searchId, setSearchId] = useState('');
   const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -19,53 +19,28 @@ export default function ReceiptPrint() {
   const [selectedTxn, setSelectedTxn] = useState<CollectionTransaction | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    const start = startOfDay(new Date(filterDate));
-    const end = endOfDay(new Date(filterDate));
+    const fetchTransactions = async () => {
+      setLoading(true);
+      try {
+        const response = await collectionApi.getReport(filterDate);
+        let data = response.data;
 
-    let q = query(
-      collection(db, 'collections'),
-      where('timestamp', '>=', Timestamp.fromDate(start)),
-      where('timestamp', '<=', Timestamp.fromDate(end)),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
+        if (searchId) {
+          data = data.filter((d: any) => 
+            d.farmerId.includes(searchId) || 
+            d.farmerName.toLowerCase().includes(searchId.toLowerCase())
+          );
+        }
 
-    if (searchId) {
-      // Note: Firestore doesn't support multiple inequality filters easily with different fields
-      // but here we are filtering by date (range) and then we'll filter by farmerId in memory 
-      // or if we want exact match we can add it to query.
-      // Let's try exact match for farmerId if it looks like an ID.
-      if (/^\d+$/.test(searchId)) {
-        q = query(
-          collection(db, 'collections'),
-          where('farmerId', '==', searchId),
-          where('timestamp', '>=', Timestamp.fromDate(start)),
-          where('timestamp', '<=', Timestamp.fromDate(end)),
-          orderBy('timestamp', 'desc')
-        );
+        setTransactions(data);
+      } catch (err) {
+        handleError(err, 'Failed to load transactions');
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CollectionTransaction[];
-      
-      // If searchId is a name, filter in memory
-      if (searchId && !/^\d+$/.test(searchId)) {
-        setTransactions(docs.filter(d => d.farmerName.toLowerCase().includes(searchId.toLowerCase())));
-      } else {
-        setTransactions(docs);
-      }
-      setLoading(false);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'collections');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchTransactions();
   }, [filterDate, searchId]);
 
   const handlePrint = (txn?: CollectionTransaction) => {
@@ -90,7 +65,7 @@ export default function ReceiptPrint() {
     const csvContent = [
       headers.join(','),
       ...transactions.map(t => [
-        t.timestamp instanceof Timestamp ? format(t.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : '',
+        t.date ? format(new Date(t.date), 'yyyy-MM-dd HH:mm') : '',
         t.shift,
         t.farmerId,
         `"${t.farmerName}"`,
@@ -188,7 +163,7 @@ export default function ReceiptPrint() {
                         {txn.farmerName} ({txn.farmerId})
                       </p>
                       <p className="text-xs text-stone-500 dark:text-stone-400">
-                        {txn.timestamp instanceof Timestamp ? format(txn.timestamp.toDate(), 'dd MMM yyyy, hh:mm a') : '...'} • {txn.shift}
+                        {txn.date ? format(new Date(txn.date), 'dd MMM yyyy, hh:mm a') : '...'} • {txn.shift}
                       </p>
                     </div>
                   </div>
@@ -233,7 +208,7 @@ export default function ReceiptPrint() {
                 
                 <div className="text-stone-500">Date & Time:</div>
                 <div className="text-right">
-                  {selectedTxn.timestamp instanceof Timestamp ? format(selectedTxn.timestamp.toDate(), 'dd/MM/yyyy HH:mm') : ''}
+                  {selectedTxn.date ? format(new Date(selectedTxn.date), 'dd/MM/yyyy HH:mm') : ''}
                 </div>
 
                 <div className="text-stone-500">Shift:</div>

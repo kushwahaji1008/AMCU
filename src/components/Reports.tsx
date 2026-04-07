@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { handleFirestoreError, OperationType, auth } from '../firebase';
-import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { CollectionTransaction, ShiftSummary } from '../types';
+import { CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { FileText, Download, Filter, Calendar as CalendarIcon, ShieldCheck, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { collectionApi } from '../services/api';
 
 export default function Reports() {
-  const { profile, db } = useAuth();
+  const { profile } = useAuth();
   const { handleError } = useErrorHandler();
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -20,45 +19,38 @@ export default function Reports() {
   });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const fetchReports = async () => {
     setLoading(true);
-    let q;
-    if (activeTab === 'pending') {
-      q = query(
-        collection(db, 'collections'),
-        where('isManual', '==', true),
-        where('isApproved', '==', false),
-        orderBy('timestamp', 'desc')
-      );
-    } else {
-      q = query(
-        collection(db, 'collections'),
-        where('timestamp', '>=', startOfDay(new Date(dateRange.start)).toISOString()),
-        where('timestamp', '<=', endOfDay(new Date(dateRange.end)).toISOString()),
-        orderBy('timestamp', 'desc')
-      );
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-      setLoading(false);
-    }, (err) => {
+    try {
+      const response = await collectionApi.getReport(dateRange.start, dateRange.end);
+      let data = response.data;
+      
+      if (activeTab === 'pending') {
+        data = data.filter((t: any) => t.isManual && !t.isApproved);
+      }
+      
+      setTransactions(data);
+    } catch (err) {
       handleError(err, 'Failed to load reports');
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
-  }, [dateRange]);
+  useEffect(() => {
+    fetchReports();
+  }, [dateRange, activeTab]);
 
   const handleApprove = async (id: string) => {
-    if (profile?.role !== 'admin' || !auth.currentUser) return;
+    if (profile?.role !== 'admin') return;
     try {
-      await updateDoc(doc(db, 'collections', id), {
+      await collectionApi.update(id, {
         isApproved: true,
-        approvedBy: auth.currentUser.uid,
+        approvedBy: profile.uid,
         approvedAt: new Date().toISOString(),
       });
       toast.success('Transaction approved');
+      fetchReports();
     } catch (err) {
       handleError(err, 'Failed to approve transaction');
     }
@@ -72,8 +64,8 @@ export default function Reports() {
 
     const headers = ['Date', 'Time', 'Farmer ID', 'Farmer Name', 'Shift', 'Milk Type', 'Quantity', 'FAT', 'SNF', 'Rate', 'Amount', 'Status'];
     const rows = transactions.map(t => [
-      t.timestamp ? format(new Date(t.timestamp), 'yyyy-MM-dd') : '',
-      t.timestamp ? format(new Date(t.timestamp), 'hh:mm a') : '',
+      t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '',
+      t.date ? format(new Date(t.date), 'hh:mm a') : '',
       t.farmerId,
       t.farmerName,
       t.shift,
@@ -222,7 +214,7 @@ export default function Reports() {
               {transactions.map((t) => (
                 <tr key={t.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                   <td className="px-6 py-4 text-xs text-stone-500 dark:text-stone-400">
-                    {t.timestamp ? format(new Date(t.timestamp), 'dd MMM, hh:mm a') : 'Pending...'}
+                    {t.date ? format(new Date(t.date), 'dd MMM, hh:mm a') : 'Pending...'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">

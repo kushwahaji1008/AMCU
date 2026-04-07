@@ -55,6 +55,22 @@ export const LedgerSchema = new Schema({
   date: { type: Date, required: true },
   balanceAfter: { type: Number },
   dairyId: { type: String, required: true },
+  method: { type: String },
+  reference: { type: String },
+  operatorId: { type: String },
+});
+
+export const ShiftSummarySchema = new Schema({
+  date: { type: String, required: true },
+  shift: { type: String, enum: ['Morning', 'Evening'], required: true },
+  totalFarmers: { type: Number, required: true },
+  totalQuantity: { type: Number, required: true },
+  avgFat: { type: Number, required: true },
+  avgSnf: { type: Number, required: true },
+  totalAmount: { type: Number, required: true },
+  closedAt: { type: Date, required: true },
+  closedBy: { type: String, required: true },
+  dairyId: { type: String, required: true },
 });
 
 // --- Sale Schema ---

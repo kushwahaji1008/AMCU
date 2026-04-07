@@ -1,6 +1,6 @@
-import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository } from '../../Application/Interfaces/IRepositories';
+import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository } from '../../Application/Interfaces/IRepositories';
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
-import { MilkCollection, RateChart, LedgerEntry } from '../../Core/Entities/Collection';
+import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
 import { dbManager } from '../Persistence/Mongo/DatabaseManager';
 import { getDatabaseId } from '../../Core/RequestContext';
@@ -96,13 +96,13 @@ export class MongoCollectionRepository implements ICollectionRepository {
     return mapDoc<MilkCollection>(doc);
   }
 
-  async getDailyReport(date: Date): Promise<MilkCollection[]> {
+  async getDailyReport(date: Date, endDate?: Date): Promise<MilkCollection[]> {
     const model = await dbManager.getCollectionModel(getDatabaseId());
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
+    const end = endDate ? new Date(endDate) : new Date(date);
     end.setHours(23, 59, 59, 999);
-    const docs = await model.find({ date: { $gte: start, $lte: end } });
+    const docs = await model.find({ date: { $gte: start, $lte: end } }).sort({ date: -1 });
     return docs.map(doc => mapDoc<MilkCollection>(doc));
   }
 
@@ -118,6 +118,13 @@ export class MongoCollectionRepository implements ICollectionRepository {
     start.setDate(start.getDate() - days);
     const docs = await model.find({ date: { $gte: start } }).sort({ date: 1 });
     return docs.map(doc => mapDoc<MilkCollection>(doc));
+  }
+
+  async update(id: string, collection: Partial<MilkCollection>): Promise<MilkCollection> {
+    const model = await dbManager.getCollectionModel(getDatabaseId());
+    const doc = await model.findByIdAndUpdate(id, collection, { new: true });
+    if (!doc) throw new Error('Collection record not found');
+    return mapDoc<MilkCollection>(doc);
   }
 }
 
@@ -175,6 +182,26 @@ export class MongoLedgerRepository implements ILedgerRepository {
     const model = await dbManager.getLedgerModel(getDatabaseId());
     const docs = await model.find().sort({ date: -1 });
     return docs.map(doc => mapDoc<LedgerEntry>(doc));
+  }
+}
+
+export class MongoShiftSummaryRepository implements IShiftSummaryRepository {
+  async create(summary: Omit<ShiftSummary, 'id'>): Promise<ShiftSummary> {
+    const model = await dbManager.getShiftSummaryModel(getDatabaseId());
+    const doc = await model.create(summary);
+    return mapDoc<ShiftSummary>(doc);
+  }
+
+  async getByDateAndShift(date: string, shift: string): Promise<ShiftSummary | null> {
+    const model = await dbManager.getShiftSummaryModel(getDatabaseId());
+    const doc = await model.findOne({ date, shift });
+    return doc ? mapDoc<ShiftSummary>(doc) : null;
+  }
+
+  async getRecent(limit: number): Promise<ShiftSummary[]> {
+    const model = await dbManager.getShiftSummaryModel(getDatabaseId());
+    const docs = await model.find().sort({ closedAt: -1 }).limit(limit);
+    return docs.map(doc => mapDoc<ShiftSummary>(doc));
   }
 }
 

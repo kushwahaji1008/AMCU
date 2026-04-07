@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { handleFirestoreError, OperationType, toDate } from '../firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, orderBy, limit, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 import { Farmer, CollectionTransaction, LedgerEntry } from '../types';
 import { 
@@ -14,15 +12,17 @@ import JsBarcode from 'jsbarcode';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
+import { toDate } from '../firebase';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { farmerApi, collectionApi, paymentApi } from '../services/api';
 
 export default function FarmerProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { db } = useAuth();
+  const { profile } = useAuth();
   const { handleError } = useErrorHandler();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -71,55 +71,37 @@ export default function FarmerProfile() {
     }
   };
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!id) return;
-
-    // Fetch farmer details
-    const fetchFarmer = async () => {
-      try {
-        const farmerDoc = await getDoc(doc(db, 'farmers', id));
-        if (farmerDoc.exists()) {
-          setFarmer({ id: farmerDoc.id, ...farmerDoc.data() } as Farmer);
-        }
-      } catch (err) {
-        handleError(err, 'Failed to fetch farmer details');
-      }
-    };
-
-    // Fetch transactions
-    const qTxns = query(
-      collection(db, 'collections'),
-      where('farmerId', '==', farmer?.farmerId || ''), // Using member ID
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-
-    const unsubscribeTxns = onSnapshot(qTxns, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleError(err, 'Failed to load transactions'));
-
-    // Fetch ledger
-    const qLedger = query(
-      collection(db, 'ledger'),
-      where('farmerId', '==', farmer?.farmerId || ''),
-      orderBy('timestamp', 'desc'),
-      limit(100)
-    );
-
-    const unsubscribeLedger = onSnapshot(qLedger, (snapshot) => {
-      setLedger(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LedgerEntry)));
+    setLoading(true);
+    try {
+      const [farmerRes, ledgerRes] = await Promise.all([
+        farmerApi.getById(id),
+        paymentApi.getLedger()
+      ]);
+      
+      setFarmer(farmerRes.data);
+      
+      // Filter ledger for this farmer
+      const farmerLedger = ledgerRes.data.filter((entry: LedgerEntry) => entry.farmerId === farmerRes.data.id);
+      setLedger(farmerLedger);
+      
+      // Fetch transactions for this farmer
+      // Note: In a real app, we'd have a specific API for this
+      const collectionsRes = await collectionApi.getReport(format(new Date(), 'yyyy-MM-dd'));
+      const farmerCollections = collectionsRes.data.filter((c: any) => c.farmerId === farmerRes.data.id);
+      setTransactions(farmerCollections);
+      
+    } catch (err) {
+      handleError(err, 'Failed to fetch farmer details');
+    } finally {
       setLoading(false);
-    }, (err) => {
-      handleError(err, 'Failed to load ledger');
-      setLoading(false);
-    });
+    }
+  };
 
-    fetchFarmer();
-    return () => {
-      unsubscribeTxns();
-      unsubscribeLedger();
-    };
-  }, [id, farmer?.farmerId]);
+  useEffect(() => {
+    fetchData();
+  }, [id]);
 
   const handleEditClick = () => {
     if (!farmer) return;
@@ -158,10 +140,7 @@ export default function FarmerProfile() {
     
     setSubmitting(true);
     try {
-      const farmerRef = doc(db, 'farmers', id);
-      await updateDoc(farmerRef, {
-        ...editData,
-      });
+      await farmerApi.update(id, editData);
       setFarmer(prev => prev ? { ...prev, ...editData } : null);
       toast.success('Profile updated successfully!');
       setIsEditing(false);
@@ -176,7 +155,7 @@ export default function FarmerProfile() {
     if (!id) return;
     setSubmitting(true);
     try {
-      await deleteDoc(doc(db, 'farmers', id));
+      await farmerApi.delete(id);
       toast.success('Farmer deleted successfully');
       navigate('/farmers');
     } catch (err) {
@@ -201,7 +180,7 @@ export default function FarmerProfile() {
       .reverse()
       .slice(-15)
       .map(t => ({
-        date: format(toDate(t.timestamp), 'MMM dd'),
+        date: format(new Date(t.date), 'MMM dd'),
         qty: t.quantity,
         amt: t.amount
       }));
@@ -472,7 +451,7 @@ export default function FarmerProfile() {
                     {ledger.map((entry) => (
                       <tr key={entry.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                         <td className="px-6 py-4 text-sm text-stone-500 dark:text-stone-400">
-                          {entry.timestamp instanceof Timestamp ? format(entry.timestamp.toDate(), 'MMM dd, hh:mm a') : '...'}
+                          {format(new Date(entry.date), 'MMM dd, hh:mm a')}
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-sm font-medium text-stone-900 dark:text-white">{entry.description}</p>
@@ -480,9 +459,9 @@ export default function FarmerProfile() {
                         </td>
                         <td className={cn(
                           "px-6 py-4 text-sm font-bold text-right",
-                          entry.type === 'Credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                          entry.type.toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                         )}>
-                          {entry.type === 'Credit' ? '+' : '-'} ₹{(entry.amount || 0).toFixed(2)}
+                          {entry.type.toLowerCase() === 'credit' ? '+' : '-'} ₹{(entry.amount || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-sm font-mono font-medium text-stone-900 dark:text-white text-right">
                           ₹{(entry.balanceAfter || 0).toFixed(2)}

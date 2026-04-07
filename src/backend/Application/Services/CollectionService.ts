@@ -1,12 +1,13 @@
-import { ICollectionRepository, IRateChartRepository, ILedgerRepository, IFarmerRepository } from '../Interfaces/IRepositories';
-import { MilkCollection } from '../../Core/Entities/Collection';
+import { ICollectionRepository, IRateChartRepository, ILedgerRepository, IFarmerRepository, IShiftSummaryRepository } from '../Interfaces/IRepositories';
+import { MilkCollection, ShiftSummary } from '../../Core/Entities/Collection';
 
 export class CollectionService {
   constructor(
     private collectionRepo: ICollectionRepository,
     private rateChartRepo: IRateChartRepository,
     private ledgerRepo: ILedgerRepository,
-    private farmerRepo: IFarmerRepository
+    private farmerRepo: IFarmerRepository,
+    private shiftSummaryRepo: IShiftSummaryRepository
   ) {}
 
   async createCollection(data: any): Promise<MilkCollection> {
@@ -52,7 +53,23 @@ export class CollectionService {
     return collection;
   }
 
-  async getDailyReport(date: Date): Promise<MilkCollection[]> {
-    return this.collectionRepo.getDailyReport(date);
+  async getDailyReport(date: Date, endDate?: Date): Promise<MilkCollection[]> {
+    return this.collectionRepo.getDailyReport(date, endDate);
+  }
+
+  async updateCollection(id: string, data: Partial<MilkCollection>): Promise<MilkCollection> {
+    return this.collectionRepo.update(id, data);
+  }
+
+  async createShiftSummary(data: Omit<ShiftSummary, 'id'>): Promise<ShiftSummary> {
+    return this.shiftSummaryRepo.create(data);
+  }
+
+  async getShiftSummary(date: string, shift: string): Promise<ShiftSummary | null> {
+    return this.shiftSummaryRepo.getByDateAndShift(date, shift);
+  }
+
+  async getRecentShiftSummaries(limit: number): Promise<ShiftSummary[]> {
+    return this.shiftSummaryRepo.getRecent(limit);
   }
 }

@@ -7,10 +7,11 @@ import {
   SaleSchema, 
   CustomerSchema, 
   UserSchema,
-  DairySchema 
+  DairySchema,
+  ShiftSummarySchema
 } from './Models';
 import { Farmer } from '../../../Core/Entities/Farmer';
-import { MilkCollection, RateChart, LedgerEntry } from '../../../Core/Entities/Collection';
+import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../../Core/Entities/Collection';
 import { MilkSale, Customer, User } from '../../../Core/Entities/Sale';
 
 class DatabaseManager {
@@ -59,6 +60,10 @@ class DatabaseManager {
 
   async getLedgerModel(databaseId: string) {
     return this.getModel<LedgerEntry & Document>(databaseId, 'Ledger', LedgerSchema);
+  }
+
+  async getShiftSummaryModel(databaseId: string) {
+    return this.getModel<ShiftSummary & Document>(databaseId, 'ShiftSummary', ShiftSummarySchema);
   }
 
   async getSaleModel(databaseId: string) {

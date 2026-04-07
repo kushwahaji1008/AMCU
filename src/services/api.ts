@@ -59,8 +59,15 @@ export const farmerApi = {
 
 export const collectionApi = {
   create: (data: any) => api.post('/collections', data),
-  getDailyReport: (date: string) => api.get(`/collections/report?date=${date}`),
-  getReport: (date: string) => api.get(`/collections/report?date=${date}`),
+  update: (id: string, data: any) => api.put(`/collections/${id}`, data),
+  getDailyReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+  getReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+};
+
+export const shiftApi = {
+  createSummary: (data: any) => api.post('/shifts/summary', data),
+  getSummary: (date: string, shift: string) => api.get(`/shifts/summary?date=${date}&shift=${shift}`),
+  getRecent: (limit: number = 10) => api.get(`/shifts/recent?limit=${limit}`),
 };
 
 export const saleApi = {

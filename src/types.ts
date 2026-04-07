@@ -93,11 +93,14 @@ export interface Payment {
 export interface LedgerEntry {
   id: string;
   farmerId: string;
-  type: 'Credit' | 'Debit'; // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
+  type: 'credit' | 'debit'; // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
   amount: number;
   description: string;
   referenceId: string; // ID of the collection or payment record
-  timestamp: any;
+  date: string | Date;
   balanceAfter: number;
   dairyId: string; // The dairy this ledger entry belongs to
+  method?: string;
+  reference?: string;
+  operatorId?: string;
 }

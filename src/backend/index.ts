@@ -8,7 +8,8 @@ import {
   MongoSaleRepository,
   MongoCustomerRepository,
   MongoDairyRepository,
-  MongoSettingsRepository
+  MongoSettingsRepository,
+  MongoShiftSummaryRepository
 } from './Infrastructure/Repositories/MongoRepositories';
 import { FarmerService } from './Application/Services/FarmerService';
 import { CollectionService } from './Application/Services/CollectionService';
@@ -35,9 +36,10 @@ const saleRepo = new MongoSaleRepository();
 const customerRepo = new MongoCustomerRepository();
 const dairyRepo = new MongoDairyRepository();
 const settingsRepo = new MongoSettingsRepository();
+const shiftSummaryRepo = new MongoShiftSummaryRepository();
 
 const farmerService = new FarmerService(farmerRepo);
-const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo, farmerRepo);
+const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo, farmerRepo, shiftSummaryRepo);
 const paymentService = new PaymentService(ledgerRepo, farmerRepo);
 const authService = new AuthService(userRepo, dairyRepo);
 const saleService = new SaleService(saleRepo, customerRepo);
@@ -102,7 +104,11 @@ app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerCont
 
 // Collection Routes
 app.post('/api/collections', authenticate, (req, res, next) => collectionController.createCollection(req, res).catch(next));
+app.put('/api/collections/:id', authenticate, authorize(['admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
 app.get('/api/collections/report', authenticate, (req, res, next) => collectionController.getDailyReport(req, res).catch(next));
+app.post('/api/shifts/summary', authenticate, (req, res, next) => collectionController.createShiftSummary(req, res).catch(next));
+app.get('/api/shifts/summary', authenticate, (req, res, next) => collectionController.getShiftSummary(req, res).catch(next));
+app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionController.getRecentShiftSummaries(req, res).catch(next));
 
 // Sale & Customer Routes
 app.get('/api/customers', authenticate, (req, res, next) => saleController.getAllCustomers(req, res).catch(next));

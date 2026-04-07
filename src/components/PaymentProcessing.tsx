@@ -1,22 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Search, FileText, Calendar, DollarSign, CheckCircle2, User, ArrowRight, History, Wallet, IndianRupee } from 'lucide-react';
-import { auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, Timestamp, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
-import { Farmer, CollectionTransaction, Payment } from '../types';
-import { recordTransaction } from '../lib/ledger';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { Farmer, LedgerEntry } from '../types';
+import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { farmerApi, paymentApi } from '../services/api';
 
 export default function PaymentProcessing() {
-  const { profile, db } = useAuth();
+  const { profile } = useAuth();
   const { handleError } = useErrorHandler();
   const [searchId, setSearchId] = useState('');
   const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   
@@ -25,33 +22,27 @@ export default function PaymentProcessing() {
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'UPI' | 'Check'>('Cash');
   const [reference, setReference] = useState('');
 
-  useEffect(() => {
+  const fetchData = async () => {
     setLoading(true);
-    
-    // Fetch all farmers
-    const unsubscribeFarmers = onSnapshot(collection(db, 'farmers'), (snapshot) => {
-      setFarmers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Farmer)));
-    }, (err) => handleError(err, 'Failed to load farmers'));
-
-    // Fetch all transactions (might be large, in real app we'd filter by date or use aggregations)
-    const unsubscribeTxns = onSnapshot(collection(db, 'collections'), (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleError(err, 'Failed to load transactions'));
-
-    // Fetch all payments
-    const unsubscribePayments = onSnapshot(query(collection(db, 'payments'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
+    try {
+      const [farmersRes, ledgerRes] = await Promise.all([
+        farmerApi.getAll(),
+        paymentApi.getLedger()
+      ]);
+      
+      setFarmers(farmersRes.data);
+      // Filter ledger for debit entries (payments)
+      const paymentEntries = ledgerRes.data.filter((entry: LedgerEntry) => entry.type.toLowerCase() === 'debit');
+      setPayments(paymentEntries);
+    } catch (err) {
+      handleError(err, 'Failed to load data');
+    } finally {
       setLoading(false);
-    }, (err) => {
-      handleError(err, 'Failed to load payments');
-      setLoading(false);
-    });
+    }
+  };
 
-    return () => {
-      unsubscribeFarmers();
-      unsubscribeTxns();
-      unsubscribePayments();
-    };
+  useEffect(() => {
+    fetchData();
   }, []);
 
   const getFarmerBalance = (farmer: Farmer) => {
@@ -78,35 +69,26 @@ export default function PaymentProcessing() {
 
     setProcessing(true);
     try {
-      const paymentData: Omit<Payment, 'id'> = {
-        farmerId: selectedFarmer.farmerId,
-        farmerName: selectedFarmer.name,
+      const paymentData = {
+        farmerId: selectedFarmer.id, // Use MongoDB ID
         amount: amount,
         method: paymentMethod,
         reference: reference,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        timestamp: serverTimestamp(),
-        operatorId: profile?.uid || 'system',
-        status: 'Completed',
-        dairyId: profile?.dairyId || 'global'
+        date: new Date(),
+        description: `Payment: ${paymentMethod}${reference ? ` (${reference})` : ''}`,
+        referenceId: `PAY-${Date.now()}`,
+        dairyId: profile?.dairyId || '',
+        operatorId: profile?.uid || 'system'
       };
 
-      const paymentRef = await addDoc(collection(db, 'payments'), paymentData);
-      
-      await recordTransaction(
-        db,
-        selectedFarmer.id,
-        'Debit',
-        amount,
-        `Payment: ${paymentMethod}${reference ? ` (${reference})` : ''}`,
-        paymentRef.id
-      );
+      await paymentApi.recordPayment(paymentData);
       
       toast.success(`Payment of ₹${amount} processed for ${selectedFarmer.name}`);
       setPaymentAmount('');
       setReference('');
       setSelectedFarmer(null);
       setShowOverpayConfirm(false);
+      fetchData(); // Refresh data
     } catch (err) {
       handleError(err, 'Failed to process payment');
     } finally {
@@ -307,11 +289,13 @@ export default function PaymentProcessing() {
                   {payments.map((p) => (
                     <tr key={p.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                       <td className="px-6 py-4 text-sm text-stone-500 dark:text-stone-400">
-                        {p.timestamp instanceof Timestamp ? format(p.timestamp.toDate(), 'dd MMM yyyy') : p.date}
+                        {format(new Date(p.date), 'dd MMM yyyy')}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-stone-900 dark:text-white">{p.farmerName}</div>
-                        <div className="text-xs text-stone-400">ID: {p.farmerId}</div>
+                        <div className="text-sm font-medium text-stone-900 dark:text-white">
+                          {farmers.find(f => f.id === p.farmerId)?.name || 'Unknown Farmer'}
+                        </div>
+                        <div className="text-xs text-stone-400">ID: {farmers.find(f => f.id === p.farmerId)?.farmerId || p.farmerId}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
@@ -320,7 +304,7 @@ export default function PaymentProcessing() {
                           p.method === 'UPI' ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20" :
                           "bg-amber-50 text-amber-600 dark:bg-amber-900/20"
                         )}>
-                          {p.method}
+                          {p.method || 'Cash'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-stone-500 dark:text-stone-400 truncate max-w-[150px]">

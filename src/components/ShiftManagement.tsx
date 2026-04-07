@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { handleFirestoreError, OperationType, auth } from '../firebase';
-import { collection, query, where, getDocs, addDoc, onSnapshot, orderBy, limit, Timestamp, startAt, endAt } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { ShiftSummary, CollectionTransaction } from '../types';
@@ -9,9 +7,10 @@ import { Clock, CheckCircle2, AlertCircle, History, ArrowRight, User } from 'luc
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { toast } from 'sonner';
+import { collectionApi, shiftApi } from '../services/api';
 
 export default function ShiftManagement() {
-  const { profile, db } = useAuth();
+  const { profile } = useAuth();
   const { t } = useLanguage();
   const { handleError } = useErrorHandler();
   const [currentShift, setCurrentShift] = useState<'Morning' | 'Evening'>(
@@ -30,26 +29,23 @@ export default function ShiftManagement() {
   const [isShiftSummarized, setIsShiftSummarized] = useState(false);
   const [isShiftExpired, setIsShiftExpired] = useState(false);
 
-  useEffect(() => {
-    const today = new Date();
-    const q = query(
-      collection(db, 'collections'),
-      where('timestamp', '>=', Timestamp.fromDate(startOfDay(today))),
-      where('timestamp', '<=', Timestamp.fromDate(endOfDay(today))),
-      where('shift', '==', currentShift)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+  const fetchShiftData = async () => {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      // Fetch collections for today's shift
+      const collectionsRes = await collectionApi.getDailyReport(today);
+      const shiftCollections = collectionsRes.data.filter((c: any) => c.shift === currentShift);
+      
       let qty = 0;
       let amt = 0;
       let fatSum = 0;
       let snfSum = 0;
       const farmerIds = new Set();
 
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as CollectionTransaction;
+      shiftCollections.forEach((data: any) => {
         qty += data.quantity;
-        amt += data.amount;
+        amt += data.totalAmount || data.amount;
         fatSum += data.fat;
         snfSum += data.snf;
         farmerIds.add(data.farmerId);
@@ -59,20 +55,25 @@ export default function ShiftManagement() {
         totalFarmers: farmerIds.size,
         totalQuantity: qty,
         totalAmount: amt,
-        avgFat: snapshot.size > 0 ? fatSum / snapshot.size : 0,
-        avgSnf: snapshot.size > 0 ? snfSum / snapshot.size : 0,
+        avgFat: shiftCollections.length > 0 ? fatSum / shiftCollections.length : 0,
+        avgSnf: shiftCollections.length > 0 ? snfSum / shiftCollections.length : 0,
       });
-    }, (err) => handleError(err, 'Failed to load shift stats'));
 
-    // Check if shift is already closed
-    const qSummary = query(
-      collection(db, 'shiftSummaries'),
-      where('date', '==', format(today, 'yyyy-MM-dd')),
-      where('shift', '==', currentShift)
-    );
-    const unsubscribeSummary = onSnapshot(qSummary, (snapshot) => {
-      setIsShiftSummarized(!snapshot.empty);
-    });
+      // Check if shift is summarized
+      const summaryRes = await shiftApi.getSummary(today, currentShift);
+      setIsShiftSummarized(!!summaryRes.data);
+
+      // Fetch past summaries
+      const recentRes = await shiftApi.getRecent(10);
+      setPastSummaries(recentRes.data);
+
+    } catch (err) {
+      handleError(err, 'Failed to load shift data');
+    }
+  };
+
+  useEffect(() => {
+    fetchShiftData();
 
     // Auto-close logic based on time
     const timer = setInterval(() => {
@@ -83,27 +84,16 @@ export default function ShiftManagement() {
         expired = true;
       }
       setIsShiftExpired(expired);
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
-    // Past summaries
-    const qPast = query(collection(db, 'shiftSummaries'), orderBy('closedAt', 'desc'), limit(10));
-    const unsubscribePast = onSnapshot(qPast, (snapshot) => {
-      setPastSummaries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftSummary)));
-    }, (err) => handleError(err, 'Failed to load past summaries'));
-
-    return () => {
-      unsubscribe();
-      unsubscribeSummary();
-      unsubscribePast();
-      clearInterval(timer);
-    };
+    return () => clearInterval(timer);
   }, [currentShift]);
 
   const handleCloseShift = async () => {
     if (isShiftSummarized) return;
     setLoading(true);
     try {
-      const summary: Omit<ShiftSummary, 'id'> = {
+      const summary = {
         date: format(new Date(), 'yyyy-MM-dd'),
         shift: currentShift,
         totalFarmers: shiftStats.totalFarmers,
@@ -111,14 +101,15 @@ export default function ShiftManagement() {
         avgFat: shiftStats.avgFat,
         avgSnf: shiftStats.avgSnf,
         totalAmount: shiftStats.totalAmount,
-        closedAt: new Date().toISOString(),
+        closedAt: new Date(),
         closedBy: profile?.name || 'Unknown',
         dairyId: profile?.dairyId || 'global'
       };
 
-      await addDoc(collection(db, 'shiftSummaries'), summary);
+      await shiftApi.createSummary(summary);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
+      fetchShiftData();
     } catch (err) {
       handleError(err, 'Failed to close shift');
     } finally {

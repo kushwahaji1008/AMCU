@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { toDate } from '../firebase';
 import { useLanguage } from '../LanguageContext';
 import { LedgerEntry, Farmer } from '../types';
 import { format } from 'date-fns';
@@ -49,7 +48,7 @@ export default function Ledger() {
     const farmerName = farmers[entry.farmerId] || 'Unknown Farmer';
     const matchesSearch = farmerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          entry.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'All' || entry.type === filterType;
+    const matchesFilter = filterType === 'All' || entry.type.toLowerCase() === filterType.toLowerCase();
     return matchesSearch && matchesFilter;
   });
 
@@ -133,10 +132,10 @@ export default function Ledger() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-stone-900 dark:text-white">
-                          {format(toDate(entry.timestamp), 'MMM dd, yyyy')}
+                          {format(new Date(entry.date), 'MMM dd, yyyy')}
                         </span>
                         <span className="text-[10px] text-stone-400">
-                          {format(toDate(entry.timestamp), 'hh:mm a')}
+                          {format(new Date(entry.date), 'hh:mm a')}
                         </span>
                       </div>
                     </td>
@@ -156,9 +155,9 @@ export default function Ledger() {
                     <td className="px-6 py-4 text-right">
                       <div className={cn(
                         "flex items-center justify-end gap-1 font-medium",
-                        entry.type === 'Credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                        entry.type.toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                       )}>
-                        {entry.type === 'Credit' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
+                        {entry.type.toLowerCase() === 'credit' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
                         <span>₹{entry.amount.toLocaleString()}</span>
                       </div>
                     </td>
