@@ -4,9 +4,11 @@ import { useAuth, UserProfile } from '../AuthContext';
 import { userApi } from '../services/api';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function UserManagement() {
   const { profile } = useAuth();
+  const { handleError } = useErrorHandler();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [activeTab, setActiveTab] = useState<'Operators' | 'Admins'>(profile?.role === 'super_admin' ? 'Admins' : 'Operators');
   const [isAdding, setIsAdding] = useState(false);
@@ -42,8 +44,7 @@ export default function UserManagement() {
         createdAt: u.createdAt
       })));
     } catch (err) {
-      console.error('Failed to fetch users:', err);
-      toast.error('Failed to fetch users');
+      handleError(err, 'Failed to fetch users');
     } finally {
       setLoading(false);
     }
@@ -80,7 +81,7 @@ export default function UserManagement() {
       setNewUser({ username: '', displayName: '', password: '', databaseId: '' });
       fetchUsers();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to create user');
+      handleError(err, 'Failed to create user');
     } finally {
       setLoading(false);
     }

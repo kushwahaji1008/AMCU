@@ -7,9 +7,11 @@ import { format } from 'date-fns';
 import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, QrCode } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '../lib/utils';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function CollectionEntry() {
   const { profile } = useAuth();
+  const { handleError } = useErrorHandler();
   const [searchId, setSearchId] = useState('');
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ export default function CollectionEntry() {
       const response = await rateApi.getAll();
       setRateCharts(response.data);
     } catch (err) {
-      console.error('Failed to fetch rate charts:', err);
+      handleError(err, 'Failed to fetch rate charts');
     }
   };
 
@@ -56,7 +58,7 @@ export default function CollectionEntry() {
       const filtered = response.data.filter((t: any) => t.shift === selectedShift);
       setTransactions(filtered);
     } catch (err) {
-      console.error('Failed to fetch transactions:', err);
+      handleError(err, 'Failed to fetch transactions');
     }
   };
 
@@ -99,8 +101,8 @@ export default function CollectionEntry() {
     setFarmer(null);
     
     try {
-      const response = await farmerApi.getAll();
-      const found = response.data.find((f: any) => f.farmerId === searchId);
+      const response = await farmerApi.search(searchId);
+      const found = response.data;
       
       if (!found) {
         setError('Farmer not found');
@@ -108,9 +110,13 @@ export default function CollectionEntry() {
         setFarmer(found);
         setFormData(prev => ({ ...prev, milkType: found.cattleType }));
       }
-    } catch (err) {
-      console.error('Search failed:', err);
-      setError('Search failed');
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setError('Farmer not found');
+      } else {
+        handleError(err, 'Search failed');
+        setError('Search failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -122,8 +128,8 @@ export default function CollectionEntry() {
     setFarmer(null);
     
     try {
-      const response = await farmerApi.getAll();
-      const found = response.data.find((f: any) => f.farmerId === id);
+      const response = await farmerApi.search(id);
+      const found = response.data;
       
       if (!found) {
         setError('Farmer not found');
@@ -135,9 +141,14 @@ export default function CollectionEntry() {
         toast.success(`Farmer ${found.name} identified`);
         setIsScanning(false);
       }
-    } catch (err) {
-      console.error('Fetch failed:', err);
-      setError('Fetch failed');
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setError('Farmer not found');
+        toast.error('Farmer not found');
+      } else {
+        handleError(err, 'Fetch failed');
+        setError('Fetch failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -203,7 +214,7 @@ export default function CollectionEntry() {
         setFormData({ quantity: '', fat: '', snf: '', clr: '', milkType: 'Cow' });
       }, 3000);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to save entry');
+      handleError(err, 'Failed to save entry');
     } finally {
       setLoading(false);
     }
@@ -324,11 +335,11 @@ export default function CollectionEntry() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-stone-50 dark:bg-stone-800 rounded-xl">
                   <span className="text-sm text-stone-500 dark:text-stone-400">Rate per kg</span>
-                  <span className="text-lg font-serif font-medium text-stone-900 dark:text-white">₹{calculated.rate.toFixed(2)}</span>
+                  <span className="text-lg font-serif font-medium text-stone-900 dark:text-white">₹{(calculated.rate || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl">
                   <span className="text-sm opacity-70">Total Amount</span>
-                  <span className="text-2xl font-serif font-medium">₹{calculated.amount.toFixed(2)}</span>
+                  <span className="text-2xl font-serif font-medium">₹{(calculated.amount || 0).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -442,7 +453,7 @@ export default function CollectionEntry() {
             Collection Transactions ({selectedShift} - {format(new Date(selectedDate), 'dd MMM yyyy')})
           </h2>
           <div className="text-sm text-stone-500 dark:text-stone-400">
-            Total: ₹{transactions.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+            Total: ₹{transactions.reduce((acc, t) => acc + (t.amount || 0), 0).toFixed(2)}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -477,10 +488,10 @@ export default function CollectionEntry() {
                       {txn.milkType}
                     </span>
                   </td>
-                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white">{txn.quantity.toFixed(1)}</td>
-                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">{txn.fat.toFixed(1)} / {txn.snf.toFixed(1)}</td>
-                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">₹{txn.rate.toFixed(2)}</td>
-                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white text-right">₹{txn.amount.toFixed(2)}</td>
+                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white">{(txn.quantity || 0).toFixed(1)}</td>
+                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">{(txn.fat || 0).toFixed(1)} / {(txn.snf || 0).toFixed(1)}</td>
+                  <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">₹{(txn.rate || 0).toFixed(2)}</td>
+                  <td className="py-4 px-6 text-sm font-medium text-stone-900 dark:text-white text-right">₹{(txn.amount || 0).toFixed(2)}</td>
                   <td className="py-4 px-6 text-right print:hidden">
                     <button 
                       onClick={() => handlePrint(txn)}
@@ -534,25 +545,25 @@ export default function CollectionEntry() {
               </div>
               <div className="flex justify-between">
                 <span>Quantity:</span>
-                <span className="font-bold">{selectedTxn.quantity.toFixed(2)} kg</span>
+                <span className="font-bold">{(selectedTxn.quantity || 0).toFixed(2)} kg</span>
               </div>
               <div className="flex justify-between">
                 <span>FAT:</span>
-                <span className="font-bold">{selectedTxn.fat.toFixed(1)} %</span>
+                <span className="font-bold">{(selectedTxn.fat || 0).toFixed(1)} %</span>
               </div>
               <div className="flex justify-between">
                 <span>SNF:</span>
-                <span className="font-bold">{selectedTxn.snf.toFixed(1)} %</span>
+                <span className="font-bold">{(selectedTxn.snf || 0).toFixed(1)} %</span>
               </div>
               <div className="flex justify-between">
                 <span>Rate:</span>
-                <span className="font-bold">₹{selectedTxn.rate.toFixed(2)} /kg</span>
+                <span className="font-bold">₹{(selectedTxn.rate || 0).toFixed(2)} /kg</span>
               </div>
             </div>
 
             <div className="flex justify-between items-center pt-1">
               <span className="font-bold uppercase">Total Amount:</span>
-              <span className="text-xl font-serif font-bold">₹{selectedTxn.amount.toFixed(2)}</span>
+              <span className="text-xl font-serif font-bold">₹{(selectedTxn.amount || 0).toFixed(2)}</span>
             </div>
 
             <div className="pt-4 text-center text-[8px] text-stone-400 border-t border-stone-100">

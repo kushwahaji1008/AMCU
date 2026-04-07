@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { handleFirestoreError, OperationType, toDate } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { toDate } from '../firebase';
 import { useLanguage } from '../LanguageContext';
-import { useAuth } from '../AuthContext';
 import { LedgerEntry, Farmer } from '../types';
 import { format } from 'date-fns';
 import { 
   BookOpen, Search, Filter, ArrowUpRight, ArrowDownLeft, 
-  Calendar, User, Download, RefreshCw
+  User, Download, RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { paymentApi, farmerApi } from '../services/api';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function Ledger() {
   const { t } = useLanguage();
-  const { db } = useAuth();
+  const { handleError } = useErrorHandler();
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [farmers, setFarmers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -21,27 +21,28 @@ export default function Ledger() {
   const [filterType, setFilterType] = useState<'All' | 'Credit' | 'Debit'>('All');
 
   useEffect(() => {
-    // Fetch farmers for mapping IDs to names
-    const unsubFarmers = onSnapshot(collection(db, 'farmers'), (snapshot) => {
-      const farmerMap: Record<string, string> = {};
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as Farmer;
-        farmerMap[doc.id] = data.name;
-      });
-      setFarmers(farmerMap);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Fetch farmers
+        const farmersRes = await farmerApi.getAll();
+        const farmerMap: Record<string, string> = {};
+        farmersRes.data.forEach((f: Farmer) => {
+          farmerMap[f.id] = f.name;
+        });
+        setFarmers(farmerMap);
 
-    // Fetch ledger entries
-    const q = query(collection(db, 'ledger'), orderBy('timestamp', 'desc'), limit(100));
-    const unsubLedger = onSnapshot(q, (snapshot) => {
-      setEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LedgerEntry)));
-      setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'ledger'));
-
-    return () => {
-      unsubFarmers();
-      unsubLedger();
+        // Fetch ledger entries
+        const ledgerRes = await paymentApi.getLedger();
+        setEntries(ledgerRes.data);
+      } catch (error) {
+        handleError(error, "Failed to fetch ledger data");
+      } finally {
+        setLoading(false);
+      }
     };
+
+    fetchData();
   }, []);
 
   const filteredEntries = entries.filter(entry => {

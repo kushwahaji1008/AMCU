@@ -12,7 +12,8 @@ export class AuthService {
   ) {}
 
   async login(username: string, password: string): Promise<{ token: string; user: Omit<User, 'passwordHash'> }> {
-    const user = await this.userRepo.getByUsername(username);
+    const normalizedUsername = username.toLowerCase();
+    const user = await this.userRepo.getByUsername(normalizedUsername);
     if (!user) {
       throw new Error('Invalid username or password.');
     }
@@ -40,7 +41,8 @@ export class AuthService {
     existingDairyId?: string,
     existingDatabaseId?: string
   ): Promise<Omit<User, 'passwordHash'>> {
-    const existingUser = await this.userRepo.getByUsername(username);
+    const normalizedUsername = username.toLowerCase();
+    const existingUser = await this.userRepo.getByUsername(normalizedUsername);
     if (existingUser) {
       throw new Error('Username already exists.');
     }
@@ -60,7 +62,7 @@ export class AuthService {
     }
 
     const user = await this.userRepo.create({
-      username,
+      username: normalizedUsername,
       passwordHash,
       role,
       dairyId,

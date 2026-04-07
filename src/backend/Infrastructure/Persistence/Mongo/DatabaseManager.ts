@@ -76,6 +76,11 @@ class DatabaseManager {
   async getDairyModel(databaseId: string) {
     return this.getModel<any & Document>(databaseId, 'Dairy', DairySchema);
   }
+
+  async getSettingsModel(databaseId: string) {
+    const { SettingsSchema } = require('./Models');
+    return this.getModel<any & Document>(databaseId, 'Settings', SettingsSchema);
+  }
 }
 
 export const dbManager = new DatabaseManager();

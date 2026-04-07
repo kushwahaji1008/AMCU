@@ -8,10 +8,12 @@ import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download, 
 import JsBarcode from 'jsbarcode';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function FarmerManagement() {
   const { t } = useLanguage();
   const { profile } = useAuth();
+  const { handleError } = useErrorHandler();
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -27,8 +29,7 @@ export default function FarmerManagement() {
       const response = await farmerApi.getAll();
       setFarmers(response.data);
     } catch (err) {
-      console.error('Failed to fetch farmers:', err);
-      toast.error('Failed to load farmers');
+      handleError(err, 'Failed to load farmers');
     }
   };
 
@@ -142,7 +143,7 @@ export default function FarmerManagement() {
         ifsc: '',
       });
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to save farmer');
+      handleError(err, 'Failed to save farmer');
     } finally {
       setLoading(false);
     }
@@ -171,7 +172,7 @@ export default function FarmerManagement() {
       setDeleteConfirmId(null);
       fetchFarmers();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete farmer');
+      handleError(err, 'Failed to delete farmer');
     } finally {
       setLoading(false);
     }

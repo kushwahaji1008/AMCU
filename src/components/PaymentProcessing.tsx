@@ -8,9 +8,11 @@ import { recordTransaction } from '../lib/ledger';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function PaymentProcessing() {
   const { profile, db } = useAuth();
+  const { handleError } = useErrorHandler();
   const [searchId, setSearchId] = useState('');
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
@@ -29,18 +31,21 @@ export default function PaymentProcessing() {
     // Fetch all farmers
     const unsubscribeFarmers = onSnapshot(collection(db, 'farmers'), (snapshot) => {
       setFarmers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Farmer)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
+    }, (err) => handleError(err, 'Failed to load farmers'));
 
     // Fetch all transactions (might be large, in real app we'd filter by date or use aggregations)
     const unsubscribeTxns = onSnapshot(collection(db, 'collections'), (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
+    }, (err) => handleError(err, 'Failed to load transactions'));
 
     // Fetch all payments
     const unsubscribePayments = onSnapshot(query(collection(db, 'payments'), orderBy('timestamp', 'desc')), (snapshot) => {
       setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
       setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'payments'));
+    }, (err) => {
+      handleError(err, 'Failed to load payments');
+      setLoading(false);
+    });
 
     return () => {
       unsubscribeFarmers();
@@ -103,7 +108,7 @@ export default function PaymentProcessing() {
       setSelectedFarmer(null);
       setShowOverpayConfirm(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'payments');
+      handleError(err, 'Failed to process payment');
     } finally {
       setProcessing(false);
     }

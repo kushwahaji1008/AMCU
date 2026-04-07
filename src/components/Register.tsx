@@ -3,8 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../services/api';
 import { Milk, UserPlus, Mail, Lock, User, AlertCircle, Building, MapPin, Phone } from 'lucide-react';
 import { toast } from 'sonner';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function Register() {
+  const { handleError } = useErrorHandler();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +38,7 @@ export default function Register() {
       toast.success('Account created successfully! Please login.');
       navigate('/login');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create account');
+      setError(handleError(err, 'Failed to create account'));
     } finally {
       setLoading(false);
     }

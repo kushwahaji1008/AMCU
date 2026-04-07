@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from './services/api';
+import { db } from './firebase';
+import { Firestore } from 'firebase/firestore';
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  name?: string; // Alias for displayName
   photoURL: string;
   role: 'super_admin' | 'admin' | 'operator';
   dairyId?: string;
@@ -18,8 +21,10 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isAuthReady: boolean;
+  db: Firestore;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signInSuperAdmin: (email: string, pass: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   switchDatabase: (databaseId: string) => void;
 }
@@ -117,14 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    throw new Error("Google Sign-In is not supported in this version. Please use Email/Password.");
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
       profile, 
       loading, 
       isAuthReady,
+      db,
       signInWithEmail,
       signInSuperAdmin,
+      signInWithGoogle,
       logout,
       switchDatabase
     }}>

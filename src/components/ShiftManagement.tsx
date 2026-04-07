@@ -7,10 +7,13 @@ import { ShiftSummary, CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { Clock, CheckCircle2, AlertCircle, History, ArrowRight, User } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useErrorHandler } from '../hooks/useErrorHandler';
+import { toast } from 'sonner';
 
 export default function ShiftManagement() {
   const { profile, db } = useAuth();
   const { t } = useLanguage();
+  const { handleError } = useErrorHandler();
   const [currentShift, setCurrentShift] = useState<'Morning' | 'Evening'>(
     new Date().getHours() < 13 ? 'Morning' : 'Evening'
   );
@@ -59,7 +62,7 @@ export default function ShiftManagement() {
         avgFat: snapshot.size > 0 ? fatSum / snapshot.size : 0,
         avgSnf: snapshot.size > 0 ? snfSum / snapshot.size : 0,
       });
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
+    }, (err) => handleError(err, 'Failed to load shift stats'));
 
     // Check if shift is already closed
     const qSummary = query(
@@ -86,7 +89,7 @@ export default function ShiftManagement() {
     const qPast = query(collection(db, 'shiftSummaries'), orderBy('closedAt', 'desc'), limit(10));
     const unsubscribePast = onSnapshot(qPast, (snapshot) => {
       setPastSummaries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftSummary)));
-    });
+    }, (err) => handleError(err, 'Failed to load past summaries'));
 
     return () => {
       unsubscribe();
@@ -117,7 +120,7 @@ export default function ShiftManagement() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'shiftSummaries');
+      handleError(err, 'Failed to close shift');
     } finally {
       setLoading(false);
     }

@@ -27,6 +27,11 @@ export class SaleController {
 export class ReportingController {
   constructor(private reportingService: ReportingService) {}
 
+  async getDashboardStats(req: Request, res: Response) {
+    const stats = await this.reportingService.getDashboardStats();
+    res.json(stats);
+  }
+
   async getDailyReport(req: Request, res: Response) {
     const dateStr = req.query.date as string;
     const date = dateStr ? new Date(dateStr) : new Date();

@@ -7,7 +7,8 @@ import {
   MongoUserRepository,
   MongoSaleRepository,
   MongoCustomerRepository,
-  MongoDairyRepository
+  MongoDairyRepository,
+  MongoSettingsRepository
 } from './Infrastructure/Repositories/MongoRepositories';
 import { FarmerService } from './Application/Services/FarmerService';
 import { CollectionService } from './Application/Services/CollectionService';
@@ -33,6 +34,7 @@ const userRepo = new MongoUserRepository();
 const saleRepo = new MongoSaleRepository();
 const customerRepo = new MongoCustomerRepository();
 const dairyRepo = new MongoDairyRepository();
+const settingsRepo = new MongoSettingsRepository();
 
 const farmerService = new FarmerService(farmerRepo);
 const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo, farmerRepo);
@@ -85,6 +87,13 @@ app.post('/api/admin/verify', async (req, res) => {
 
 // Farmer Routes
 app.get('/api/farmers', authenticate, (req, res, next) => farmerController.getAllFarmers(req, res).catch(next));
+app.get('/api/farmers/search/:farmerId', authenticate, async (req, res, next) => {
+  try {
+    const farmer = await farmerRepo.getByFarmerId(req.params.farmerId);
+    if (!farmer) return res.status(404).json({ message: 'Farmer not found' });
+    res.json(farmer);
+  } catch (error) { next(error); }
+});
 app.get('/api/farmers/:id', authenticate, (req, res, next) => farmerController.getFarmer(req, res).catch(next));
 app.post('/api/farmers', authenticate, authorize(['admin']), (req, res, next) => farmerController.createFarmer(req, res).catch(next));
 app.put('/api/farmers/:id', authenticate, authorize(['admin']), (req, res, next) => farmerController.updateFarmer(req, res).catch(next));
@@ -101,10 +110,32 @@ app.post('/api/customers', authenticate, authorize(['admin']), (req, res, next) 
 app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSale(req, res).catch(next));
 
 // Reporting Routes
+app.get('/api/reports/dashboard', authenticate, (req, res, next) => reportingController.getDashboardStats(req, res).catch(next));
 app.get('/api/reports/daily', authenticate, (req, res, next) => reportingController.getDailyReport(req, res).catch(next));
 app.get('/api/reports/farmer/:farmerId', authenticate, (req, res, next) => reportingController.getFarmerReport(req, res).catch(next));
 
 // Rate Chart Routes (Admin only)
+app.get('/api/rates/settings', authenticate, async (req, res, next) => {
+  try {
+    const settings = await settingsRepo.get('rateSettings');
+    res.json(settings || {});
+  } catch (error) { next(error); }
+});
+
+app.post('/api/rates/settings', authenticate, authorize(['admin']), async (req, res, next) => {
+  try {
+    await settingsRepo.save('rateSettings', req.body);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/rates', authenticate, async (req, res, next) => {
+  try {
+    const rates = await rateChartRepo.getAll();
+    res.json(rates);
+  } catch (error) { next(error); }
+});
+
 app.post('/api/rates', authenticate, authorize(['admin']), async (req, res, next) => {
   try {
     const rate = await rateChartRepo.create(req.body);
@@ -112,7 +143,28 @@ app.post('/api/rates', authenticate, authorize(['admin']), async (req, res, next
   } catch (error) { next(error); }
 });
 
+app.put('/api/rates/:id', authenticate, authorize(['admin']), async (req, res, next) => {
+  try {
+    const rate = await rateChartRepo.update(req.params.id, req.body);
+    res.json(rate);
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/rates/:id', authenticate, authorize(['admin']), async (req, res, next) => {
+  try {
+    await rateChartRepo.delete(req.params.id);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
 // Payment Routes
+app.get('/api/ledger', authenticate, async (req, res, next) => {
+  try {
+    const entries = await ledgerRepo.getAll();
+    res.json(entries);
+  } catch (error) { next(error); }
+});
+
 app.post('/api/payments', authenticate, authorize(['admin']), async (req, res, next) => {
   try {
     await paymentService.recordPayment(req.body);

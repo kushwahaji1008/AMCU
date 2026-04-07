@@ -4,11 +4,13 @@ import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
 
 export interface IFarmerRepository {
   getById(id: string): Promise<Farmer | null>;
+  getByFarmerId(farmerId: string): Promise<Farmer | null>;
   getAll(): Promise<Farmer[]>;
   create(farmer: Omit<Farmer, 'id' | 'createdAt'>): Promise<Farmer>;
   update(id: string, farmer: Partial<Farmer>): Promise<Farmer>;
   delete(id: string): Promise<void>;
   getSummary(farmerId: string): Promise<FarmerSummary>;
+  getCount(): Promise<number>;
 }
 
 export interface ICollectionRepository {
@@ -16,17 +18,22 @@ export interface ICollectionRepository {
   getAll(): Promise<MilkCollection[]>;
   create(collection: Omit<MilkCollection, 'id' | 'createdAt'>): Promise<MilkCollection>;
   getDailyReport(date: Date): Promise<MilkCollection[]>;
+  getRecent(limit: number): Promise<MilkCollection[]>;
+  getTrend(days: number): Promise<MilkCollection[]>;
 }
 
 export interface IRateChartRepository {
   getRate(fat: number, snf: number): Promise<number>;
   getAll(): Promise<RateChart[]>;
   create(rate: Omit<RateChart, 'id'>): Promise<RateChart>;
+  update(id: string, rate: Partial<RateChart>): Promise<RateChart>;
+  delete(id: string): Promise<void>;
 }
 
 export interface ILedgerRepository {
   addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
   getByFarmerId(farmerId: string): Promise<LedgerEntry[]>;
+  getAll(): Promise<LedgerEntry[]>;
 }
 
 export interface ISaleRepository {
@@ -43,6 +50,11 @@ export interface IUserRepository {
   getByUsername(username: string): Promise<User | null>;
   getAll(role?: string): Promise<User[]>;
   create(user: Omit<User, 'id' | 'createdAt'>): Promise<User>;
+}
+
+export interface ISettingsRepository {
+  get(key: string): Promise<any>;
+  save(key: string, value: any): Promise<void>;
 }
 
 export interface IDairyRepository {

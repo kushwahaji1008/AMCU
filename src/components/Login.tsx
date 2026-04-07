@@ -95,7 +95,7 @@ export default function Login() {
               <div className="relative">
                 <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
                 <input
-                  type="email"
+                  type="text"
                   required
                   placeholder="operator@dairy.com"
                   value={email}

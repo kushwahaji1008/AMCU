@@ -17,11 +17,13 @@ import {
 import { format, subDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function FarmerProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { db } = useAuth();
+  const { handleError } = useErrorHandler();
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -80,7 +82,7 @@ export default function FarmerProfile() {
           setFarmer({ id: farmerDoc.id, ...farmerDoc.data() } as Farmer);
         }
       } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `farmers/${id}`);
+        handleError(err, 'Failed to fetch farmer details');
       }
     };
 
@@ -94,7 +96,7 @@ export default function FarmerProfile() {
 
     const unsubscribeTxns = onSnapshot(qTxns, (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
+    }, (err) => handleError(err, 'Failed to load transactions'));
 
     // Fetch ledger
     const qLedger = query(
@@ -107,7 +109,10 @@ export default function FarmerProfile() {
     const unsubscribeLedger = onSnapshot(qLedger, (snapshot) => {
       setLedger(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LedgerEntry)));
       setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'ledger'));
+    }, (err) => {
+      handleError(err, 'Failed to load ledger');
+      setLoading(false);
+    });
 
     fetchFarmer();
     return () => {
@@ -161,7 +166,7 @@ export default function FarmerProfile() {
       toast.success('Profile updated successfully!');
       setIsEditing(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `farmers/${id}`);
+      handleError(err, 'Failed to update profile');
     } finally {
       setSubmitting(false);
     }
@@ -175,7 +180,7 @@ export default function FarmerProfile() {
       toast.success('Farmer deleted successfully');
       navigate('/farmers');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `farmers/${id}`);
+      handleError(err, 'Failed to delete farmer');
     } finally {
       setSubmitting(false);
     }

@@ -29,6 +29,10 @@ export interface CollectionTransaction {
   amount: number;
   operatorId: string;
   dairyId: string;
+  isManual?: boolean;
+  isApproved?: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface RateChart {
@@ -55,7 +59,7 @@ export interface RateSettings {
   snfDeductions: { [key: string]: number };
   minFatForFormula1: number;
   maxFatForFormula1: number;
-  dairyId: string; // The dairy these settings belong to
+  dairyId?: string; // The dairy these settings belong to
 }
 
 export interface ShiftSummary {

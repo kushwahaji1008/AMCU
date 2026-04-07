@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { handleFirestoreError, OperationType, toDate } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, where, Timestamp } from 'firebase/firestore';
+import { toDate } from '../firebase';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../LanguageContext';
 import { useAuth } from '../AuthContext';
-import { CollectionTransaction, Farmer } from '../types';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { CollectionTransaction } from '../types';
+import { format, subDays } from 'date-fns';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 import { 
-  TrendingUp, Users, Milk, IndianRupee, Calendar, ChevronDown, 
-  AlertTriangle, CheckCircle2, Wifi, RefreshCw, ArrowRight,
-  Activity, Bell
+  TrendingUp, Users, Milk, IndianRupee, Calendar, 
+  RefreshCw, Activity, Bell, Wifi
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -19,17 +18,16 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend,
   BarChart,
   Bar
 } from 'recharts';
 import { cn } from '../lib/utils';
+import { reportApi } from '../services/api';
 
 export default function Dashboard() {
   const { t } = useLanguage();
-  const { profile, db } = useAuth();
+  const { profile } = useAuth();
+  const { handleError } = useErrorHandler();
   const [stats, setStats] = useState({
     todayQty: 0,
     morningQty: 0,
@@ -42,116 +40,54 @@ export default function Dashboard() {
   });
   const [recentTxns, setRecentTxns] = useState<CollectionTransaction[]>([]);
   const [topFarmers, setTopFarmers] = useState<{name: string, qty: number}[]>([]);
-  const [trendData, setTrendData] = useState<CollectionTransaction[]>([]);
+  const [trendData, setTrendData] = useState<any[]>([]);
   const [timeRange, setTimeRange] = useState(7); // Default to 7 days
-  const [deviceStatus, setDeviceStatus] = useState({
-    scale: 'online',
-    analyzer: 'online',
-    printer: 'online'
-  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!profile?.dairyId) return;
 
-    // Stats for today
-    const today = new Date();
-    const q = query(
-      collection(db, 'collections'),
-      where('dairyId', '==', profile.dairyId),
-      where('timestamp', '>=', startOfDay(today).toISOString()),
-      where('timestamp', '<=', endOfDay(today).toISOString())
-    );
-
-    const unsubscribeStats = onSnapshot(q, (snapshot) => {
-      let qty = 0;
-      let morningQty = 0;
-      let eveningQty = 0;
-      let amt = 0;
-      let fatSum = 0;
-      let snfSum = 0;
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as CollectionTransaction;
-        qty += data.quantity;
-        if (data.shift === 'Morning') morningQty += data.quantity;
-        else eveningQty += data.quantity;
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const response = await reportApi.getDashboard();
+        const data = response.data;
         
-        amt += data.amount;
-        fatSum += data.fat;
-        snfSum += data.snf;
-      });
-      
-      setStats(prev => ({
-        ...prev,
-        todayQty: qty,
-        morningQty,
-        eveningQty,
-        todayAmount: amt,
-        avgFat: snapshot.size > 0 ? fatSum / snapshot.size : 0,
-        avgSnf: snapshot.size > 0 ? snfSum / snapshot.size : 0,
-      }));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
+        setStats(prev => ({
+          ...prev,
+          todayQty: data.todayQty,
+          morningQty: data.morningQty,
+          eveningQty: data.eveningQty,
+          todayAmount: data.todayAmount,
+          totalFarmers: data.totalFarmers,
+          avgFat: data.avgFat,
+          avgSnf: data.avgSnf,
+        }));
+        
+        setRecentTxns(data.recentTxns);
+        setTrendData(data.trendData);
+        
+        // Mock top farmers for now as backend doesn't return it yet
+        // Or calculate it from trendData if it has enough info
+        const farmerMap = new Map<string, number>();
+        data.trendData.forEach((txn: any) => {
+          farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + txn.quantity);
+        });
+        const sorted = Array.from(farmerMap.entries())
+          .map(([name, qty]) => ({ name, qty }))
+          .sort((a, b) => b.qty - a.qty)
+          .slice(0, 5);
+        setTopFarmers(sorted);
 
-    // Total farmers
-    const unsubscribeFarmers = onSnapshot(
-      query(collection(db, 'farmers'), where('dairyId', '==', profile.dairyId)),
-      (snapshot) => {
-        setStats(prev => ({ ...prev, totalFarmers: snapshot.size }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'farmers'));
-
-    // Recent transactions
-    const qRecent = query(
-      collection(db, 'collections'), 
-      where('dairyId', '==', profile.dairyId),
-      orderBy('timestamp', 'desc'), 
-      limit(5)
-    );
-    const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
-      setRecentTxns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
-
-    // Top farmers this week
-    const weekStart = startOfDay(subDays(new Date(), 7));
-    const qTop = query(
-      collection(db, 'collections'),
-      where('dairyId', '==', profile.dairyId),
-      where('timestamp', '>=', weekStart.toISOString())
-    );
-
-    const unsubscribeTop = onSnapshot(qTop, (snapshot) => {
-      const farmerMap = new Map<string, number>();
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as CollectionTransaction;
-        farmerMap.set(data.farmerName, (farmerMap.get(data.farmerName) || 0) + data.quantity);
-      });
-      const sorted = Array.from(farmerMap.entries())
-        .map(([name, qty]) => ({ name, qty }))
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 5);
-      setTopFarmers(sorted);
-    });
-
-    // Trend data
-    const startDate = startOfDay(subDays(new Date(), timeRange - 1));
-    const qTrend = query(
-      collection(db, 'collections'),
-      where('dairyId', '==', profile.dairyId),
-      where('timestamp', '>=', startDate.toISOString()),
-      orderBy('timestamp', 'asc')
-    );
-
-    const unsubscribeTrend = onSnapshot(qTrend, (snapshot) => {
-      setTrendData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
-
-    return () => {
-      unsubscribeStats();
-      unsubscribeFarmers();
-      unsubscribeRecent();
-      unsubscribeTop();
-      unsubscribeTrend();
+      } catch (error) {
+        handleError(error, "Failed to fetch dashboard stats");
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [timeRange]);
+
+    fetchStats();
+  }, [profile?.dairyId, timeRange]);
 
   const processedChartData = useMemo(() => {
     const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number }>();
@@ -163,7 +99,7 @@ export default function Dashboard() {
     }
 
     trendData.forEach(txn => {
-      const dateStr = format(toDate(txn.timestamp), 'yyyy-MM-dd');
+      const dateStr = format(toDate(txn.date || txn.timestamp), 'yyyy-MM-dd');
       if (dailyMap.has(dateStr)) {
         const current = dailyMap.get(dateStr)!;
         current.qty += txn.quantity;

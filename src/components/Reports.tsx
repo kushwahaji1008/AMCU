@@ -7,9 +7,11 @@ import { FileText, Download, Filter, Calendar as CalendarIcon, ShieldCheck, Shie
 import { useAuth } from '../AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function Reports() {
   const { profile, db } = useAuth();
+  const { handleError } = useErrorHandler();
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
   const [dateRange, setDateRange] = useState({
@@ -40,7 +42,10 @@ export default function Reports() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollectionTransaction)));
       setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'collections'));
+    }, (err) => {
+      handleError(err, 'Failed to load reports');
+      setLoading(false);
+    });
 
     return () => unsubscribe();
   }, [dateRange]);
@@ -53,8 +58,9 @@ export default function Reports() {
         approvedBy: auth.currentUser.uid,
         approvedAt: new Date().toISOString(),
       });
+      toast.success('Transaction approved');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `collections/${id}`);
+      handleError(err, 'Failed to approve transaction');
     }
   };
 

@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, orderBy, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 import { RateChart, RateSettings } from '../types';
 import { Settings2, Plus, Search, Trash2, Edit2, X, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { rateApi } from '../services/api';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function RateChartManagement() {
-  const { profile, db } = useAuth();
+  const { profile } = useAuth();
+  const { handleError } = useErrorHandler();
   const [activeTab, setActiveTab] = useState<'Cow' | 'Buffalo' | 'Formula'>('Cow');
   const [rates, setRates] = useState<RateChart[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -39,41 +40,42 @@ export default function RateChartManagement() {
   });
 
   useEffect(() => {
-    if (activeTab === 'Formula') return;
-    const q = query(
-      collection(db, 'rateCharts'),
-      where('milkType', '==', activeTab),
-      orderBy('fat', 'asc'),
-      orderBy('snf', 'asc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as RateChart[];
-      setRates(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'rateCharts'));
-
-    return () => unsubscribe();
+    const fetchRates = async () => {
+      if (activeTab === 'Formula') return;
+      try {
+        const response = await rateApi.getAll();
+        // Filter by milkType if needed, but backend currently returns all
+        // Let's assume we might need to filter client-side if backend doesn't support it yet
+        const allRates = response.data;
+        setRates(allRates.filter((r: any) => r.milkType === activeTab));
+      } catch (err) {
+        handleError(err, "Failed to fetch rates");
+      }
+    };
+    fetchRates();
   }, [activeTab]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'rateSettings'), (snapshot) => {
-      if (snapshot.exists()) {
-        setRateSettings(snapshot.data() as RateSettings);
+    const fetchSettings = async () => {
+      try {
+        const response = await rateApi.getSettings();
+        if (response.data && Object.keys(response.data).length > 0) {
+          setRateSettings(response.data);
+        }
+      } catch (err) {
+        handleError(err, "Failed to fetch rate settings");
       }
-    });
-    return () => unsubscribe();
+    };
+    fetchSettings();
   }, []);
 
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      await setDoc(doc(db, 'settings', 'rateSettings'), rateSettings);
+      await rateApi.saveSettings(rateSettings);
       toast.success('Formula settings saved successfully');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'settings');
+      handleError(err, 'Failed to save settings');
     } finally {
       setLoading(false);
     }
@@ -91,7 +93,7 @@ export default function RateChartManagement() {
         effectiveFrom: newRate.effectiveFrom,
       };
 
-      await addDoc(collection(db, 'rateCharts'), rateData);
+      await rateApi.create(rateData);
       toast.success('Rate added successfully');
       setIsAdding(false);
       setNewRate({
@@ -100,8 +102,12 @@ export default function RateChartManagement() {
         rate: '',
         effectiveFrom: format(new Date(), 'yyyy-MM-dd'),
       });
+      
+      // Refresh list
+      const response = await rateApi.getAll();
+      setRates(response.data.filter((r: any) => r.milkType === activeTab));
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'rateCharts');
+      handleError(err, 'Failed to add rate');
     } finally {
       setLoading(false);
     }
@@ -110,10 +116,11 @@ export default function RateChartManagement() {
   const handleDeleteRate = async (id: string) => {
     if (!confirm('Are you sure you want to delete this rate?')) return;
     try {
-      await deleteDoc(doc(db, 'rateCharts', id));
+      await rateApi.delete(id);
       toast.success('Rate deleted');
+      setRates(rates.filter(r => r.id !== id));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'rateCharts');
+      handleError(err, 'Failed to delete rate');
     }
   };
 

@@ -96,6 +96,13 @@ export const DairySchema = new Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+// --- Settings Schema ---
+export const SettingsSchema = new Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: Schema.Types.Mixed, required: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
 // Default Models (for Registry/Default DB)
 export const FarmerModel = mongoose.model<Farmer & Document>('Farmer', FarmerSchema);
 export const CollectionModel = mongoose.model<MilkCollection & Document>('Collection', CollectionSchema);
@@ -105,3 +112,4 @@ export const SaleModel = mongoose.model<MilkSale & Document>('Sale', SaleSchema)
 export const CustomerModel = mongoose.model<Customer & Document>('Customer', CustomerSchema);
 export const UserModel = mongoose.model<User & Document>('User', UserSchema);
 export const DairyModel = mongoose.model<any & Document>('Dairy', DairySchema);
+export const SettingsModel = mongoose.model<any & Document>('Settings', SettingsSchema);
