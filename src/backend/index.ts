@@ -67,24 +67,20 @@ app.post('/api/auth/login', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/admin/verify', async (req, res) => {
-  const { email, password } = req.body;
-  
-  // Secret SuperAdmin Credentials
-  const ADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'superadmin@rnsoft.in';
-  const ADMIN_PASS = process.env.SUPERADMIN_PASS || 'SuperAdmin@123';
-  const ADMIN_DB_ID = 'dugdhaset.superadmin'; // Fixed ID for SuperAdmin
+app.post('/api/admin/verify', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const result = await authService.loginSuperAdmin(email, password);
+    res.json({ success: true, ...result });
+  } catch (error) { next(error); }
+});
 
-  if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
-    return res.json({
-      success: true,
-      role: 'super_admin',
-      databaseId: ADMIN_DB_ID,
-      token: 'secret-admin-token' // In a real app, use JWT
-    });
-  }
-
-  res.status(401).json({ success: false, message: 'Invalid credentials' });
+// Dairy Routes (SuperAdmin only)
+app.get('/api/dairies', authenticate, authorize(['super_admin']), async (req, res, next) => {
+  try {
+    const dairies = await dairyRepo.getAll();
+    res.json(dairies);
+  } catch (error) { next(error); }
 });
 
 // Farmer Routes
@@ -97,22 +93,23 @@ app.get('/api/farmers/search/:farmerId', authenticate, async (req, res, next) =>
   } catch (error) { next(error); }
 });
 app.get('/api/farmers/:id', authenticate, (req, res, next) => farmerController.getFarmer(req, res).catch(next));
-app.post('/api/farmers', authenticate, authorize(['admin']), (req, res, next) => farmerController.createFarmer(req, res).catch(next));
-app.put('/api/farmers/:id', authenticate, authorize(['admin']), (req, res, next) => farmerController.updateFarmer(req, res).catch(next));
-app.delete('/api/farmers/:id', authenticate, authorize(['admin']), (req, res, next) => farmerController.deleteFarmer(req, res).catch(next));
+app.post('/api/farmers', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => farmerController.createFarmer(req, res).catch(next));
+app.put('/api/farmers/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => farmerController.updateFarmer(req, res).catch(next));
+app.delete('/api/farmers/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => farmerController.deleteFarmer(req, res).catch(next));
 app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerController.getFarmerSummary(req, res).catch(next));
 
 // Collection Routes
 app.post('/api/collections', authenticate, (req, res, next) => collectionController.createCollection(req, res).catch(next));
-app.put('/api/collections/:id', authenticate, authorize(['admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
+app.put('/api/collections/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
 app.get('/api/collections/report', authenticate, (req, res, next) => collectionController.getDailyReport(req, res).catch(next));
+app.get('/api/collections/farmer/:farmerId', authenticate, (req, res, next) => collectionController.getByFarmerId(req, res).catch(next));
 app.post('/api/shifts/summary', authenticate, (req, res, next) => collectionController.createShiftSummary(req, res).catch(next));
 app.get('/api/shifts/summary', authenticate, (req, res, next) => collectionController.getShiftSummary(req, res).catch(next));
 app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionController.getRecentShiftSummaries(req, res).catch(next));
 
 // Sale & Customer Routes
 app.get('/api/customers', authenticate, (req, res, next) => saleController.getAllCustomers(req, res).catch(next));
-app.post('/api/customers', authenticate, authorize(['admin']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
+app.post('/api/customers', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
 app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSale(req, res).catch(next));
 
 // Reporting Routes
@@ -128,7 +125,7 @@ app.get('/api/rates/settings', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/rates/settings', authenticate, authorize(['admin']), async (req, res, next) => {
+app.post('/api/rates/settings', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     await settingsRepo.save('rateSettings', req.body);
     res.json({ success: true });
@@ -142,21 +139,21 @@ app.get('/api/rates', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/rates', authenticate, authorize(['admin']), async (req, res, next) => {
+app.post('/api/rates', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     const rate = await rateChartRepo.create(req.body);
     res.status(201).json(rate);
   } catch (error) { next(error); }
 });
 
-app.put('/api/rates/:id', authenticate, authorize(['admin']), async (req, res, next) => {
+app.put('/api/rates/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     const rate = await rateChartRepo.update(req.params.id, req.body);
     res.json(rate);
   } catch (error) { next(error); }
 });
 
-app.delete('/api/rates/:id', authenticate, authorize(['admin']), async (req, res, next) => {
+app.delete('/api/rates/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     await rateChartRepo.delete(req.params.id);
     res.json({ success: true });
@@ -171,7 +168,14 @@ app.get('/api/ledger', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/payments', authenticate, authorize(['admin']), async (req, res, next) => {
+app.get('/api/ledger/farmer/:farmerId', authenticate, async (req, res, next) => {
+  try {
+    const entries = await ledgerRepo.getByFarmerId(req.params.farmerId);
+    res.json(entries);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/payments', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     await paymentService.recordPayment(req.body);
     res.status(201).json({ message: 'Payment recorded successfully' });
@@ -192,6 +196,20 @@ app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async 
     const { username, password, role, dairyData, dairyId, databaseId } = req.body;
     const user = await authService.register(username, password, role, dairyData, dairyId, databaseId);
     res.status(201).json(user);
+  } catch (error) { next(error); }
+});
+
+app.put('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+  try {
+    const user = await userRepo.update(req.params.id, req.body);
+    res.json(user);
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+  try {
+    await userRepo.delete(req.params.id);
+    res.json({ success: true });
   } catch (error) { next(error); }
 });
 

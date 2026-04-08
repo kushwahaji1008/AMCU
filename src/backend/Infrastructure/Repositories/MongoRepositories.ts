@@ -126,6 +126,12 @@ export class MongoCollectionRepository implements ICollectionRepository {
     if (!doc) throw new Error('Collection record not found');
     return mapDoc<MilkCollection>(doc);
   }
+
+  async getByFarmerId(farmerId: string): Promise<MilkCollection[]> {
+    const model = await dbManager.getCollectionModel(getDatabaseId());
+    const docs = await model.find({ farmerId }).sort({ date: -1 });
+    return docs.map(doc => mapDoc<MilkCollection>(doc));
+  }
 }
 
 export class MongoRateChartRepository implements IRateChartRepository {
@@ -256,6 +262,18 @@ export class MongoUserRepository implements IUserRepository {
     const doc = await model.create(user);
     return mapDoc<User>(doc);
   }
+
+  async update(id: string, user: Partial<User>): Promise<User> {
+    const model = await dbManager.getUserModel('(default)');
+    const doc = await model.findByIdAndUpdate(id, user, { new: true });
+    if (!doc) throw new Error('User not found');
+    return mapDoc<User>(doc);
+  }
+
+  async delete(id: string): Promise<void> {
+    const model = await dbManager.getUserModel('(default)');
+    await model.findByIdAndDelete(id);
+  }
 }
 
 export class MongoSettingsRepository implements ISettingsRepository {
@@ -292,5 +310,11 @@ export class MongoDairyRepository implements IDairyRepository {
     const model = await dbManager.getDairyModel('(default)');
     const doc = await model.findById(id);
     return doc ? mapDoc<any>(doc) : null;
+  }
+
+  async getAll(): Promise<any[]> {
+    const model = await dbManager.getDairyModel('(default)');
+    const docs = await model.find();
+    return docs.map(doc => mapDoc<any>(doc));
   }
 }

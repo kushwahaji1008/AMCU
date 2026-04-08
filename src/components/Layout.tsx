@@ -1,20 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
-  Beaker, Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen
+  Beaker, Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { dairyApi } from '../services/api';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout, switchDatabase, isAuthReady } = useAuth();
   const { t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [dbIdInput, setDbIdInput] = useState('');
+  const [dairies, setDairies] = useState<any[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (profile?.role === 'super_admin') {
+      dairyApi.getAll().then(res => setDairies(res.data)).catch(console.error);
+    }
+  }, [profile]);
 
   if (!isAuthReady || loading) {
     return (
@@ -53,10 +60,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('settings'), path: '/settings', icon: Settings2, adminOnly: true },
     { name: t('auditLog'), path: '/audit', icon: Shield, adminOnly: true },
     { name: t('backup'), path: '/backup', icon: Database, adminOnly: true },
+    { name: 'Dairies', path: '/dairies', icon: Building2, superAdminOnly: true },
     { name: t('help'), path: '/help', icon: HelpCircle },
   ];
 
-  const filteredNavItems = navItems.filter(item => !item.adminOnly || profile?.role === 'admin' || profile?.role === 'super_admin');
+  const filteredNavItems = navItems.filter(item => {
+    if (item.superAdminOnly) return profile?.role === 'super_admin';
+    if (item.adminOnly) return profile?.role === 'admin' || profile?.role === 'super_admin';
+    return true;
+  });
+
+  const getMongoDbName = (id: string) => {
+    if (id === '(default)') return 'dugdhaset_registry';
+    return `dugdhaset_${id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  };
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 flex flex-col md:flex-row transition-colors">
@@ -77,28 +94,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {profile?.role === 'super_admin' && (
               <div className="px-4 py-3 mb-4 bg-stone-50 dark:bg-stone-800 rounded-xl border border-stone-100 dark:border-stone-700">
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <Database size={10} /> Database Switcher
+                  <Database size={10} /> Select Dairy
                 </p>
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    value={dbIdInput}
-                    onChange={(e) => setDbIdInput(e.target.value)}
-                    placeholder="DB ID"
-                    className="w-full px-2 py-1 text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-600 rounded focus:outline-none dark:text-white"
-                  />
-                  <button
-                    onClick={() => {
-                      if (dbIdInput) switchDatabase(dbIdInput);
-                    }}
-                    className="p-1 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded hover:opacity-80 transition-opacity"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
+                <select
+                  value={profile.databaseId}
+                  onChange={(e) => switchDatabase(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-600 rounded-lg focus:outline-none dark:text-white"
+                >
+                  <option value="dugdhaset.superadmin">Super Admin DB</option>
+                  <option value="(default)">Default Dairy</option>
+                  {dairies.map(d => (
+                    <option key={d.databaseId} value={d.databaseId}>{d.name}</option>
+                  ))}
+                </select>
+                <div className="mt-2 space-y-1">
+                  <p className="text-[9px] text-stone-400 truncate">
+                    ID: <span className="text-stone-600 dark:text-stone-300 font-mono">{profile.databaseId || '(default)'}</span>
+                  </p>
+                  <p className="text-[9px] text-stone-400 truncate">
+                    DB: <span className="text-stone-600 dark:text-stone-300 font-mono italic">{getMongoDbName(profile.databaseId || '(default)')}</span>
+                  </p>
                 </div>
-                <p className="text-[9px] text-stone-400 mt-1 truncate">
-                  Active: <span className="text-stone-600 dark:text-stone-300 font-mono">{profile.databaseId || '(default)'}</span>
-                </p>
               </div>
             )}
             {filteredNavItems.map((item) => (

@@ -97,6 +97,7 @@ export const UserSchema = new Schema({
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ['admin', 'operator', 'super_admin'], required: true },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   dairyId: { type: String },
   databaseId: { type: String },
   createdAt: { type: Date, default: Date.now },

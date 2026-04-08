@@ -10,6 +10,7 @@ export interface UserProfile {
   name?: string; // Alias for displayName
   photoURL: string;
   role: 'super_admin' | 'admin' | 'operator';
+  status: 'active' | 'inactive';
   dairyId?: string;
   adminId?: string;
   databaseId: string;
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName: userData.username,
       photoURL: '',
       role: userData.role,
+      status: userData.status || 'active',
       dairyId: userData.dairyId,
       databaseId: userData.databaseId,
       createdAt: userData.createdAt,
@@ -90,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName: 'Super Admin',
       photoURL: '',
       role: role,
+      status: 'active',
       dairyId: 'global',
       databaseId: databaseId,
       createdAt: new Date(),

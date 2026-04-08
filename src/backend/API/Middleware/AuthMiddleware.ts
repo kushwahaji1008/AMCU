@@ -26,8 +26,13 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.user = decoded;
     
-    // Use the databaseId from the token if available, otherwise from the header
-    const effectiveDatabaseId = decoded.databaseId || databaseId;
+    // Determine the database context
+    let effectiveDatabaseId = decoded.databaseId || '(default)';
+    
+    // Super Admin can override their database context via the header to switch between dairies
+    if (decoded.role === 'super_admin' && req.headers['x-database-id']) {
+      effectiveDatabaseId = req.headers['x-database-id'] as string;
+    }
     
     requestContext.run({ 
       databaseId: effectiveDatabaseId,

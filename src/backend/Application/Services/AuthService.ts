@@ -23,6 +23,10 @@ export class AuthService {
       throw new Error('Invalid username or password.');
     }
 
+    if (user.status === 'inactive') {
+      throw new Error('Your account has been deactivated. Please contact support.');
+    }
+
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role, databaseId: user.databaseId },
       JWT_SECRET,
@@ -65,6 +69,7 @@ export class AuthService {
       username: normalizedUsername,
       passwordHash,
       role,
+      status: 'active',
       dairyId,
       databaseId
     });
@@ -81,5 +86,21 @@ export class AuthService {
 
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  async loginSuperAdmin(email: string, pass: string): Promise<{ token: string; role: string; databaseId: string }> {
+    const ADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'superadmin@rnsoft.in';
+    const ADMIN_PASS = process.env.SUPERADMIN_PASS || 'SuperAdmin@123';
+    const ADMIN_DB_ID = 'dugdhaset.superadmin';
+
+    if (email === ADMIN_EMAIL && pass === ADMIN_PASS) {
+      const token = jwt.sign(
+        { id: 'super-admin-id', username: email, role: 'super_admin', databaseId: ADMIN_DB_ID },
+        JWT_SECRET,
+        { expiresIn: '1d' }
+      );
+      return { token, role: 'super_admin', databaseId: ADMIN_DB_ID };
+    }
+    throw new Error('Invalid credentials');
   }
 }

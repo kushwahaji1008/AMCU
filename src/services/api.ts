@@ -62,6 +62,7 @@ export const collectionApi = {
   update: (id: string, data: any) => api.put(`/collections/${id}`, data),
   getDailyReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
   getReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+  getByFarmerId: (farmerId: string) => api.get(`/collections/farmer/${farmerId}`),
 };
 
 export const shiftApi = {
@@ -93,6 +94,7 @@ export const rateApi = {
 
 export const paymentApi = {
   getLedger: () => api.get('/ledger'),
+  getLedgerByFarmerId: (farmerId: string) => api.get(`/ledger/farmer/${farmerId}`),
   recordPayment: (data: any) => api.post('/payments', data),
 };
 
@@ -101,4 +103,8 @@ export const userApi = {
   create: (data: any) => api.post('/users', data),
   update: (id: string, data: any) => api.put(`/users/${id}`, data),
   delete: (id: string) => api.delete(`/users/${id}`),
+};
+
+export const dairyApi = {
+  getAll: () => api.get('/dairies'),
 };

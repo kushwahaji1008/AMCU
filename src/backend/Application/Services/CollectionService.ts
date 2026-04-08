@@ -72,4 +72,8 @@ export class CollectionService {
   async getRecentShiftSummaries(limit: number): Promise<ShiftSummary[]> {
     return this.shiftSummaryRepo.getRecent(limit);
   }
+
+  async getByFarmerId(farmerId: string): Promise<MilkCollection[]> {
+    return this.collectionRepo.getByFarmerId(farmerId);
+  }
 }

@@ -39,6 +39,7 @@ export default function FarmerProfile() {
     cattleType: 'Cow' as 'Cow' | 'Buffalo' | 'Mixed',
     bankAccount: '',
     ifsc: '',
+    status: 'Active' as 'Active' | 'Inactive'
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -75,22 +76,15 @@ export default function FarmerProfile() {
     if (!id) return;
     setLoading(true);
     try {
-      const [farmerRes, ledgerRes] = await Promise.all([
+      const [farmerRes, ledgerRes, collectionsRes] = await Promise.all([
         farmerApi.getById(id),
-        paymentApi.getLedger()
+        paymentApi.getLedgerByFarmerId(id),
+        collectionApi.getByFarmerId(id)
       ]);
       
       setFarmer(farmerRes.data);
-      
-      // Filter ledger for this farmer
-      const farmerLedger = ledgerRes.data.filter((entry: LedgerEntry) => entry.farmerId === farmerRes.data.id);
-      setLedger(farmerLedger);
-      
-      // Fetch transactions for this farmer
-      // Note: In a real app, we'd have a specific API for this
-      const collectionsRes = await collectionApi.getReport(format(new Date(), 'yyyy-MM-dd'));
-      const farmerCollections = collectionsRes.data.filter((c: any) => c.farmerId === farmerRes.data.id);
-      setTransactions(farmerCollections);
+      setLedger(ledgerRes.data);
+      setTransactions(collectionsRes.data);
       
     } catch (err) {
       handleError(err, 'Failed to fetch farmer details');
@@ -113,6 +107,7 @@ export default function FarmerProfile() {
       cattleType: farmer.cattleType,
       bankAccount: farmer.bankAccount || '',
       ifsc: farmer.ifsc || '',
+      status: farmer.status || 'Active'
     });
     setIsEditing(true);
   };
@@ -516,6 +511,17 @@ export default function FarmerProfile() {
                     <option value="Cow">Cow</option>
                     <option value="Buffalo">Buffalo</option>
                     <option value="Mixed">Mixed</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-stone-400 uppercase">Status</label>
+                  <select
+                    value={editData.status}
+                    onChange={e => setEditData({...editData, status: e.target.value as any})}
+                    className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>

@@ -21,6 +21,7 @@ export interface ICollectionRepository {
   getRecent(limit: number): Promise<MilkCollection[]>;
   getTrend(days: number): Promise<MilkCollection[]>;
   update(id: string, collection: Partial<MilkCollection>): Promise<MilkCollection>;
+  getByFarmerId(farmerId: string): Promise<MilkCollection[]>;
 }
 
 export interface IRateChartRepository {
@@ -57,6 +58,8 @@ export interface IUserRepository {
   getByUsername(username: string): Promise<User | null>;
   getAll(role?: string): Promise<User[]>;
   create(user: Omit<User, 'id' | 'createdAt'>): Promise<User>;
+  update(id: string, user: Partial<User>): Promise<User>;
+  delete(id: string): Promise<void>;
 }
 
 export interface ISettingsRepository {
@@ -68,4 +71,5 @@ export interface IDairyRepository {
   create(dairy: any): Promise<any>;
   getByOwnerId(ownerId: string): Promise<any | null>;
   getById(id: string): Promise<any | null>;
+  getAll(): Promise<any[]>;
 }

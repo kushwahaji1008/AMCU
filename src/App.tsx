@@ -26,6 +26,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import MobileApp from './components/MobileApp';
 import Ledger from './components/Ledger';
+import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -78,6 +79,7 @@ function App() {
                   <Route path="/help" element={<ProtectedRoute><HelpAbout /></ProtectedRoute>} />
                   <Route path="/sync" element={<AdminRoute><Synchronization /></AdminRoute>} />
                   <Route path="/mobile" element={<ProtectedRoute><MobileApp /></ProtectedRoute>} />
+                  <Route path="/dairies" element={<AdminRoute><DairyManagement /></AdminRoute>} />
                 </Routes>
               </Layout>
             </Router>

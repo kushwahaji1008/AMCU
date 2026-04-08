@@ -38,6 +38,7 @@ export default function UserManagement() {
         email: u.username,
         displayName: u.username, // Use username as display name for now
         role: u.role,
+        status: u.status || 'active',
         dairyId: u.dairyId,
         databaseId: u.databaseId,
         photoURL: '',
@@ -87,8 +88,26 @@ export default function UserManagement() {
     }
   };
 
-  const toggleUserStatus = async (user: UserProfile) => {
-    toast.info('User status toggle not implemented in backend yet');
+  const toggleUserStatus = async (user: any) => {
+    try {
+      const newStatus = user.status === 'active' ? 'inactive' : 'active';
+      await userApi.update(user.uid, { status: newStatus });
+      toast.success(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
+      fetchUsers();
+    } catch (err) {
+      handleError(err, 'Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    try {
+      await userApi.delete(id);
+      toast.success('User deleted successfully');
+      fetchUsers();
+    } catch (err) {
+      handleError(err, 'Failed to delete user');
+    }
   };
 
   const filteredUsers = users.filter(u => 
@@ -240,6 +259,7 @@ export default function UserManagement() {
                   <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">User</th>
                   <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Role</th>
                   <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Database / Society ID</th>
+                  <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Status</th>
                   <th className="py-4 px-4 text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
@@ -268,15 +288,33 @@ export default function UserManagement() {
                     <td className="py-4 px-4 text-xs font-mono text-stone-400">
                       {user.databaseId || user.dairyId || 'Global'}
                     </td>
+                    <td className="py-4 px-4">
+                      <span className={cn(
+                        "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                        user.status === 'active' 
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      )}>
+                        {user.status}
+                      </span>
+                    </td>
                     <td className="py-4 px-4 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => toggleUserStatus(user)}
-                          className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors"
+                          className={cn(
+                            "p-2 transition-colors",
+                            user.status === 'active' ? "text-stone-400 hover:text-red-600" : "text-stone-400 hover:text-green-600"
+                          )}
+                          title={user.status === 'active' ? 'Deactivate' : 'Activate'}
                         >
-                          <UserCheck size={18} />
+                          {user.status === 'active' ? <UserX size={18} /> : <UserCheck size={18} />}
                         </button>
-                        <button className="p-2 text-stone-400 hover:text-red-600 transition-colors">
+                        <button 
+                          onClick={() => handleDeleteUser(user.uid)}
+                          className="p-2 text-stone-400 hover:text-red-600 transition-colors"
+                          title="Delete User"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>
