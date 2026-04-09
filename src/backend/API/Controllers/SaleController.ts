@@ -44,4 +44,15 @@ export class ReportingController {
     const report = await this.reportingService.getFarmerWiseReport(farmerId);
     res.json(report);
   }
+
+  async getPeriodicBills(req: Request, res: Response) {
+    const { year, month, period, farmerId } = req.query;
+    const bills = await this.reportingService.getPeriodicBills(
+      Number(year),
+      Number(month),
+      Number(period) as 1 | 2 | 3,
+      farmerId as string
+    );
+    res.json(bills);
+  }
 }

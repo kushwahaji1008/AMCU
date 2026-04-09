@@ -86,4 +86,68 @@ export class ReportingService {
   async getFarmerWiseReport(farmerId: string) {
     return this.farmerRepo.getSummary(farmerId);
   }
+
+  async getPeriodicBills(year: number, month: number, period: 1 | 2 | 3, farmerId?: string) {
+    let startDate: Date;
+    let endDate: Date;
+
+    if (period === 1) {
+      startDate = new Date(year, month, 1);
+      endDate = new Date(year, month, 10);
+    } else if (period === 2) {
+      startDate = new Date(year, month, 11);
+      endDate = new Date(year, month, 20);
+    } else {
+      startDate = new Date(year, month, 21);
+      endDate = new Date(year, month + 1, 0); // Last day of month
+    }
+
+    const collections = await this.collectionRepo.getDailyReport(startDate, endDate);
+    const farmers = await this.farmerRepo.getAll();
+    
+    const bills: any[] = [];
+
+    // Group collections by farmer
+    const grouped = collections.reduce((acc, c) => {
+      if (!acc[c.farmerId]) acc[c.farmerId] = [];
+      acc[c.farmerId].push(c);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const targetFarmers = farmerId 
+      ? farmers.filter(f => f.farmerId === farmerId)
+      : farmers;
+
+    for (const farmer of targetFarmers) {
+      const internalId = farmer.id;
+      const farmerCollections = grouped[internalId] || [];
+      
+      // Skip farmers who haven't provided milk in this period
+      if (farmerCollections.length === 0) continue;
+      
+      const totalQuantity = farmerCollections.reduce((sum, c) => sum + c.quantity, 0);
+      const totalAmount = farmerCollections.reduce((sum, c) => sum + c.totalAmount, 0);
+      const avgFat = farmerCollections.length > 0 
+        ? farmerCollections.reduce((sum, c) => sum + c.fat, 0) / farmerCollections.length 
+        : 0;
+      const avgSnf = farmerCollections.length > 0 
+        ? farmerCollections.reduce((sum, c) => sum + c.snf, 0) / farmerCollections.length 
+        : 0;
+
+      bills.push({
+        farmerId: farmer.farmerId,
+        farmerName: farmer.name || 'Unknown',
+        village: farmer.village || '',
+        startDate,
+        endDate,
+        totalQuantity,
+        totalAmount,
+        avgFat,
+        avgSnf,
+        collections: farmerCollections.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      });
+    }
+
+    return bills;
+  }
 }

@@ -34,6 +34,7 @@ const translations: Translations = {
   help: { en: 'Help', hi: 'सहायता' },
   signOut: { en: 'Sign Out', hi: 'साइन आउट' },
   ledger: { en: 'Ledger', hi: 'लेजर' },
+  bills: { en: 'Bills', hi: 'बिल' },
   morning: { en: 'Morning', hi: 'सुबह' },
   evening: { en: 'Evening', hi: 'शाम' },
   quantity: { en: 'Quantity', hi: 'मात्रा' },

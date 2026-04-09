@@ -10,6 +10,7 @@ import {
   TrendingUp, Users, Milk, IndianRupee, Calendar, 
   RefreshCw, Activity, Bell, Wifi
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { 
   AreaChart, 
   Area, 
@@ -139,27 +140,27 @@ export default function Dashboard() {
   }, [stats.avgFat, stats.todayQty, recentTxns]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">{t('dashboard')}</h1>
-          <p className="text-stone-500 dark:text-stone-400">{t('welcome')}</p>
+          <h1 className="text-4xl font-serif font-bold text-stone-900 dark:text-white tracking-tight">{t('dashboard')}</h1>
+          <p className="text-stone-500 dark:text-stone-400 mt-2 text-lg">{t('welcome')}</p>
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-white dark:bg-stone-900 px-4 py-2 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm text-xs font-medium text-stone-500 dark:text-stone-400">
+          <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-2xl text-xs font-medium text-stone-500 dark:text-stone-400">
             <RefreshCw size={14} className="text-emerald-500 animate-spin-slow" />
             Synced: Just now
           </div>
-          <div className="flex items-center gap-2 bg-white dark:bg-stone-900 p-1 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm">
+          <div className="flex items-center gap-2 glass-card p-1 rounded-2xl">
             {[7, 15].map((days) => (
               <button
                 key={days}
                 onClick={() => setTimeRange(days)}
                 className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-medium transition-all",
+                  "px-4 py-2 rounded-xl text-xs font-semibold transition-all",
                   timeRange === days 
-                    ? "bg-stone-900 dark:bg-white text-white dark:text-stone-900 shadow-sm" 
+                    ? "bg-stone-900 dark:bg-white text-white dark:text-stone-900 shadow-lg" 
                     : "text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-800"
                 )}
               >
@@ -171,110 +172,114 @@ export default function Dashboard() {
       </div>
 
       {/* Primary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-stone-900 p-6 rounded-3xl text-white shadow-xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-white/10 rounded-2xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="bg-stone-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
+          <div className="flex items-center justify-between mb-6 relative z-10">
+            <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
               <Milk className="w-6 h-6 text-white" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-500 px-2 py-1 rounded-full">Live</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-500 px-3 py-1 rounded-full shadow-lg shadow-emerald-500/20">Live</span>
           </div>
-          <p className="text-stone-400 text-xs font-medium uppercase tracking-wider mb-1">Today's Total</p>
-          <p className="text-3xl font-serif font-medium mb-4">{(stats.todayQty || 0).toFixed(1)} <span className="text-lg">kg</span></p>
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+          <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mb-2">Today's Total</p>
+          <p className="text-4xl font-serif font-bold mb-6">{(stats.todayQty || 0).toFixed(1)} <span className="text-xl font-normal opacity-60">kg</span></p>
+          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/10 relative z-10">
             <div>
-              <p className="text-[10px] text-stone-500 uppercase tracking-wider">Morning</p>
-              <p className="text-sm font-medium">{(stats.morningQty || 0).toFixed(1)} kg</p>
+              <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Morning</p>
+              <p className="text-base font-semibold">{(stats.morningQty || 0).toFixed(1)} kg</p>
             </div>
             <div>
-              <p className="text-[10px] text-stone-500 uppercase tracking-wider">Evening</p>
-              <p className="text-sm font-medium">{(stats.eveningQty || 0).toFixed(1)} kg</p>
+              <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Evening</p>
+              <p className="text-base font-semibold">{(stats.eveningQty || 0).toFixed(1)} kg</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl">
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="glass-card p-8 rounded-[2.5rem] relative overflow-hidden group"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl">
               <IndianRupee className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <Activity className="text-stone-200 dark:text-stone-700" size={16} />
+            <Activity className="text-stone-200 dark:text-stone-700" size={20} />
           </div>
-          <p className="text-stone-500 dark:text-stone-400 text-xs font-medium uppercase tracking-wider mb-1">Today's Revenue</p>
-          <p className="text-3xl font-serif font-medium text-stone-900 dark:text-white mb-4">₹{stats.todayAmount.toLocaleString()}</p>
-          <div className="pt-4 border-t border-stone-50 dark:border-stone-800">
-            <p className="text-[10px] text-stone-400 uppercase tracking-wider">Pending Payments</p>
-            <p className="text-sm font-medium text-amber-600 dark:text-amber-400">₹{stats.pendingPayments.toLocaleString()}</p>
+          <p className="text-stone-500 dark:text-stone-400 text-xs font-bold uppercase tracking-widest mb-2">Today's Revenue</p>
+          <p className="text-4xl font-serif font-bold text-stone-900 dark:text-white mb-6">₹{stats.todayAmount.toLocaleString()}</p>
+          <div className="pt-6 border-t border-stone-100 dark:border-stone-800">
+            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">Pending Payments</p>
+            <p className="text-base font-semibold text-amber-600 dark:text-amber-400">₹{stats.pendingPayments.toLocaleString()}</p>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="glass-card p-8 rounded-[2.5rem]"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
               <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
-          <p className="text-stone-500 dark:text-stone-400 text-xs font-medium uppercase tracking-wider mb-1">Farmers Served</p>
-          <p className="text-3xl font-serif font-medium text-stone-900 dark:text-white mb-4">{stats.totalFarmers}</p>
-          <div className="pt-4 border-t border-stone-50 dark:border-stone-800">
-            <p className="text-[10px] text-stone-400 uppercase tracking-wider">Avg. Quality</p>
-            <p className="text-sm font-medium text-stone-600 dark:text-stone-300">{(stats.avgFat || 0).toFixed(1)}% FAT / {(stats.avgSnf || 0).toFixed(1)}% SNF</p>
+          <p className="text-stone-500 dark:text-stone-400 text-xs font-bold uppercase tracking-widest mb-2">Farmers Served</p>
+          <p className="text-4xl font-serif font-bold text-stone-900 dark:text-white mb-6">{stats.totalFarmers}</p>
+          <div className="pt-6 border-t border-stone-100 dark:border-stone-800">
+            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">Avg. Quality</p>
+            <p className="text-base font-semibold text-stone-600 dark:text-stone-300">{(stats.avgFat || 0).toFixed(1)}% FAT / {(stats.avgSnf || 0).toFixed(1)}% SNF</p>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">Hardware Status</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-stone-50 dark:bg-stone-800 rounded-lg flex items-center justify-center">
-                  <Wifi size={14} className="text-stone-400 dark:text-stone-500" />
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="glass-card p-8 rounded-[2.5rem]"
+        >
+          <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-6">Hardware Status</h3>
+          <div className="space-y-5">
+            {[
+              { label: 'Weighing Scale', icon: Wifi, status: 'online' },
+              { label: 'Milk Analyzer', icon: Activity, status: 'online' },
+              { label: 'Printer', icon: RefreshCw, status: 'warning' },
+            ].map((device) => (
+              <div key={device.label} className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-stone-50 dark:bg-stone-800 rounded-xl flex items-center justify-center">
+                    <device.icon size={16} className="text-stone-400 dark:text-stone-500" />
+                  </div>
+                  <span className="text-sm font-medium text-stone-600 dark:text-stone-300">{device.label}</span>
                 </div>
-                <span className="text-sm text-stone-600 dark:text-stone-300">Weighing Scale</span>
+                <div className={cn(
+                  "w-2.5 h-2.5 rounded-full shadow-sm",
+                  device.status === 'online' ? "bg-emerald-500 shadow-emerald-500/20" : "bg-amber-500 shadow-amber-500/20"
+                )} />
               </div>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-stone-50 dark:bg-stone-800 rounded-lg flex items-center justify-center">
-                  <Activity size={14} className="text-stone-400 dark:text-stone-500" />
-                </div>
-                <span className="text-sm text-stone-600 dark:text-stone-300">Milk Analyzer</span>
-              </div>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-stone-50 dark:bg-stone-800 rounded-lg flex items-center justify-center">
-                  <RefreshCw size={14} className="text-stone-400 dark:text-stone-500" />
-                </div>
-                <span className="text-sm text-stone-600 dark:text-stone-300">Printer</span>
-              </div>
-              <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-            </div>
+            ))}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Chart & Notifications */}
         <div className="lg:col-span-2 space-y-8">
           {/* Trend Graph */}
-          <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Collection Trend</h3>
-              <div className="flex items-center gap-4">
+          <div className="glass-card p-8 rounded-[2.5rem]">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Collection Trend</h3>
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">Qty (kg)</span>
+                  <span className="w-3 h-3 bg-blue-500 rounded-full shadow-sm shadow-blue-500/20"></span>
+                  <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">Qty (kg)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-amber-500 rounded-full"></span>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">FAT %</span>
+                  <span className="w-3 h-3 bg-amber-500 rounded-full shadow-sm shadow-amber-500/20"></span>
+                  <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">FAT %</span>
                 </div>
               </div>
             </div>
-            <div className="h-[250px] w-full">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={processedChartData}>
                   <defs>
@@ -288,23 +293,23 @@ export default function Dashboard() {
                     dataKey="date" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#94a3b8' }}
-                    dy={10}
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                    dy={15}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
                   />
                   <Tooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
-                    itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="quantity" 
                     stroke="#2563eb" 
-                    strokeWidth={2}
+                    strokeWidth={3}
                     fillOpacity={1} 
                     fill="url(#colorQty)" 
                   />
@@ -346,7 +351,7 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Actions Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
             {[
               { name: 'Collection', path: '/collection', icon: Milk, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' },
               { name: 'Farmers', path: '/farmers', icon: Users, color: 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400' },
@@ -356,68 +361,68 @@ export default function Dashboard() {
               <Link 
                 key={action.name}
                 to={action.path}
-                className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm hover:shadow-md transition-all group text-center"
+                className="glass-card p-8 rounded-[2.5rem] hover:shadow-xl transition-all group text-center"
               >
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-transform group-hover:scale-110", action.color)}>
-                  <action.icon size={24} />
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-transform group-hover:scale-110 group-hover:-rotate-3 shadow-sm", action.color)}>
+                  <action.icon size={28} />
                 </div>
-                <span className="text-sm font-medium text-stone-900 dark:text-white">{action.name}</span>
+                <span className="text-sm font-bold text-stone-900 dark:text-white uppercase tracking-widest">{action.name}</span>
               </Link>
             ))}
           </div>
         </div>
 
         {/* Sidebar: Notifications & Recent */}
-        <div className="space-y-8">
+        <div className="space-y-10">
           {/* Notification Panel */}
-          <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-stone-50 dark:border-stone-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell size={18} className="text-stone-900 dark:text-white" />
-                <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Alerts</h3>
+          <div className="glass-card rounded-[2.5rem] overflow-hidden">
+            <div className="p-8 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell size={20} className="text-stone-900 dark:text-white" />
+                <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Alerts</h3>
               </div>
-              <span className="bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full">3 New</span>
+              <span className="bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-1 rounded-full">3 New</span>
             </div>
             <div className="divide-y divide-stone-50 dark:divide-stone-800">
               {alerts.map((alert) => (
-                <div key={alert.id} className="p-4 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
-                  <div className="flex gap-3">
+                <div key={alert.id} className="p-6 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
+                  <div className="flex gap-4">
                     <div className={cn(
-                      "mt-1 w-2 h-2 rounded-full shrink-0",
-                      alert.type === 'warning' ? "bg-amber-500" : 
-                      alert.type === 'error' ? "bg-red-500" : "bg-blue-500"
+                      "mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
+                      alert.type === 'warning' ? "bg-amber-500 shadow-amber-500/20" : 
+                      alert.type === 'error' ? "bg-red-500 shadow-red-500/20" : "bg-blue-500 shadow-blue-500/20"
                     )}></div>
                     <div>
-                      <p className="text-sm text-stone-900 dark:text-white leading-snug">{alert.message}</p>
-                      <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">{alert.time}</p>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white leading-relaxed">{alert.message}</p>
+                      <p className="text-[10px] font-bold text-stone-400 dark:text-stone-500 mt-2 uppercase tracking-widest">{alert.time}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <button className="w-full py-3 text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors">
+            <button className="w-full py-4 text-xs font-bold text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors uppercase tracking-[0.2em]">
               View All Notifications
             </button>
           </div>
 
           {/* Top Farmers */}
-          <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-stone-50 dark:border-stone-800">
-              <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Top Members (7D)</h3>
+          <div className="glass-card rounded-[2.5rem] overflow-hidden">
+            <div className="p-8 border-b border-stone-100 dark:border-stone-800">
+              <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Top Members (7D)</h3>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-8 space-y-6">
               {topFarmers.map((farmer, idx) => (
                 <div key={farmer.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                      idx === 0 ? "bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400" : "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+                      "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shadow-sm",
+                      idx === 0 ? "bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400" : "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500"
                     )}>
                       {idx + 1}
                     </div>
-                    <span className="text-sm font-medium text-stone-900 dark:text-white">{farmer.name}</span>
+                    <span className="text-sm font-semibold text-stone-900 dark:text-white">{farmer.name}</span>
                   </div>
-                  <span className="text-sm font-mono text-stone-500 dark:text-stone-400">{(farmer.qty || 0).toFixed(1)} kg</span>
+                  <span className="text-sm font-mono font-medium text-stone-500 dark:text-stone-400">{(farmer.qty || 0).toFixed(1)} kg</span>
                 </div>
               ))}
               {topFarmers.length === 0 && (
@@ -427,25 +432,25 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Transactions (Mini) */}
-          <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-stone-50 dark:border-stone-800">
-              <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Recent Activity</h3>
+          <div className="glass-card rounded-[2.5rem] overflow-hidden">
+            <div className="p-8 border-b border-stone-100 dark:border-stone-800">
+              <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Recent Activity</h3>
             </div>
             <div className="divide-y divide-stone-50 dark:divide-stone-800">
               {recentTxns.map((txn) => (
-                <div key={txn.id} className="p-4 flex items-center justify-between">
+                <div key={txn.id} className="p-6 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
                   <div>
-                    <p className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</p>
-                    <p className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider">{txn.shift} • {(txn.quantity || 0).toFixed(1)} kg</p>
+                    <p className="text-sm font-semibold text-stone-900 dark:text-white">{txn.farmerName}</p>
+                    <p className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest mt-1">{txn.shift} • {(txn.quantity || 0).toFixed(1)} kg</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-stone-900 dark:text-white">₹{(txn.amount || 0).toFixed(0)}</p>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Success</p>
+                    <p className="text-sm font-bold text-stone-900 dark:text-white">₹{(txn.amount || 0).toFixed(0)}</p>
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest mt-1">Success</p>
                   </div>
                 </div>
               ))}
             </div>
-            <Link to="/reports" className="block w-full py-3 text-center text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors">
+            <Link to="/reports" className="block w-full py-4 text-center text-xs font-bold text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors uppercase tracking-[0.2em]">
               View Collection Report
             </Link>
           </div>

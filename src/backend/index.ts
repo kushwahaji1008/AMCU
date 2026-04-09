@@ -116,6 +116,7 @@ app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSa
 app.get('/api/reports/dashboard', authenticate, (req, res, next) => reportingController.getDashboardStats(req, res).catch(next));
 app.get('/api/reports/daily', authenticate, (req, res, next) => reportingController.getDailyReport(req, res).catch(next));
 app.get('/api/reports/farmer/:farmerId', authenticate, (req, res, next) => reportingController.getFarmerReport(req, res).catch(next));
+app.get('/api/reports/bills', authenticate, (req, res, next) => reportingController.getPeriodicBills(req, res).catch(next));
 
 // Rate Chart Routes (Admin only)
 app.get('/api/rates/settings', authenticate, async (req, res, next) => {

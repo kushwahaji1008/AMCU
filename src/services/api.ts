@@ -79,8 +79,10 @@ export const saleApi = {
 
 export const reportApi = {
   getDashboard: () => api.get('/reports/dashboard'),
-  getDaily: (date: string) => api.get('/reports/daily?date=${date}'),
+  getDaily: (date: string) => api.get(`/reports/daily?date=${date}`),
   getFarmer: (farmerId: string) => api.get(`/reports/farmer/${farmerId}`),
+  getBills: (year: number, month: number, period: number, farmerId?: string) => 
+    api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`),
 };
 
 export const rateApi = {

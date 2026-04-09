@@ -26,6 +26,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import MobileApp from './components/MobileApp';
 import Ledger from './components/Ledger';
+import Billing from './components/Billing';
 import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -71,6 +72,7 @@ function App() {
                   <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
                   <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
                   <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
+                  <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
                   <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
                   <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />

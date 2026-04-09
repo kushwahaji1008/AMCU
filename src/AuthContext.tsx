@@ -12,6 +12,7 @@ export interface UserProfile {
   role: 'super_admin' | 'admin' | 'operator';
   status: 'active' | 'inactive';
   dairyId?: string;
+  dairyName?: string;
   adminId?: string;
   databaseId: string;
   createdAt: any;
