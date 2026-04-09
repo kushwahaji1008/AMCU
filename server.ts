@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import twilio from "twilio";
@@ -30,6 +31,7 @@ async function startServer() {
     console.warn("MONGODB_URI not found in environment variables. Running without MongoDB.");
   }
 
+  app.use(cors());
   app.use(express.json());
 
   // Mount Backend API

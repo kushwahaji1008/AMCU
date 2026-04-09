@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { 
   MongoFarmerRepository, 
   MongoCollectionRepository, 
@@ -24,6 +25,7 @@ import { authenticate, authorize } from './API/Middleware/AuthMiddleware';
 import { ErrorMiddleware } from './API/Middleware/ErrorMiddleware';
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // 1. Dependency Injection (Manual for simplicity)
