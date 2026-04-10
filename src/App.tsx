@@ -1,3 +1,11 @@
+/**
+ * App Component
+ * 
+ * The root component of the React application.
+ * Sets up global providers (Auth, Theme, Language), routing, and layout.
+ * Includes route protection logic for authenticated and admin users.
+ */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -30,6 +38,9 @@ import Billing from './components/Billing';
 import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 
+/**
+ * Higher-order component to protect routes that require authentication.
+ */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthReady } = useAuth();
   
@@ -39,6 +50,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Higher-order component to protect routes that require Admin or Super Admin privileges.
+ */
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, isAuthReady } = useAuth();
   
@@ -55,12 +69,17 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <LanguageProvider>
+            {/* Standardized toast notifications */}
             <Toaster position="top-right" richColors />
+            
             <Router>
               <Layout>
                 <Routes>
+                  {/* Public Routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+
+                  {/* Protected User Routes */}
                   <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/collection" element={<ProtectedRoute><CollectionEntry /></ProtectedRoute>} />
                   <Route path="/farmers" element={<ProtectedRoute><FarmerManagement /></ProtectedRoute>} />
@@ -68,19 +87,21 @@ function App() {
                   <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
                   <Route path="/shifts" element={<ProtectedRoute><ShiftManagement /></ProtectedRoute>} />
                   <Route path="/quality" element={<ProtectedRoute><QualityTesting /></ProtectedRoute>} />
-                  <Route path="/rates" element={<AdminRoute><RateChartManagement /></AdminRoute>} />
                   <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
-                  <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
                   <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+                  <Route path="/help" element={<ProtectedRoute><HelpAbout /></ProtectedRoute>} />
+                  <Route path="/mobile" element={<ProtectedRoute><MobileApp /></ProtectedRoute>} />
+
+                  {/* Admin-Only Routes */}
+                  <Route path="/rates" element={<AdminRoute><RateChartManagement /></AdminRoute>} />
+                  <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
                   <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
                   <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
                   <Route path="/audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
                   <Route path="/backup" element={<AdminRoute><BackupRestore /></AdminRoute>} />
-                  <Route path="/help" element={<ProtectedRoute><HelpAbout /></ProtectedRoute>} />
                   <Route path="/sync" element={<AdminRoute><Synchronization /></AdminRoute>} />
-                  <Route path="/mobile" element={<ProtectedRoute><MobileApp /></ProtectedRoute>} />
                   <Route path="/dairies" element={<AdminRoute><DairyManagement /></AdminRoute>} />
                 </Routes>
               </Layout>

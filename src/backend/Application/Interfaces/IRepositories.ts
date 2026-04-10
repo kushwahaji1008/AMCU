@@ -1,6 +1,13 @@
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
+import { LoginAudit } from '../../Core/Entities/Audit';
+
+export interface ILoginAuditRepository {
+  create(audit: Omit<LoginAudit, 'id'>): Promise<LoginAudit>;
+  getAll(): Promise<LoginAudit[]>;
+  getByUserId(userId: string): Promise<LoginAudit[]>;
+}
 
 export interface IFarmerRepository {
   getById(id: string): Promise<Farmer | null>;

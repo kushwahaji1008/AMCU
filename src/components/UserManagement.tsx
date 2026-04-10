@@ -69,6 +69,7 @@ export default function UserManagement() {
     try {
       const userData = {
         username: newUser.username,
+        email: newUser.username,
         password: newUser.password || 'User@123', // Default password
         role: profile.role === 'super_admin' && activeTab === 'Admins' ? 'admin' : 'operator',
         dairyId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '') : profile.dairyId,

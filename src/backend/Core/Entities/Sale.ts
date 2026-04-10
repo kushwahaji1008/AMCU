@@ -20,9 +20,13 @@ export interface MilkSale {
 export interface User {
   id: string;
   username: string;
+  email: string;
   passwordHash: string;
   role: 'admin' | 'operator' | 'super_admin';
   status: 'active' | 'inactive';
+  isEmailVerified: boolean;
+  otp?: string;
+  otpExpires?: Date;
   dairyId?: string;
   databaseId: string;
   createdAt: Date;

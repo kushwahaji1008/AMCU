@@ -102,6 +102,35 @@ async function startServer() {
     }
   });
 
+  // Diagnostic route for Email testing
+  app.get("/api/diag/email", async (req, res) => {
+    const { emailService } = await import("./src/backend/Application/Services/EmailService");
+    const testEmail = req.query.to as string || process.env.SUPERADMIN_EMAIL || "test@example.com";
+    
+    console.log(`[DIAG] Running email test to: ${testEmail}`);
+    try {
+      await emailService.sendOTP(testEmail, "123456");
+      res.json({ 
+        success: true, 
+        message: `Test email sent to ${testEmail}. Check your inbox (and spam folder).`,
+        config: {
+          host: process.env.EMAIL_HOST || process.env.SMTP_HOST || "default (gmail)",
+          user: process.env.EMAIL_USER || process.env.SMTP_USER || "not set",
+          port: process.env.EMAIL_PORT || process.env.SMTP_PORT || "587"
+        }
+      });
+    } catch (error: any) {
+      console.error("[DIAG] Email test failed:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        tip: error.message.includes("535-5.7.8") 
+          ? "This is a Gmail authentication error. You MUST use an 'App Password' from Google, not your regular password." 
+          : "Check your SMTP host, port, and credentials in the Secrets panel."
+      });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

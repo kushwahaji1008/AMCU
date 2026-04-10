@@ -1,32 +1,66 @@
+/**
+ * AuthMiddleware
+ * 
+ * Provides authentication and authorization logic for API routes.
+ * Includes JWT verification and session fingerprinting checks.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { requestContext } from '../../Core/RequestContext';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+/**
+ * Extended Request interface to include the authenticated user.
+ */
 export interface AuthRequest extends Request {
   user?: {
     id: string;
     username: string;
     role: 'admin' | 'operator' | 'super_admin';
     databaseId: string;
+    fp?: string;
   };
 }
 
+/**
+ * Middleware to authenticate requests using JWT.
+ * Also verifies the session fingerprint to prevent token hijacking.
+ */
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   const databaseId = req.headers['x-database-id'] as string || '(default)';
 
+  // 1. Handle Unauthenticated Requests
   if (!token) {
-    // For non-authenticated requests that still need a database context
+    // For non-authenticated requests that still need a database context (e.g., public info)
     return requestContext.run({ databaseId }, () => next());
   }
 
   try {
+    // 2. Verify JWT Signature
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    
+    // 3. Verify Session Fingerprint
+    // Ensures the token is being used by the same device/IP it was issued to.
+    if (decoded.fp && decoded.fp !== 'none') {
+      const currentIp = req.ip;
+      const currentUserAgent = req.headers['user-agent'] || '';
+      const currentFingerprint = crypto.createHash('sha256').update(`${currentIp}-${currentUserAgent}`).digest('hex');
+      
+      if (decoded.fp !== currentFingerprint) {
+        return res.status(401).json({ 
+          message: 'Security Alert: Request authenticity could not be verified. Please log in again.',
+          code: 'FINGERPRINT_MISMATCH'
+        });
+      }
+    }
+
     req.user = decoded;
     
-    // Determine the database context
+    // 4. Determine Database Context
     let effectiveDatabaseId = decoded.databaseId || '(default)';
     
     // Super Admin can override their database context via the header to switch between dairies
@@ -34,6 +68,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       effectiveDatabaseId = req.headers['x-database-id'] as string;
     }
     
+    // 5. Initialize Request Context (AsyncLocalStorage)
     requestContext.run({ 
       databaseId: effectiveDatabaseId,
       userId: decoded.id,
@@ -44,6 +79,9 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
   }
 };
 
+/**
+ * Middleware to authorize requests based on user roles.
+ */
 export const authorize = (roles: ('admin' | 'operator' | 'super_admin')[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {

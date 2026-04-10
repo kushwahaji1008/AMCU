@@ -24,6 +24,7 @@ export default function Register() {
     try {
       const registrationData = {
         username: email,
+        email: email,
         password: password,
         role: 'admin',
         dairyData: {
@@ -35,7 +36,7 @@ export default function Register() {
 
       await authApi.register(registrationData);
       
-      toast.success('Account created successfully! Please login.');
+      toast.success('Account created successfully! You can now sign in.');
       navigate('/login');
     } catch (err: any) {
       setError(handleError(err, 'Failed to create account'));

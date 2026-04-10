@@ -41,11 +41,14 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
+      let result;
       if (isSuperAdminMode) {
         await signInSuperAdmin(email, password);
       } else {
         await signInWithEmail(email, password);
       }
+      
+      toast.success('Login successful');
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');

@@ -95,9 +95,13 @@ export const CustomerSchema = new Schema({
 // --- User Schema ---
 export const UserSchema = new Schema({
   username: { type: String, required: true, unique: true },
+  email: { type: String, required: true },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ['admin', 'operator', 'super_admin'], required: true },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  isEmailVerified: { type: Boolean, default: false },
+  otp: { type: String },
+  otpExpires: { type: Date },
   dairyId: { type: String },
   databaseId: { type: String },
   createdAt: { type: Date, default: Date.now },
@@ -118,6 +122,30 @@ export const SettingsSchema = new Schema({
   key: { type: String, required: true, unique: true },
   value: { type: Schema.Types.Mixed, required: true },
   updatedAt: { type: Date, default: Date.now },
+});
+
+// --- LoginAudit Schema ---
+export const LoginAuditSchema = new Schema({
+  userId: { type: String, required: true },
+  username: { type: String, required: true },
+  role: { type: String, required: true },
+  loginAt: { type: Date, default: Date.now },
+  ipAddress: { type: String },
+  userAgent: { type: String },
+  device: {
+    browser: { type: String },
+    os: { type: String },
+    deviceType: { type: String },
+  },
+  location: {
+    city: { type: String },
+    region: { type: String },
+    country: { type: String },
+    ll: { type: [Number] },
+  },
+  status: { type: String, enum: ['success', 'failure'], required: true },
+  failureReason: { type: String },
+  databaseId: { type: String, required: true },
 });
 
 // Default Models (for Registry/Default DB)

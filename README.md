@@ -99,10 +99,23 @@ The application uses a `databaseId` to isolate data between different dairies.
 - Repositories use `dbManager.getModel(getDatabaseId())` to dynamically switch between database contexts.
 
 ## 🛡 Security
+...
 
-- **JWT Authentication**: Secure token-based access.
-- **Global Error Handling**: Centralized error middleware in the backend and Error Boundaries in the frontend.
-- **Input Validation**: Sanitization and validation on both client and server sides.
+## 🔧 Troubleshooting Email (OTP)
+
+If you see the error `535-5.7.8 Username and Password not accepted`, it means Google is rejecting your login.
+
+### Solution: Use a Google App Password
+1.  **Enable 2-Step Verification** in your [Google Account Security settings](https://myaccount.google.com/security).
+2.  Go to [App Passwords](https://myaccount.google.com/apppasswords).
+3.  Select **Mail** and **Other (DugdhaSetu)**, then click **Generate**.
+4.  Copy the **16-character code** (e.g. `abcd efgh ijkl mnop`).
+5.  Go to **Settings > Secrets** in AI Studio and update `EMAIL_PASS` with this code (remove spaces).
+6.  Ensure `EMAIL_USER` is your full Gmail address.
+
+### Diagnostic Tool
+You can test your email configuration by visiting:
+`{APP_URL}/api/diag/email?to=your-email@example.com`
 
 ## 📝 License
 

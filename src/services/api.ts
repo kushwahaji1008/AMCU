@@ -45,6 +45,8 @@ export const authApi = {
   login: (credentials: any) => api.post('/auth/login', credentials),
   register: (data: any) => api.post('/auth/register', data),
   verifyAdmin: (credentials: any) => api.post('/admin/verify', credentials),
+  verifyOTP: (data: { userId: string; otp: string }) => api.post('/auth/verify-otp', data),
+  resendOTP: (data: { userId: string }) => api.post('/auth/resend-otp', data),
 };
 
 export const farmerApi = {

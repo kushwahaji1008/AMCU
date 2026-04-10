@@ -1,10 +1,23 @@
-import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository } from '../../Application/Interfaces/IRepositories';
+/**
+ * MongoRepositories
+ * 
+ * Implements the Repository Pattern for MongoDB data access.
+ * Each repository uses the 'dbManager' to get a tenant-specific model
+ * based on the current request's 'databaseId'.
+ */
+
+import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository, ILoginAuditRepository } from '../../Application/Interfaces/IRepositories';
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
+import { LoginAudit } from '../../Core/Entities/Audit';
 import { dbManager } from '../Persistence/Mongo/DatabaseManager';
 import { getDatabaseId } from '../../Core/RequestContext';
 
+/**
+ * Helper to map a Mongoose document to a plain TypeScript object.
+ * Converts _id to id and removes versioning fields.
+ */
 function mapDoc<T>(doc: any): T {
   if (!doc) return null as any;
   const obj = doc.toObject();
@@ -14,6 +27,7 @@ function mapDoc<T>(doc: any): T {
   return obj as T;
 }
 
+// --- Farmer Repository ---
 export class MongoFarmerRepository implements IFarmerRepository {
   async getById(id: string): Promise<Farmer | null> {
     const model = await dbManager.getFarmerModel(getDatabaseId());
@@ -51,6 +65,9 @@ export class MongoFarmerRepository implements IFarmerRepository {
     await model.findByIdAndDelete(id);
   }
 
+  /**
+   * Aggregates summary data for a specific farmer.
+   */
   async getSummary(farmerId: string): Promise<FarmerSummary> {
     const databaseId = getDatabaseId();
     const collectionModel = await dbManager.getCollectionModel(databaseId);
@@ -77,6 +94,7 @@ export class MongoFarmerRepository implements IFarmerRepository {
   }
 }
 
+// --- Collection Repository ---
 export class MongoCollectionRepository implements ICollectionRepository {
   async getById(id: string): Promise<MilkCollection | null> {
     const model = await dbManager.getCollectionModel(getDatabaseId());
@@ -134,6 +152,7 @@ export class MongoCollectionRepository implements ICollectionRepository {
   }
 }
 
+// --- Rate Chart Repository ---
 export class MongoRateChartRepository implements IRateChartRepository {
   async getRate(fat: number, snf: number): Promise<number> {
     const model = await dbManager.getRateChartModel(getDatabaseId());
@@ -171,6 +190,7 @@ export class MongoRateChartRepository implements IRateChartRepository {
   }
 }
 
+// --- Ledger Repository ---
 export class MongoLedgerRepository implements ILedgerRepository {
   async addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry> {
     const model = await dbManager.getLedgerModel(getDatabaseId());
@@ -191,6 +211,7 @@ export class MongoLedgerRepository implements ILedgerRepository {
   }
 }
 
+// --- Shift Summary Repository ---
 export class MongoShiftSummaryRepository implements IShiftSummaryRepository {
   async create(summary: Omit<ShiftSummary, 'id'>): Promise<ShiftSummary> {
     const model = await dbManager.getShiftSummaryModel(getDatabaseId());
@@ -211,6 +232,7 @@ export class MongoShiftSummaryRepository implements IShiftSummaryRepository {
   }
 }
 
+// --- Sale Repository ---
 export class MongoSaleRepository implements ISaleRepository {
   async create(sale: Omit<MilkSale, 'id' | 'createdAt'>): Promise<MilkSale> {
     const model = await dbManager.getSaleModel(getDatabaseId());
@@ -229,6 +251,7 @@ export class MongoSaleRepository implements ISaleRepository {
   }
 }
 
+// --- Customer Repository ---
 export class MongoCustomerRepository implements ICustomerRepository {
   async create(customer: Omit<Customer, 'id' | 'createdAt'>): Promise<Customer> {
     const model = await dbManager.getCustomerModel(getDatabaseId());
@@ -243,8 +266,10 @@ export class MongoCustomerRepository implements ICustomerRepository {
   }
 }
 
+// --- User Repository ---
 export class MongoUserRepository implements IUserRepository {
   async getByUsername(username: string): Promise<User | null> {
+    // User registry is global (stored in the default database)
     const model = await dbManager.getUserModel('(default)');
     const doc = await model.findOne({ username: { $regex: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
     return doc ? mapDoc<User>(doc) : null;
@@ -276,6 +301,7 @@ export class MongoUserRepository implements IUserRepository {
   }
 }
 
+// --- Settings Repository ---
 export class MongoSettingsRepository implements ISettingsRepository {
   async get(key: string): Promise<any> {
     const model = await dbManager.getSettingsModel(getDatabaseId());
@@ -293,6 +319,7 @@ export class MongoSettingsRepository implements ISettingsRepository {
   }
 }
 
+// --- Dairy Repository ---
 export class MongoDairyRepository implements IDairyRepository {
   async create(dairy: any): Promise<any> {
     const model = await dbManager.getDairyModel('(default)');
@@ -316,5 +343,29 @@ export class MongoDairyRepository implements IDairyRepository {
     const model = await dbManager.getDairyModel('(default)');
     const docs = await model.find();
     return docs.map(doc => mapDoc<any>(doc));
+  }
+}
+
+// --- Login Audit Repository ---
+export class MongoLoginAuditRepository implements ILoginAuditRepository {
+  // Audit logs are stored in a dedicated superadmin database for security
+  private readonly SUPERADMIN_DB = 'dugdhaset.superadmin';
+
+  async create(audit: Omit<LoginAudit, 'id'>): Promise<LoginAudit> {
+    const model = await dbManager.getLoginAuditModel(this.SUPERADMIN_DB);
+    const doc = await model.create(audit);
+    return mapDoc<LoginAudit>(doc);
+  }
+
+  async getAll(): Promise<LoginAudit[]> {
+    const model = await dbManager.getLoginAuditModel(this.SUPERADMIN_DB);
+    const docs = await model.find().sort({ loginAt: -1 });
+    return docs.map(doc => mapDoc<LoginAudit>(doc));
+  }
+
+  async getByUserId(userId: string): Promise<LoginAudit[]> {
+    const model = await dbManager.getLoginAuditModel(this.SUPERADMIN_DB);
+    const docs = await model.find({ userId }).sort({ loginAt: -1 });
+    return docs.map(doc => mapDoc<LoginAudit>(doc));
   }
 }
