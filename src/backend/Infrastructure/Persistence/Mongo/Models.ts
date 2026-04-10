@@ -136,6 +136,7 @@ export const LoginAuditSchema = new Schema({
     browser: { type: String },
     os: { type: String },
     deviceType: { type: String },
+    model: { type: String },
   },
   location: {
     city: { type: String },

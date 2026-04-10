@@ -51,13 +51,19 @@ import * as useragent from 'express-useragent';
 
 const app = express();
 
+// Enable trust proxy to correctly handle X-Forwarded-For headers in proxied environments (like Cloud Run)
+app.set('trust proxy', 1);
+
 /**
  * --- Security Configuration ---
  * Protecting the app from common web vulnerabilities.
  */
 
 // 1. Helmet: Sets various HTTP headers for security (CSP, HSTS, etc.)
-app.use(helmet()); 
+app.use(helmet({
+  frameguard: false, // Allow iframe for AI Studio preview
+  contentSecurityPolicy: false, // Disable CSP for easier development, or configure it properly
+})); 
 
 // 2. CORS: Cross-Origin Resource Sharing configuration
 app.use(cors({
@@ -95,7 +101,10 @@ app.use(useragent.express());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
-  message: 'Too many requests from this IP, please try again after 15 minutes'
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false }, // Disable trust proxy validation as we've set it globally
 });
 app.use('/api/', limiter);
 
@@ -103,7 +112,10 @@ app.use('/api/', limiter);
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // Limit each IP to 10 attempts per hour
-  message: 'Too many login attempts, please try again after an hour'
+  message: 'Too many login attempts, please try again after an hour',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 app.use('/api/auth/', authLimiter);
 
@@ -156,13 +168,26 @@ app.post('/api/auth/register', validateRegistration, async (req, res, next) => {
 app.post('/api/auth/login', validateLogin, async (req, res, next) => {
   try {
     // Capture device and network info for audit logging
+    const userAgent = req.headers['user-agent'] || '';
+    const deviceName = req.body.deviceName;
+    
+    // Extract model from User-Agent if not provided by client
+    let model = deviceName;
+    if (!model) {
+      const modelMatch = userAgent.match(/\(([^;]+);([^;]+);([^;)]+)\)/);
+      if (modelMatch && modelMatch[3]) {
+        model = modelMatch[3].split('Build/')[0].trim();
+      }
+    }
+
     const auditData = {
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: userAgent,
       device: {
         browser: (req as any).useragent?.browser,
         os: (req as any).useragent?.os,
-        deviceType: (req as any).useragent?.isMobile ? 'Mobile' : ((req as any).useragent?.isTablet ? 'Tablet' : 'Desktop')
+        deviceType: (req as any).useragent?.isMobile ? 'Mobile' : ((req as any).useragent?.isTablet ? 'Tablet' : 'Desktop'),
+        model: model
       }
     };
     const result = await authService.login(req.body.username, req.body.password, auditData);
@@ -173,14 +198,26 @@ app.post('/api/auth/login', validateLogin, async (req, res, next) => {
 // Super Admin Verification
 app.post('/api/admin/verify', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceName } = req.body;
+    const userAgent = req.headers['user-agent'] || '';
+    
+    // Extract model from User-Agent if not provided by client
+    let model = deviceName;
+    if (!model) {
+      const modelMatch = userAgent.match(/\(([^;]+);([^;]+);([^;)]+)\)/);
+      if (modelMatch && modelMatch[3]) {
+        model = modelMatch[3].split('Build/')[0].trim();
+      }
+    }
+
     const auditData = {
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: userAgent,
       device: {
         browser: (req as any).useragent?.browser,
         os: (req as any).useragent?.os,
-        deviceType: (req as any).useragent?.isMobile ? 'Mobile' : ((req as any).useragent?.isTablet ? 'Tablet' : 'Desktop')
+        deviceType: (req as any).useragent?.isMobile ? 'Mobile' : ((req as any).useragent?.isTablet ? 'Tablet' : 'Desktop'),
+        model: model
       }
     };
     const result = await authService.loginSuperAdmin(email, password, auditData);
@@ -344,7 +381,7 @@ app.use(ErrorMiddleware.handleError);
  * --- System Seeding ---
  * Ensures initial admin and default settings exist.
  */
-async function seed() {
+export async function seedDatabase() {
   try {
     const rates = await rateChartRepo.getAll();
     if (rates.length === 0) {
@@ -356,6 +393,5 @@ async function seed() {
     console.error('Seeding error:', error);
   }
 }
-seed();
 
 export default app;

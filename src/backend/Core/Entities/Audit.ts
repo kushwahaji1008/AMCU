@@ -17,6 +17,7 @@ export interface LoginAudit {
     browser?: string;
     os?: string;
     deviceType?: string;
+    model?: string;
   };
   location?: {
     city?: string;

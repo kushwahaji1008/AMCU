@@ -70,10 +70,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
+   * Attempts to detect the device name/model.
+   */
+  const getDeviceName = async (): Promise<string | undefined> => {
+    try {
+      // 1. Try User-Agent Client Hints (Modern browsers)
+      if ((navigator as any).userAgentData?.getHighEntropyValues) {
+        const hints = await (navigator as any).userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion']);
+        if (hints.model) return hints.model;
+      }
+      
+      // 2. Fallback to parsing User-Agent string for common patterns
+      const ua = navigator.userAgent;
+      const modelMatch = ua.match(/\(([^;]+);([^;]+);([^;)]+)\)/);
+      if (modelMatch && modelMatch[3]) {
+        const potentialModel = modelMatch[3].trim();
+        if (potentialModel.includes('Build/') || /SM-|Pixel|iPhone|iPad/.test(potentialModel)) {
+          return potentialModel.split('Build/')[0].trim();
+        }
+      }
+      
+      return undefined;
+    } catch (e) {
+      return undefined;
+    }
+  };
+
+  /**
    * Standard Email/Password login.
    */
   const signInWithEmail = async (email: string, pass: string) => {
-    const response = await authApi.login({ username: email, password: pass });
+    const deviceName = await getDeviceName();
+    const response = await authApi.login({ username: email, password: pass, deviceName });
     const { token, user: userData, requiresOTP } = response.data;
     
     // Note: OTP is currently disabled in the backend, but kept here for structural compatibility
@@ -108,7 +136,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Super Admin login.
    */
   const signInSuperAdmin = async (email: string, pass: string) => {
-    const response = await authApi.verifyAdmin({ email, password: pass });
+    const deviceName = await getDeviceName();
+    const response = await authApi.verifyAdmin({ email, password: pass, deviceName });
     const { token, user: userData, requiresOTP } = response.data;
     
     if (requiresOTP) {

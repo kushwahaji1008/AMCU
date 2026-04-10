@@ -4,7 +4,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import backendApp from "./src/backend/index";
+import backendApp, { seedDatabase } from "./src/backend/index";
 
 dotenv.config();
 
@@ -20,6 +20,9 @@ async function startServer() {
         serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
       });
       console.log("Connected to MongoDB successfully.");
+      
+      // Seed database after connection
+      await seedDatabase();
     } catch (error: any) {
       console.error("MongoDB connection error:", error.message);
       if (error.message.includes("MongooseServerSelectionError")) {
@@ -87,12 +90,15 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("Starting Vite in development mode...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    console.log("Vite middleware mounted.");
   } else {
+    console.log("Starting in production mode...");
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -101,7 +107,8 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
