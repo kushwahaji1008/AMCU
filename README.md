@@ -12,7 +12,7 @@ DugdhSetu is a comprehensive, full-stack dairy management application designed t
 - **Reporting & Analytics**: Dashboard statistics, daily collection reports, and individual farmer statements.
 - **Multi-Tenant Architecture**: Support for multiple dairies with isolated data using a tenant-based database system.
 - **Role-Based Access Control (RBAC)**: Distinct permissions for Super Admins, Admins, and Operators.
-- **Notifications**: Integrated Twilio support for SMS and WhatsApp notifications (with simulation mode).
+- **Notifications**: Simulation mode for SMS and WhatsApp notifications.
 - **Case-Insensitive Login**: Robust authentication supporting various username casings.
 
 ## 🛠 Tech Stack
@@ -32,7 +32,6 @@ DugdhSetu is a comprehensive, full-stack dairy management application designed t
 - **MongoDB** with **Mongoose**
 - **JWT** for authentication
 - **Bcryptjs** for password hashing
-- **Twilio SDK** for notifications
 
 ## 🏗 Architecture
 
@@ -62,12 +61,6 @@ Create a `.env` file in the root directory (refer to `.env.example`):
 ```env
 MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret
-SUPERADMIN_EMAIL=admin@example.com
-SUPERADMIN_PASS=AdminPassword123
-TWILIO_ACCOUNT_SID=your_sid
-TWILIO_AUTH_TOKEN=your_token
-TWILIO_PHONE_NUMBER=your_phone
-TWILIO_WHATSAPP_NUMBER=your_whatsapp
 ```
 
 ### Installation

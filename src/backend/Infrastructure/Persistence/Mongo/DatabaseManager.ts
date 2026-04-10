@@ -17,7 +17,8 @@ import {
   UserSchema,
   DairySchema,
   ShiftSummarySchema,
-  LoginAuditSchema
+  LoginAuditSchema,
+  SettingsSchema
 } from './Models';
 import { Farmer } from '../../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../../Core/Entities/Collection';
@@ -103,7 +104,6 @@ class DatabaseManager {
   }
 
   async getSettingsModel(databaseId: string) {
-    const { SettingsSchema } = require('./Models');
     return this.getModel<any & Document>(databaseId, 'Settings', SettingsSchema);
   }
 

@@ -29,8 +29,8 @@ Authenticate a user and receive a JWT.
 - **Body**:
   ```json
   {
-    "username": "admin",
-    "password": "admin123"
+    "username": "<your_username>",
+    "password": "<your_password>"
   }
   ```
 - **Response**:
@@ -54,8 +54,8 @@ Verify super admin credentials.
 - **Body**:
   ```json
   {
-    "email": "superadmin@rnsoft.in",
-    "password": "SuperAdmin@123"
+    "email": "<super_admin_email>",
+    "password": "<super_admin_password>"
   }
   ```
 

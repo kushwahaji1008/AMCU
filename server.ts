@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import twilio from "twilio";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import backendApp from "./src/backend/index";
@@ -37,22 +36,7 @@ async function startServer() {
   // Mount Backend API
   app.use(backendApp);
 
-  // Twilio Client (Lazy Initialization)
-  let twilioClient: twilio.Twilio | null = null;
-  const getTwilio = () => {
-    if (!twilioClient) {
-      const sid = process.env.TWILIO_ACCOUNT_SID;
-      const token = process.env.TWILIO_AUTH_TOKEN;
-      if (!sid || !token) {
-        console.warn("Twilio credentials missing. Notifications will be simulated. Please configure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in the AI Studio Secrets panel for real SMS/WhatsApp.");
-        return null;
-      }
-      twilioClient = twilio(sid, token);
-    }
-    return twilioClient;
-  };
-
-  // API Route for Notifications
+  // API Route for Notifications (Simulation Only)
   app.post("/api/notify", async (req, res) => {
     const { mobile, message, type } = req.body;
 
@@ -60,52 +44,22 @@ async function startServer() {
       return res.status(400).json({ error: "Mobile and message are required" });
     }
 
-    try {
-      const client = getTwilio();
-      
-      if (!client) {
-        // Simulation Mode
-        console.info(`[SIMULATED ${type.toUpperCase()}] To: ${mobile}, Message: ${message}`);
-        return res.json({ 
-          success: true, 
-          simulated: true, 
-          message: "Notification simulated. Configure Twilio secrets for real delivery." 
-        });
-      }
-
-      const phone = process.env.TWILIO_PHONE_NUMBER;
-      const whatsapp = process.env.TWILIO_WHATSAPP_NUMBER;
-
-      if (type === 'whatsapp' && !whatsapp) {
-        throw new Error("TWILIO_WHATSAPP_NUMBER is not configured in Secrets.");
-      }
-      if (type !== 'whatsapp' && !phone) {
-        throw new Error("TWILIO_PHONE_NUMBER is not configured in Secrets.");
-      }
-
-      const from = type === 'whatsapp' 
-        ? `whatsapp:${whatsapp}` 
-        : phone;
-      
-      const to = type === 'whatsapp' ? `whatsapp:${mobile}` : mobile;
-
-      const result = await client.messages.create({
-        body: message,
-        from,
-        to,
-      });
-
-      res.json({ success: true, sid: result.sid });
-    } catch (error: any) {
-      console.error("Notification Error:", error);
-      res.status(500).json({ error: error.message || "Failed to send notification" });
-    }
+    // Simulation Mode - Real delivery removed as per request
+    console.info(`[SIMULATED ${type?.toUpperCase() || 'SMS'}] To: ${mobile}, Message: ${message}`);
+    return res.json({ 
+      success: true, 
+      simulated: true, 
+      message: "Notification simulated. Real delivery is disabled." 
+    });
   });
 
   // Diagnostic route for Email testing
   app.get("/api/diag/email", async (req, res) => {
     const { emailService } = await import("./src/backend/Application/Services/EmailService");
-    const testEmail = req.query.to as string || process.env.SUPERADMIN_EMAIL || "test@example.com";
+    const testEmail = req.query.to as string;
+    if (!testEmail) {
+      return res.status(400).json({ error: "Email address is required for testing" });
+    }
     
     console.log(`[DIAG] Running email test to: ${testEmail}`);
     try {

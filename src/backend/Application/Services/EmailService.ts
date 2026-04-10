@@ -24,7 +24,6 @@ export class EmailService {
       process.env.MAIL_USER || 
       process.env.MAIL_USERNAME || 
       process.env.EMAIL_USER || 
-      process.env.SUPERADMIN_EMAIL || // Fallback to SuperAdmin email
       'mock-user'
     ).trim();
 
@@ -33,7 +32,6 @@ export class EmailService {
       process.env.MAIL_PASS || 
       process.env.MAIL_PASSWORD || 
       process.env.EMAIL_PASS || 
-      process.env.SUPERADMIN_PASS || // Fallback to SuperAdmin pass
       'mock-pass'
     ).trim();
 
@@ -66,7 +64,7 @@ export class EmailService {
   }
 
   async sendOTP(email: string, otp: string) {
-    const fromAddress = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.EMAIL_FROM || process.env.SUPERADMIN_EMAIL || 'support@dugdhasetu.in';
+    const fromAddress = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.EMAIL_FROM || 'support@dugdhasetu.in';
     
     const mailOptions = {
       from: `"DugdhaSetu Support" <${fromAddress}>`,
@@ -92,7 +90,7 @@ export class EmailService {
     try {
       // Check if we have real credentials
       const isMock = 
-        (!process.env.SMTP_USER && !process.env.MAIL_USER && !process.env.EMAIL_USER && !process.env.SUPERADMIN_EMAIL) || 
+        (!process.env.SMTP_USER && !process.env.MAIL_USER && !process.env.EMAIL_USER) || 
         (process.env.SMTP_USER === 'mock-user');
 
       if (isMock) {

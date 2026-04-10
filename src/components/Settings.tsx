@@ -96,42 +96,18 @@ export default function Settings() {
               )}
               {activeTab === 'Notifications' && (
                 <div className="space-y-6">
-                  <div className="p-6 bg-stone-50 rounded-2xl border border-stone-100 space-y-4">
-                    <div className="flex items-center gap-3 text-stone-900 font-serif font-medium">
+                  <div className="p-6 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 space-y-4">
+                    <div className="flex items-center gap-3 text-stone-900 dark:text-white font-serif font-medium">
                       <Smartphone className="text-stone-400" size={20} />
                       SMS & WhatsApp Notifications
                     </div>
-                    <p className="text-sm text-stone-500 leading-relaxed">
-                      To enable real-time SMS and WhatsApp alerts for farmers, you must configure your Twilio credentials. 
-                      Since these are sensitive keys, they should be added as **Secrets** in the AI Studio Settings panel.
+                    <p className="text-sm text-stone-500 dark:text-stone-400 leading-relaxed">
+                      Notifications are currently running in <strong>Simulation Mode</strong>. 
+                      Real-time SMS and WhatsApp delivery is disabled for this version.
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                      <div className="p-3 bg-white border border-stone-100 rounded-xl">
-                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Required Secret</p>
-                        <p className="text-xs font-mono text-stone-600">TWILIO_ACCOUNT_SID</p>
-                      </div>
-                      <div className="p-3 bg-white border border-stone-100 rounded-xl">
-                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Required Secret</p>
-                        <p className="text-xs font-mono text-stone-600">TWILIO_AUTH_TOKEN</p>
-                      </div>
-                      <div className="p-3 bg-white border border-stone-100 rounded-xl">
-                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Required Secret</p>
-                        <p className="text-xs font-mono text-stone-600">TWILIO_PHONE_NUMBER</p>
-                      </div>
-                      <div className="p-3 bg-white border border-stone-100 rounded-xl">
-                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Optional Secret</p>
-                        <p className="text-xs font-mono text-stone-600">TWILIO_WHATSAPP_NUMBER</p>
-                      </div>
-                    </div>
-                    <div className="pt-2">
-                      <a 
-                        href="https://www.twilio.com/console" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-stone-900 font-medium underline underline-offset-4 hover:text-stone-600"
-                      >
-                        Get your credentials from Twilio Console →
-                      </a>
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-amber-700 dark:text-amber-400 text-xs">
+                      <p className="font-medium mb-1">Notice:</p>
+                      <p>All notification requests will be logged to the server console instead of being sent to actual mobile numbers.</p>
                     </div>
                   </div>
                 </div>

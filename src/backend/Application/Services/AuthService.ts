@@ -187,71 +187,77 @@ export class AuthService {
 
   /**
    * Special authentication for the Super Admin account.
+   * Verifies credentials against the database and ensures the user has the 'super_admin' role.
    */
   async loginSuperAdmin(email: string, pass: string, auditData?: any): Promise<{ token: string; user: any; requiresOTP: boolean }> {
-    const ADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'superadmin@rnsoft.in';
-    const ADMIN_PASS = process.env.SUPERADMIN_PASS || 'SuperAdmin@123';
+    const normalizedEmail = email.toLowerCase();
+    const user = await this.userRepo.getByUsername(normalizedEmail);
     
-    if (email === ADMIN_EMAIL && pass === ADMIN_PASS) {
-      let user = await this.userRepo.getByUsername(email);
-      
-      // Auto-create Super Admin user record if it doesn't exist
-      if (!user) {
-        user = await this.userRepo.create({
-          username: email,
-          email: email,
-          passwordHash: await bcrypt.hash(pass, 10),
+    // 1. Verify User Existence and Role
+    if (!user || user.role !== 'super_admin') {
+      if (this.auditRepo) {
+        await this.auditRepo.create({
+          userId: 'unknown',
+          username: normalizedEmail,
           role: 'super_admin',
-          status: 'active',
-          isEmailVerified: true,
+          loginAt: new Date(),
+          status: 'failure',
+          failureReason: 'SuperAdmin not found or invalid role',
           databaseId: 'dugdhaset.superadmin',
-          dairyId: 'global'
+          ...auditData
         });
       }
+      throw new Error('Invalid credentials');
+    }
 
-      const fingerprint = auditData ? this.generateFingerprint(auditData) : 'none';
-
-      const token = jwt.sign(
-        { 
-          id: user.id, 
-          username: user.username, 
-          role: user.role, 
-          databaseId: user.databaseId,
-          fp: fingerprint
-        },
-        JWT_SECRET,
-        { expiresIn: '1d' }
-      );
-
+    // 2. Verify Password
+    const isPasswordValid = await bcrypt.compare(pass, user.passwordHash);
+    if (!isPasswordValid) {
       if (this.auditRepo) {
         await this.auditRepo.create({
           userId: user.id,
           username: user.username,
           role: user.role,
           loginAt: new Date(),
-          status: 'success',
+          status: 'failure',
+          failureReason: 'Invalid superadmin password',
           databaseId: user.databaseId,
           ...auditData
         });
       }
-
-      const { passwordHash, ...userWithoutPassword } = user;
-      return { token, user: userWithoutPassword, requiresOTP: false };
+      throw new Error('Invalid credentials');
     }
 
-    // Log Failed Super Admin Login
+    // 3. Generate Session Fingerprint
+    const fingerprint = auditData ? this.generateFingerprint(auditData) : 'none';
+
+    // 4. Generate JWT Token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role, 
+        databaseId: user.databaseId,
+        fp: fingerprint
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    // 5. Log Successful Login
     if (this.auditRepo) {
       await this.auditRepo.create({
-        userId: 'unknown',
-        username: email,
-        role: 'super_admin',
+        userId: user.id,
+        username: user.username,
+        role: user.role,
         loginAt: new Date(),
-        status: 'failure',
-        failureReason: 'Invalid superadmin credentials',
-        databaseId: 'dugdhaset.superadmin',
+        status: 'success',
+        databaseId: user.databaseId,
         ...auditData
       });
     }
-    throw new Error('Invalid credentials');
+
+    const { passwordHash, ...userWithoutPassword } = user;
+    return { token, user: userWithoutPassword, requiresOTP: false };
   }
 }

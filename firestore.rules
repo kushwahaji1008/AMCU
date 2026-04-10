@@ -31,10 +31,7 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && (
-        getUserData().role == 'super_admin' || 
-        (request.auth.token.email == "superadmin@rnsoft.in" && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated() && getUserData().role == 'super_admin';
     }
 
     function isAdmin() {

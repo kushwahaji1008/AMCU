@@ -10,8 +10,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
-const xss = require('xss-clean');
-const sanitize = require('mongo-sanitize');
+// @ts-ignore
+import xss from 'xss-clean';
+// @ts-ignore
+import sanitize from 'mongo-sanitize';
 
 // Repositories
 import { 
@@ -344,12 +346,6 @@ app.use(ErrorMiddleware.handleError);
  */
 async function seed() {
   try {
-    const admin = await userRepo.getByUsername('admin');
-    if (!admin) {
-      await authService.register('admin', 'admin@dugdhasetu.in', 'admin123', 'admin', { name: 'Default Dairy', address: 'Default Address', contact: '0000000000' }, 'default-dairy', '(default)');
-      console.log('Admin user seeded.');
-    }
-
     const rates = await rateChartRepo.getAll();
     if (rates.length === 0) {
       await rateChartRepo.create({ fatMin: 3.0, fatMax: 5.4, snfMin: 8.0, snfMax: 8.5, ratePerLiter: 45 });
