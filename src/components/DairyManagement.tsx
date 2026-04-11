@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { dairyApi, authApi } from '../services/api';
+import { dairyApi, authApi, adminApi } from '../services/api';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
-import { Building2, Plus, Search, MapPin, Phone, Database, ExternalLink, Shield, X } from 'lucide-react';
+import { Building2, Plus, Search, MapPin, Phone, Database, ExternalLink, Shield, X, FileText, Settings as SettingsIcon, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
@@ -14,6 +14,8 @@ export default function DairyManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [swaggerEnabled, setSwaggerEnabled] = useState(false);
+  const [swaggerLoading, setSwaggerLoading] = useState(false);
   const [newDairy, setNewDairy] = useState({
     name: '',
     address: '',
@@ -24,20 +26,51 @@ export default function DairyManagement() {
   });
 
   const fetchDairies = async () => {
+    if (profile?.role !== 'super_admin') return;
     setLoading(true);
     try {
-      const response = await dairyApi.getAll();
-      setDairies(response.data);
+      const [dairiesRes, swaggerRes] = await Promise.all([
+        dairyApi.getAll(),
+        adminApi.getSwaggerStatus()
+      ]);
+      setDairies(dairiesRes.data);
+      setSwaggerEnabled(swaggerRes.data.enabled);
     } catch (err) {
-      handleError(err, 'Failed to load dairies');
+      handleError(err, 'Failed to load system data');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSwaggerToggle = async () => {
+    setSwaggerLoading(true);
+    try {
+      const newStatus = !swaggerEnabled;
+      await adminApi.toggleSwagger(newStatus);
+      setSwaggerEnabled(newStatus);
+      toast.success(`Swagger documentation ${newStatus ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      handleError(err, 'Failed to update Swagger status');
+    } finally {
+      setSwaggerLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDairies();
-  }, []);
+  }, [profile]);
+
+  if (profile?.role !== 'super_admin') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <Shield className="w-16 h-16 text-red-500 mb-4 opacity-20" />
+        <h2 className="text-2xl font-serif font-medium text-stone-900 dark:text-white">Access Restricted</h2>
+        <p className="text-stone-500 dark:text-stone-400 max-w-md mt-2">
+          This section is only accessible to Super Administrators. Your current role is: <span className="font-bold uppercase">{profile?.role || 'unknown'}</span>
+        </p>
+      </div>
+    );
+  }
 
   const handleCreateDairy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +114,56 @@ export default function DairyManagement() {
           <Plus size={18} />
           Register New Dairy
         </button>
+      </div>
+
+      {/* System Configuration Section */}
+      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-stone-50 dark:bg-stone-800 rounded-xl flex items-center justify-center">
+            <SettingsIcon className="text-stone-400 dark:text-stone-500 w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white">System Configuration</h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400">Global application settings</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-4 bg-stone-50 dark:bg-stone-800/50 rounded-2xl border border-stone-100 dark:border-stone-800 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white dark:bg-stone-900 rounded-xl flex items-center justify-center shadow-sm">
+                <FileText className="text-blue-500 w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-stone-900 dark:text-white">Swagger Documentation</p>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Enable/Disable interactive API docs at /api-docs</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {swaggerEnabled && (
+                <a 
+                  href="/api-docs" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors"
+                  title="Open Documentation"
+                >
+                  <ExternalLink size={18} />
+                </a>
+              )}
+              <button
+                onClick={handleSwaggerToggle}
+                disabled={swaggerLoading}
+                className={cn(
+                  "p-1 rounded-full transition-all duration-300",
+                  swaggerEnabled ? "text-green-500" : "text-stone-300 dark:text-stone-600"
+                )}
+              >
+                {swaggerEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">

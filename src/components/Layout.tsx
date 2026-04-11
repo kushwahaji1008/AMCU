@@ -65,7 +65,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('settings'), path: '/settings', icon: Settings2, adminOnly: true },
     { name: t('auditLog'), path: '/audit', icon: Shield, adminOnly: true },
     { name: t('backup'), path: '/backup', icon: Database, adminOnly: true },
-    { name: 'Dairies', path: '/dairies', icon: Building2, superAdminOnly: true },
+    { name: 'System & Dairies', path: '/dairies', icon: Building2, superAdminOnly: true },
     { name: t('help'), path: '/help', icon: HelpCircle },
   ];
 

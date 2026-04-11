@@ -48,6 +48,10 @@ import { authenticate, authorize } from './API/Middleware/AuthMiddleware';
 import { ErrorMiddleware } from './API/Middleware/ErrorMiddleware';
 import { validateRegistration, validateLogin, validateFarmer } from './API/Middleware/ValidationMiddleware';
 import * as useragent from 'express-useragent';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './API/Config/Swagger';
+
+import { dbManager } from './Infrastructure/Persistence/Mongo/DatabaseManager';
 
 const app = express();
 
@@ -262,6 +266,45 @@ app.get('/api/dairies', authenticate, authorize(['super_admin']), async (req, re
   } catch (error) { next(error); }
 });
 
+// Swagger Toggle (Super Admin only)
+app.get('/api/admin/swagger-status', authenticate, authorize(['super_admin']), async (req, res, next) => {
+  try {
+    // Swagger settings are global, always use the (default) registry database
+    const model = await dbManager.getSettingsModel('(default)');
+    const doc = await model.findOne({ key: 'swaggerEnabled' });
+    res.json({ enabled: doc ? doc.value === true : false });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/admin/swagger-toggle', authenticate, authorize(['super_admin']), async (req, res, next) => {
+  try {
+    const { enabled } = req.body;
+    const model = await dbManager.getSettingsModel('(default)');
+    await model.findOneAndUpdate(
+      { key: 'swaggerEnabled' },
+      { value: enabled, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, enabled });
+  } catch (error) { next(error); }
+});
+
+// Swagger UI Route with dynamic toggle check
+app.use('/api-docs', async (req, res, next) => {
+  try {
+    const model = await dbManager.getSettingsModel('(default)');
+    const doc = await model.findOne({ key: 'swaggerEnabled' });
+    const isEnabled = doc ? doc.value === true : false;
+    
+    if (isEnabled === true) {
+      return next();
+    }
+    res.status(404).send('Not Found');
+  } catch (error) {
+    next(error);
+  }
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 // Farmer Management
 app.get('/api/farmers', authenticate, (req, res, next) => farmerController.getAllFarmers(req, res).catch(next));
 app.get('/api/farmers/search/:farmerId', authenticate, async (req, res, next) => {
@@ -404,11 +447,26 @@ app.use(ErrorMiddleware.handleError);
  */
 export async function seedDatabase() {
   try {
+    // 1. Seed Rate Charts
     const rates = await rateChartRepo.getAll();
     if (rates.length === 0) {
       await rateChartRepo.create({ fatMin: 3.0, fatMax: 5.4, snfMin: 8.0, snfMax: 8.5, ratePerLiter: 45 });
       await rateChartRepo.create({ fatMin: 5.5, fatMax: 8.0, snfMin: 8.6, snfMax: 9.5, ratePerLiter: 65 });
       console.log('Rate chart seeded.');
+    }
+
+    // 2. Seed Super Admin (Bootstrap from User Email)
+    const userEmail = 'kushwahajishreeshree1008@gmail.com';
+    const existingUser = await userRepo.getByUsername(userEmail);
+    
+    if (!existingUser) {
+      // Create initial super admin if not exists
+      // Note: They will need to use "Forgot Password" or we can set a default one
+      // For now, we'll just ensure that if they register with this email, they get the role.
+      console.log(`Super Admin seeding: User ${userEmail} not found. They will be granted super_admin role upon registration.`);
+    } else if (existingUser.role !== 'super_admin') {
+      await userRepo.update(existingUser.id, { role: 'super_admin' });
+      console.log(`User ${userEmail} promoted to Super Admin.`);
     }
   } catch (error) {
     console.error('Seeding error:', error);

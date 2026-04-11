@@ -62,6 +62,12 @@ export const authApi = {
   resendOTP: (data: { userId: string }) => api.post('/auth/resend-otp', data),
 };
 
+export const adminApi = {
+  getLoginLogs: () => api.get('/admin/login-logs'),
+  getSwaggerStatus: () => api.get('/admin/swagger-status'),
+  toggleSwagger: (enabled: boolean) => api.post('/admin/swagger-toggle', { enabled }),
+};
+
 export const farmerApi = {
   getAll: () => api.get('/farmers'),
   getById: (id: string) => api.get(`/farmers/${id}`),
