@@ -25,7 +25,11 @@ export const validateRegistration = [
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.warn(`[VALIDATION ERROR] Registration:`, errors.array());
+      return res.status(400).json({ 
+        message: errors.array()[0].msg, 
+        errors: errors.array() 
+      });
     }
     next();
   }
@@ -40,7 +44,11 @@ export const validateLogin = [
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.warn(`[VALIDATION ERROR] Login:`, errors.array());
+      return res.status(400).json({ 
+        message: errors.array()[0].msg, 
+        errors: errors.array() 
+      });
     }
     next();
   }
@@ -58,7 +66,11 @@ export const validateFarmer = [
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.warn(`[VALIDATION ERROR] Farmer:`, errors.array());
+      return res.status(400).json({ 
+        message: errors.array()[0].msg, 
+        errors: errors.array() 
+      });
     }
     next();
   }

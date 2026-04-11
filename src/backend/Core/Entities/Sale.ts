@@ -27,6 +27,7 @@ export interface User {
   isEmailVerified: boolean;
   otp?: string;
   otpExpires?: Date;
+  currentSessionId?: string;
   dairyId?: string;
   databaseId: string;
   createdAt: Date;

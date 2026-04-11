@@ -9,10 +9,19 @@ export const useErrorHandler = () => {
     
     if (typeof error === 'string') {
       message = error;
+    } else if (error?.response?.data) {
+      const data = error.response.data;
+      if (typeof data === 'string') {
+        message = data;
+      } else if (data.message) {
+        message = data.message;
+      } else if (data.errors && Array.isArray(data.errors)) {
+        message = data.errors.map((e: any) => e.msg || e.message).join(', ');
+      } else if (error.message) {
+        message = error.message;
+      }
     } else if (error instanceof Error) {
       message = error.message;
-    } else if (error?.response?.data?.message) {
-      message = error.response.data.message;
     } else if (error?.message) {
       message = error.message;
     }

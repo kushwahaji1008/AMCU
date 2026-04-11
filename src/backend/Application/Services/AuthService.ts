@@ -22,11 +22,11 @@ export class AuthService {
   ) {}
 
   /**
-   * Generates a unique fingerprint for the session based on IP and User-Agent.
-   * This prevents session hijacking via token theft.
+   * Generates a unique fingerprint for the session based on User-Agent.
+   * IP-based fingerprinting is disabled to support mobile users on dynamic networks.
    */
   private generateFingerprint(auditData: any): string {
-    const data = `${auditData.ipAddress}-${auditData.userAgent}`;
+    const data = `${auditData.userAgent}`;
     return crypto.createHash('sha256').update(data).digest('hex');
   }
 
@@ -92,21 +92,26 @@ export class AuthService {
 
     // 4. Generate Session Fingerprint
     const fingerprint = auditData ? this.generateFingerprint(auditData) : 'none';
+    
+    // 5. Generate Unique Session ID for Single-Device Enforcement
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    await this.userRepo.update(user.id, { currentSessionId: sessionId });
 
-    // 5. Generate JWT Token
+    // 6. Generate JWT Token
     const token = jwt.sign(
       { 
         id: user.id, 
         username: user.username, 
         role: user.role, 
         databaseId: user.databaseId,
-        fp: fingerprint 
+        fp: fingerprint,
+        sid: sessionId
       },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // 6. Log Successful Login
+    // 7. Log Successful Login
     if (this.auditRepo) {
       await this.auditRepo.create({
         userId: user.id,
@@ -120,7 +125,7 @@ export class AuthService {
     }
 
     const { passwordHash, ...userWithoutPassword } = user;
-    return { token, user: userWithoutPassword, requiresOTP: false };
+    return { token, user: { ...userWithoutPassword, currentSessionId: sessionId }, requiresOTP: false };
   }
 
   /**
@@ -231,20 +236,25 @@ export class AuthService {
     // 3. Generate Session Fingerprint
     const fingerprint = auditData ? this.generateFingerprint(auditData) : 'none';
 
-    // 4. Generate JWT Token
+    // 4. Generate Unique Session ID for Single-Device Enforcement
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    await this.userRepo.update(user.id, { currentSessionId: sessionId });
+
+    // 5. Generate JWT Token
     const token = jwt.sign(
       { 
         id: user.id, 
         username: user.username, 
         role: user.role, 
         databaseId: user.databaseId,
-        fp: fingerprint
+        fp: fingerprint,
+        sid: sessionId
       },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // 5. Log Successful Login
+    // 6. Log Successful Login
     if (this.auditRepo) {
       await this.auditRepo.create({
         userId: user.id,
@@ -258,6 +268,6 @@ export class AuthService {
     }
 
     const { passwordHash, ...userWithoutPassword } = user;
-    return { token, user: userWithoutPassword, requiresOTP: false };
+    return { token, user: { ...userWithoutPassword, currentSessionId: sessionId }, requiresOTP: false };
   }
 }

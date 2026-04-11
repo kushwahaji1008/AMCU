@@ -22,12 +22,25 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
+    let message = 'An unexpected error occurred';
+    
+    if (error.response?.data) {
+      if (typeof error.response.data === 'string') {
+        message = error.response.data;
+      } else if (error.response.data.message) {
+        message = error.response.data.message;
+      } else if (error.response.data.errors && Array.isArray(error.response.data.errors)) {
+        message = error.response.data.errors.map((e: any) => e.msg || e.message).join(', ');
+      }
+    } else if (error.message) {
+      message = error.message;
+    }
     
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('profile');
-      window.location.href = '/login';
+      const reason = encodeURIComponent(message);
+      window.location.href = `/login?reason=${reason}`;
     }
     
     // Create a standardized error object

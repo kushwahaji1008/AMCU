@@ -9,6 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { requestContext } from '../../Core/RequestContext';
+import { dbManager } from '../../Infrastructure/Persistence/Mongo/DatabaseManager';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -22,14 +23,15 @@ export interface AuthRequest extends Request {
     role: 'admin' | 'operator' | 'super_admin';
     databaseId: string;
     fp?: string;
+    sid?: string;
   };
 }
 
 /**
  * Middleware to authenticate requests using JWT.
- * Also verifies the session fingerprint to prevent token hijacking.
+ * Also verifies the session fingerprint and session ID to prevent token hijacking and multiple logins.
  */
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   const databaseId = req.headers['x-database-id'] as string || '(default)';
 
@@ -44,11 +46,10 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
     // 3. Verify Session Fingerprint
-    // Ensures the token is being used by the same device/IP it was issued to.
+    // Ensures the token is being used by the same browser/device it was issued to.
     if (decoded.fp && decoded.fp !== 'none') {
-      const currentIp = req.ip;
       const currentUserAgent = req.headers['user-agent'] || '';
-      const currentFingerprint = crypto.createHash('sha256').update(`${currentIp}-${currentUserAgent}`).digest('hex');
+      const currentFingerprint = crypto.createHash('sha256').update(currentUserAgent).digest('hex');
       
       if (decoded.fp !== currentFingerprint) {
         return res.status(401).json({ 
@@ -58,9 +59,23 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       }
     }
 
+    // 4. Verify Session ID (Single-Device Enforcement)
+    // Fetches the user from the global registry to check if a newer session exists.
+    if (decoded.sid) {
+      const userModel = await dbManager.getUserModel('(default)');
+      const user = await userModel.findById(decoded.id);
+      
+      if (!user || user.currentSessionId !== decoded.sid) {
+        return res.status(401).json({ 
+          message: 'You have been logged out because your account was logged in on another device.',
+          code: 'SESSION_INVALIDATED'
+        });
+      }
+    }
+
     req.user = decoded;
     
-    // 4. Determine Database Context
+    // 5. Determine Database Context
     let effectiveDatabaseId = decoded.databaseId || '(default)';
     
     // Super Admin can override their database context via the header to switch between dairies
@@ -68,7 +83,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       effectiveDatabaseId = req.headers['x-database-id'] as string;
     }
     
-    // 5. Initialize Request Context (AsyncLocalStorage)
+    // 6. Initialize Request Context (AsyncLocalStorage)
     requestContext.run({ 
       databaseId: effectiveDatabaseId,
       userId: decoded.id,

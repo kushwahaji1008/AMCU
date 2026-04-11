@@ -54,6 +54,27 @@ const app = express();
 // Enable trust proxy to correctly handle X-Forwarded-For headers in proxied environments (like Cloud Run)
 app.set('trust proxy', 1);
 
+// Request Logger: Logs basic request info and non-2xx responses
+app.use((req, res, next) => {
+  // Skip logging for source files and static assets to reduce noise
+  const isStaticAsset = /\.(tsx?|jsx?|css|png|jpg|svg|ico|json)$/.test(req.path);
+  if (isStaticAsset && res.statusCode < 400) {
+    return next();
+  }
+
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (res.statusCode >= 400) {
+      console.warn(`[API] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+    } else if (req.originalUrl.startsWith('/api')) {
+      // Only log successful API calls, skip source file logs
+      console.log(`[API] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+    }
+  });
+  next();
+});
+
 /**
  * --- Security Configuration ---
  * Protecting the app from common web vulnerabilities.

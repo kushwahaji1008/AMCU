@@ -21,6 +21,16 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get('reason');
+    if (reason) {
+      setError(reason);
+      // Clean up the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);

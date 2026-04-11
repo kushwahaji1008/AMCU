@@ -102,6 +102,7 @@ export const UserSchema = new Schema({
   isEmailVerified: { type: Boolean, default: false },
   otp: { type: String },
   otpExpires: { type: Date },
+  currentSessionId: { type: String },
   dairyId: { type: String },
   databaseId: { type: String },
   createdAt: { type: Date, default: Date.now },
