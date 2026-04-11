@@ -70,7 +70,7 @@ export interface ShiftSummary {
   totalQuantity: number;
   avgFat: number;
   avgSnf: number;
-  totalAmount: number;
+  amount: number;
   closedAt: string;
   closedBy: string;
   dairyId: string; // The dairy this shift belongs to

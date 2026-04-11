@@ -229,6 +229,6 @@ Verify super admin credentials.
   fat: number;
   snf: number;
   rate: number;
-  totalAmount: number;
+  amount: number;
 }
 ```

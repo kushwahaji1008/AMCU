@@ -14,7 +14,7 @@ service cloud.firestore {
     // Fields: effectiveFrom, milkType, baseRate, fatStandard, snfStandard, fatStep, snfStep
     //
     // Collection: shiftSummaries
-    // Fields: date, shift, totalFarmers, totalQuantity, avgFat, avgSnf, totalAmount, closedAt, closedBy
+    // Fields: date, shift, totalFarmers, totalQuantity, avgFat, avgSnf, amount, closedAt, closedBy
     //
     // Collection: payments
     // Fields: farmerId, farmerName, amount, method, reference, date, timestamp, operatorId, status

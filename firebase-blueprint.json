@@ -64,11 +64,11 @@
         "totalQuantity": { "type": "number" },
         "avgFat": { "type": "number" },
         "avgSnf": { "type": "number" },
-        "totalAmount": { "type": "number" },
+        "amount": { "type": "number" },
         "closedAt": { "type": "string", "format": "date-time" },
         "closedBy": { "type": "string" }
       },
-      "required": ["date", "shift", "totalFarmers", "totalQuantity", "totalAmount"]
+      "required": ["date", "shift", "totalFarmers", "totalQuantity", "amount"]
     },
     "Payment": {
       "title": "Payment",

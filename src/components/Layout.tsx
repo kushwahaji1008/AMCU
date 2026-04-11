@@ -4,7 +4,7 @@ import { useLanguage } from '../LanguageContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
-  Beaker, Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2,
+  Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2,
   Sun, Moon, Languages
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -49,7 +49,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { name: t('dashboard'), path: '/', icon: LayoutDashboard },
     { name: t('collection'), path: '/collection', icon: Milk },
-    { name: t('qualityTesting'), path: '/quality', icon: Beaker },
     { name: t('shifts'), path: '/shifts', icon: Clock },
     { name: t('farmers'), path: '/farmers', icon: Users },
     { name: t('rateCharts'), path: '/rates', icon: Settings2, adminOnly: true },
@@ -63,7 +62,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Mobile App', path: '/mobile', icon: Smartphone },
     { name: t('users'), path: '/users', icon: Shield, adminOnly: true },
     { name: t('settings'), path: '/settings', icon: Settings2, adminOnly: true },
-    { name: t('auditLog'), path: '/audit', icon: Shield, adminOnly: true },
+    { name: t('auditLog'), path: '/audit', icon: Shield, superAdminOnly: true },
     { name: t('backup'), path: '/backup', icon: Database, adminOnly: true },
     { name: 'System & Dairies', path: '/dairies', icon: Building2, superAdminOnly: true },
     { name: t('help'), path: '/help', icon: HelpCircle },

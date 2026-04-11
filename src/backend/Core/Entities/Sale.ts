@@ -13,7 +13,7 @@ export interface MilkSale {
   date: Date;
   quantity: number;
   rate: number;
-  totalAmount: number;
+  amount: number;
   createdAt: Date;
 }
 

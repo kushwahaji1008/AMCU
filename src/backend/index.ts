@@ -460,13 +460,7 @@ export async function seedDatabase() {
     const existingUser = await userRepo.getByUsername(userEmail);
     
     if (!existingUser) {
-      // Create initial super admin if not exists
-      // Note: They will need to use "Forgot Password" or we can set a default one
-      // For now, we'll just ensure that if they register with this email, they get the role.
-      console.log(`Super Admin seeding: User ${userEmail} not found. They will be granted super_admin role upon registration.`);
-    } else if (existingUser.role !== 'super_admin') {
-      await userRepo.update(existingUser.id, { role: 'super_admin' });
-      console.log(`User ${userEmail} promoted to Super Admin.`);
+      console.log(`Super Admin seeding: User ${userEmail} not found.`);
     }
   } catch (error) {
     console.error('Seeding error:', error);

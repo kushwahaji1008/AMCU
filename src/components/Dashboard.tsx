@@ -209,10 +209,10 @@ export default function Dashboard() {
             <Activity className="text-stone-200 dark:text-stone-700" size={20} />
           </div>
           <p className="text-stone-500 dark:text-stone-400 text-xs font-bold uppercase tracking-widest mb-2">Today's Revenue</p>
-          <p className="text-4xl font-serif font-bold text-stone-900 dark:text-white mb-6">₹{stats.todayAmount.toLocaleString()}</p>
+          <p className="text-4xl font-serif font-bold text-stone-900 dark:text-white mb-6">₹{(stats.todayAmount || 0).toLocaleString()}</p>
           <div className="pt-6 border-t border-stone-100 dark:border-stone-800">
             <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mb-1">Pending Payments</p>
-            <p className="text-base font-semibold text-amber-600 dark:text-amber-400">₹{stats.pendingPayments.toLocaleString()}</p>
+            <p className="text-base font-semibold text-amber-600 dark:text-amber-400">₹{(stats.pendingPayments || 0).toLocaleString()}</p>
           </div>
         </motion.div>
 

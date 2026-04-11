@@ -19,7 +19,6 @@ import FarmerManagement from './components/FarmerManagement';
 import FarmerProfile from './components/FarmerProfile';
 import Reports from './components/Reports';
 import ShiftManagement from './components/ShiftManagement';
-import QualityTesting from './components/QualityTesting';
 import RateChartManagement from './components/RateChartManagement';
 import ReceiptPrint from './components/ReceiptPrint';
 import PaymentProcessing from './components/PaymentProcessing';
@@ -63,6 +62,19 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Higher-order component to protect routes that require Super Admin privileges.
+ */
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, profile, loading, isAuthReady } = useAuth();
+  
+  if (!isAuthReady || loading) return null;
+  if (!user) return <Navigate to="/login" />;
+  if (profile?.role !== 'super_admin') return <Navigate to="/" />;
+  
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -86,7 +98,6 @@ function App() {
                   <Route path="/farmers/:id" element={<ProtectedRoute><FarmerProfile /></ProtectedRoute>} />
                   <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
                   <Route path="/shifts" element={<ProtectedRoute><ShiftManagement /></ProtectedRoute>} />
-                  <Route path="/quality" element={<ProtectedRoute><QualityTesting /></ProtectedRoute>} />
                   <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
                   <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
@@ -99,10 +110,10 @@ function App() {
                   <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
                   <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
-                  <Route path="/audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
+                  <Route path="/audit" element={<SuperAdminRoute><AuditLog /></SuperAdminRoute>} />
                   <Route path="/backup" element={<AdminRoute><BackupRestore /></AdminRoute>} />
                   <Route path="/sync" element={<AdminRoute><Synchronization /></AdminRoute>} />
-                  <Route path="/dairies" element={<AdminRoute><DairyManagement /></AdminRoute>} />
+                  <Route path="/dairies" element={<SuperAdminRoute><DairyManagement /></SuperAdminRoute>} />
                 </Routes>
               </Layout>
             </Router>

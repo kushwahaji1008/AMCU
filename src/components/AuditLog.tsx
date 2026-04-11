@@ -139,7 +139,7 @@ export default function AuditLog() {
                           <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-stone-500 dark:text-stone-400">
                             <div className="flex items-center gap-1">
                               <Clock size={14} />
-                              {new Date(log.loginAt).toLocaleString()}
+                              {log.loginAt ? new Date(log.loginAt).toLocaleString() : 'N/A'}
                             </div>
                             <div className="flex items-center gap-1">
                               <Globe size={14} />

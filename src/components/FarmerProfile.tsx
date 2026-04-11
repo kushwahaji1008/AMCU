@@ -161,10 +161,10 @@ export default function FarmerProfile() {
   };
 
   const stats = useMemo(() => {
-    const totalQty = transactions.reduce((sum, t) => sum + t.quantity, 0);
-    const totalAmt = transactions.reduce((sum, t) => sum + t.amount, 0);
+    const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
+    const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
     const avgFat = transactions.length > 0 
-      ? transactions.reduce((sum, t) => sum + t.fat, 0) / transactions.length 
+      ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length 
       : 0;
     
     return { totalQty, totalAmt, avgFat };
@@ -176,8 +176,8 @@ export default function FarmerProfile() {
       .slice(-15)
       .map(t => ({
         date: format(new Date(t.date), 'MMM dd'),
-        qty: t.quantity,
-        amt: t.amount
+        qty: t.quantity || 0,
+        amt: t.amount || 0
       }));
   }, [transactions]);
 
@@ -265,7 +265,7 @@ export default function FarmerProfile() {
             <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
               <IndianRupee className="text-emerald-600 dark:text-emerald-400 mb-3" size={24} />
               <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Earned</p>
-              <p className="text-xl font-serif font-medium text-stone-900 dark:text-white">₹{stats.totalAmt.toLocaleString()}</p>
+              <p className="text-xl font-serif font-medium text-stone-900 dark:text-white">₹{(stats.totalAmt || 0).toLocaleString()}</p>
             </div>
           </div>
 

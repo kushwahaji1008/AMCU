@@ -83,11 +83,11 @@ export default function Billing() {
       c.quantity.toFixed(2),
       c.fat.toFixed(1),
       c.rate.toFixed(2),
-      c.totalAmount.toFixed(2)
+      (c.amount || 0).toFixed(2)
     ]);
 
     const totalQty = purchaseData.reduce((sum, c) => sum + c.quantity, 0);
-    const totalAmt = purchaseData.reduce((sum, c) => sum + c.totalAmount, 0);
+    const totalAmt = purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0);
 
     autoTable(doc, {
       startY: 35,
@@ -176,12 +176,12 @@ export default function Billing() {
         qtyRow.push({ content: morning ? morning.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
         qtyRow.push({ content: evening ? evening.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
 
-        amtRow.push({ content: morning ? morning.totalAmount.toFixed(0) : '-', styles: { halign: 'center' } });
-        amtRow.push({ content: evening ? evening.totalAmount.toFixed(0) : '-', styles: { halign: 'center' } });
+        amtRow.push({ content: morning ? (morning.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
+        amtRow.push({ content: evening ? (evening.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
       });
 
       qtyRow.push({ content: bill.totalQuantity.toFixed(1), styles: { halign: 'center', fontStyle: 'bold' } });
-      amtRow.push({ content: bill.totalAmount.toFixed(0), styles: { halign: 'center', fontStyle: 'bold' } });
+      amtRow.push({ content: (bill.amount || 0).toFixed(0), styles: { halign: 'center', fontStyle: 'bold' } });
 
       body.push(qtyRow);
       body.push(amtRow);
@@ -255,7 +255,7 @@ export default function Billing() {
       c.fat.toFixed(1),
       c.snf.toFixed(1),
       c.rate.toFixed(2),
-      c.totalAmount.toFixed(2)
+      (c.amount || 0).toFixed(2)
     ]);
 
     autoTable(doc, {
@@ -268,7 +268,7 @@ export default function Billing() {
         bill.avgFat.toFixed(1), 
         bill.avgSnf.toFixed(1), 
         '', 
-        bill.totalAmount.toFixed(2)
+        (bill.amount || 0).toFixed(2)
       ]],
       theme: 'grid',
       headStyles: { fillColor: [41, 37, 36] },
@@ -322,10 +322,10 @@ export default function Billing() {
 
       if (morning?.milkType === 'Cow' || evening?.milkType === 'Cow') {
         cowQty += (morning?.quantity || 0) + (evening?.quantity || 0);
-        cowValue += (morning?.totalAmount || 0) + (evening?.totalAmount || 0);
+        cowValue += (morning?.amount || 0) + (evening?.amount || 0);
       } else if (morning?.milkType === 'Buffalo' || evening?.milkType === 'Buffalo') {
         bufQty += (morning?.quantity || 0) + (evening?.quantity || 0);
-        bufValue += (morning?.totalAmount || 0) + (evening?.totalAmount || 0);
+        bufValue += (morning?.amount || 0) + (evening?.amount || 0);
       }
 
       tableRows.push([
@@ -334,13 +334,13 @@ export default function Billing() {
         morning ? morning.fat.toFixed(1) : '0.0',
         morning ? (morning.quantity * morning.fat / 100).toFixed(3) : '0.000',
         morning ? morning.snf.toFixed(1) : '0.0',
-        morning ? morning.totalAmount.toFixed(2) : '0.00',
+        morning ? (morning.amount || 0).toFixed(2) : '0.00',
         '|',
         evening ? evening.quantity.toFixed(1) : '0.0',
         evening ? evening.fat.toFixed(1) : '0.0',
         evening ? (evening.quantity * evening.fat / 100).toFixed(3) : '0.000',
         evening ? evening.snf.toFixed(1) : '0.0',
-        evening ? evening.totalAmount.toFixed(2) : '0.00'
+        evening ? (evening.amount || 0).toFixed(2) : '0.00'
       ]);
     });
 
@@ -653,7 +653,7 @@ export default function Billing() {
           <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
             <p className="text-sm text-stone-500 mb-1">Total Amount</p>
             <h3 className="text-2xl font-bold text-stone-900 dark:text-white">
-              ₹{purchaseData.reduce((sum, c) => sum + c.totalAmount, 0).toFixed(2)}
+              ₹{purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0).toFixed(2)}
             </h3>
           </div>
         </div>
@@ -723,7 +723,7 @@ export default function Billing() {
                               );
                             })}
                             <td className="px-2 py-2 text-xs font-bold text-stone-900 dark:text-white text-center border-r border-stone-100 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-800/30">{bill.totalQuantity.toFixed(1)}</td>
-                            <td rowSpan={2} className="px-2 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 text-center bg-emerald-50/30 dark:bg-emerald-900/10">₹{bill.totalAmount.toLocaleString()}</td>
+                            <td rowSpan={2} className="px-2 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 text-center bg-emerald-50/30 dark:bg-emerald-900/10">₹{(bill.amount || 0).toLocaleString()}</td>
                           </tr>
                           <tr className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors border-b border-stone-100 dark:border-stone-800">
                             {getDaysInPeriod().map(day => {
@@ -738,8 +738,8 @@ export default function Billing() {
                               });
                               return (
                                 <React.Fragment key={`amt-${day}`}>
-                                  <td className="px-1 py-1 text-[9px] text-stone-400 dark:text-stone-500 text-center border-r border-stone-50 dark:border-stone-800/50 italic">{morning ? `₹${morning.totalAmount.toFixed(0)}` : '-'}</td>
-                                  <td className="px-1 py-1 text-[9px] text-stone-400 dark:text-stone-500 text-center border-r border-stone-50 dark:border-stone-800/50 italic">{evening ? `₹${evening.totalAmount.toFixed(0)}` : '-'}</td>
+                                  <td className="px-1 py-1 text-[9px] text-stone-400 dark:text-stone-500 text-center border-r border-stone-50 dark:border-stone-800/50 italic">{morning ? `₹${(morning.amount || 0).toFixed(0)}` : '-'}</td>
+                                  <td className="px-1 py-1 text-[9px] text-stone-400 dark:text-stone-500 text-center border-r border-stone-50 dark:border-stone-800/50 italic">{evening ? `₹${(evening.amount || 0).toFixed(0)}` : '-'}</td>
                                 </React.Fragment>
                               );
                             })}
@@ -781,7 +781,7 @@ export default function Billing() {
               <div className="flex items-center gap-6">
                 <div className="text-right">
                   <p className="text-xs text-stone-400 uppercase tracking-wider">Total Amount</p>
-                  <p className="text-xl font-serif font-medium text-stone-900 dark:text-white">₹{bill.totalAmount.toLocaleString()}</p>
+                  <p className="text-xl font-serif font-medium text-stone-900 dark:text-white">₹{(bill.amount || 0).toLocaleString()}</p>
                 </div>
                 <button 
                   onClick={() => downloadPDF(bill)}
@@ -850,7 +850,7 @@ export default function Billing() {
                     <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">{c.quantity.toFixed(2)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.fat.toFixed(1)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">₹{c.rate.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">₹{c.totalAmount.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">₹{(c.amount || 0).toFixed(2)}</td>
                   </tr>
                 ))}
                 {purchaseData.length > 0 && (
@@ -858,7 +858,7 @@ export default function Billing() {
                     <td colSpan={3} className="px-6 py-4 text-sm text-right">Total:</td>
                     <td className="px-6 py-4 text-sm">{purchaseData.reduce((sum, c) => sum + c.quantity, 0).toFixed(2)} L</td>
                     <td colSpan={2}></td>
-                    <td className="px-6 py-4 text-sm">₹{purchaseData.reduce((sum, c) => sum + c.totalAmount, 0).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm">₹{purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0).toFixed(2)}</td>
                   </tr>
                 )}
               </tbody>

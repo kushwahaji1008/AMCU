@@ -74,7 +74,7 @@ export default function Reports() {
       t.fat,
       t.snf,
       t.rate,
-      t.amount,
+      t.amount || 0,
       t.isManual ? (t.isApproved ? 'Approved Manual' : 'Pending Manual') : 'Automatic'
     ]);
 
@@ -91,10 +91,10 @@ export default function Reports() {
     toast.success('Report exported as CSV');
   };
 
-  const totalQty = transactions.reduce((sum, t) => sum + t.quantity, 0);
-  const totalAmt = transactions.reduce((sum, t) => sum + t.amount, 0);
-  const avgFat = transactions.length > 0 ? transactions.reduce((sum, t) => sum + t.fat, 0) / transactions.length : 0;
-  const avgSnf = transactions.length > 0 ? transactions.reduce((sum, t) => sum + t.snf, 0) / transactions.length : 0;
+  const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
+  const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const avgFat = transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length : 0;
+  const avgSnf = transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.snf || 0), 0) / transactions.length : 0;
 
   return (
     <div className="space-y-8">
@@ -183,7 +183,7 @@ export default function Reports() {
         </div>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Amount</p>
-          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">₹{totalAmt.toLocaleString()}</p>
+          <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">₹{(totalAmt || 0).toLocaleString()}</p>
         </div>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Average FAT</p>

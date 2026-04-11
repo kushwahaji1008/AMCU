@@ -158,12 +158,12 @@ export default function Ledger() {
                         entry.type.toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                       )}>
                         {entry.type.toLowerCase() === 'credit' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
-                        <span>₹{entry.amount.toLocaleString()}</span>
+                        <span>₹{(entry.amount || 0).toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-mono font-medium text-stone-900 dark:text-white">
-                        ₹{entry.balanceAfter.toLocaleString()}
+                        ₹{(entry.balanceAfter || 0).toLocaleString()}
                       </span>
                     </td>
                   </tr>

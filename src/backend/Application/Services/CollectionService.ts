@@ -22,26 +22,26 @@ export class CollectionService {
       rate = 40; 
     }
 
-    const totalAmount = data.quantity * rate;
+    const amount = data.quantity * rate;
 
     // 2. Create Collection Record
     const collection = await this.collectionRepo.create({
       ...data,
       rate,
-      totalAmount,
+      amount,
     });
 
     // 3. Update Farmer Balance
     const farmer = await this.farmerRepo.getById(data.farmerId);
     if (farmer) {
-      const newBalance = (farmer.balance || 0) + totalAmount;
+      const newBalance = (farmer.balance || 0) + amount;
       await this.farmerRepo.update(data.farmerId, { balance: newBalance });
       
       // 4. Update Ledger (CREDIT → we owe farmer)
       await this.ledgerRepo.addEntry({
         farmerId: data.farmerId,
         type: 'credit',
-        amount: totalAmount,
+        amount: amount,
         referenceId: collection.id,
         date: data.date || new Date(),
         balanceAfter: newBalance,

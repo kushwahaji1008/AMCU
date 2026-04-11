@@ -10,7 +10,7 @@ export interface MilkCollection {
   snf: number;
   clr: number;
   rate: number;
-  totalAmount: number;
+  amount: number;
   operatorId: string;
   dairyId: string;
   createdAt: Date;
@@ -48,7 +48,7 @@ export interface ShiftSummary {
   totalQuantity: number;
   avgFat: number;
   avgSnf: number;
-  totalAmount: number;
+  amount: number;
   closedAt: Date;
   closedBy: string;
   dairyId: string;

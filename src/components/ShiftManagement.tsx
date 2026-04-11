@@ -19,7 +19,7 @@ export default function ShiftManagement() {
   const [shiftStats, setShiftStats] = useState({
     totalFarmers: 0,
     totalQuantity: 0,
-    totalAmount: 0,
+    amount: 0,
     avgFat: 0,
     avgSnf: 0,
   });
@@ -45,7 +45,7 @@ export default function ShiftManagement() {
 
       shiftCollections.forEach((data: any) => {
         qty += data.quantity;
-        amt += data.totalAmount || data.amount;
+        amt += data.amount || 0;
         fatSum += data.fat;
         snfSum += data.snf;
         farmerIds.add(data.farmerId);
@@ -54,7 +54,7 @@ export default function ShiftManagement() {
       setShiftStats({
         totalFarmers: farmerIds.size,
         totalQuantity: qty,
-        totalAmount: amt,
+        amount: amt,
         avgFat: shiftCollections.length > 0 ? fatSum / shiftCollections.length : 0,
         avgSnf: shiftCollections.length > 0 ? snfSum / shiftCollections.length : 0,
       });
@@ -100,7 +100,7 @@ export default function ShiftManagement() {
         totalQuantity: shiftStats.totalQuantity,
         avgFat: shiftStats.avgFat,
         avgSnf: shiftStats.avgSnf,
-        totalAmount: shiftStats.totalAmount,
+        amount: shiftStats.amount,
         closedAt: new Date(),
         closedBy: profile?.name || 'Unknown',
         dairyId: profile?.dairyId || 'global'
@@ -195,7 +195,7 @@ export default function ShiftManagement() {
               </div>
               <div>
                 <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Total Amount</p>
-                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">₹{shiftStats.totalAmount.toLocaleString()}</p>
+                <p className="text-2xl font-serif font-medium text-stone-900 dark:text-white">₹{(shiftStats.amount || 0).toLocaleString()}</p>
               </div>
             </div>
 
@@ -267,7 +267,7 @@ export default function ShiftManagement() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{(summary.totalQuantity || 0).toFixed(1)}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">₹{summary.totalAmount.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">₹{(summary.amount || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center">

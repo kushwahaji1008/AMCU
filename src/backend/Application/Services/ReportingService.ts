@@ -3,9 +3,9 @@ import { ICollectionRepository, ISaleRepository, IFarmerRepository } from '../In
 export interface DailyReport {
   date: Date;
   totalCollection: number;
-  totalCollectionAmount: number;
+  collectionAmount: number;
   totalSales: number;
-  totalSalesAmount: number;
+  salesAmount: number;
   profit: number;
 }
 
@@ -46,7 +46,7 @@ export class ReportingService {
       todayQty += c.quantity;
       if (c.shift === 'Morning') morningQty += c.quantity;
       else eveningQty += c.quantity;
-      todayAmount += c.totalAmount;
+      todayAmount += c.amount;
       fatSum += c.fat;
       snfSum += c.snf;
     });
@@ -69,17 +69,17 @@ export class ReportingService {
     const sales = await this.saleRepo.getDailyReport(date);
 
     const totalCollection = collections.reduce((sum, c) => sum + c.quantity, 0);
-    const totalCollectionAmount = collections.reduce((sum, c) => sum + c.totalAmount, 0);
+    const collectionAmount = collections.reduce((sum, c) => sum + c.amount, 0);
     const totalSales = sales.reduce((sum, s) => sum + s.quantity, 0);
-    const totalSalesAmount = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const salesAmount = sales.reduce((sum, s) => sum + s.amount, 0);
 
     return {
       date,
       totalCollection,
-      totalCollectionAmount,
+      collectionAmount,
       totalSales,
-      totalSalesAmount,
-      profit: totalSalesAmount - totalCollectionAmount,
+      salesAmount,
+      profit: salesAmount - collectionAmount,
     };
   }
 
@@ -126,7 +126,7 @@ export class ReportingService {
       if (farmerCollections.length === 0) continue;
       
       const totalQuantity = farmerCollections.reduce((sum, c) => sum + c.quantity, 0);
-      const totalAmount = farmerCollections.reduce((sum, c) => sum + c.totalAmount, 0);
+      const amount = farmerCollections.reduce((sum, c) => sum + c.amount, 0);
       const avgFat = farmerCollections.length > 0 
         ? farmerCollections.reduce((sum, c) => sum + c.fat, 0) / farmerCollections.length 
         : 0;
@@ -141,7 +141,7 @@ export class ReportingService {
         startDate,
         endDate,
         totalQuantity,
-        totalAmount,
+        amount,
         avgFat,
         avgSnf,
         collections: farmerCollections.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())

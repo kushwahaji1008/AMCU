@@ -77,7 +77,7 @@ export class MongoFarmerRepository implements IFarmerRepository {
     const ledgers = await ledgerModel.find({ farmerId });
 
     const totalMilkSupplied = collections.reduce((sum, c) => sum + c.quantity, 0);
-    const totalEarnings = collections.reduce((sum, c) => sum + c.totalAmount, 0);
+    const totalEarnings = collections.reduce((sum, c) => sum + c.amount, 0);
     const totalPaid = ledgers.filter(l => l.type === 'debit').reduce((sum, l) => sum + l.amount, 0);
 
     return {

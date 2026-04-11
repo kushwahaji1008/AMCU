@@ -30,7 +30,7 @@ export const CollectionSchema = new Schema({
   snf: { type: Number, required: true },
   clr: { type: Number, default: 0 },
   rate: { type: Number, required: true },
-  totalAmount: { type: Number, required: true },
+  amount: { type: Number, required: true },
   operatorId: { type: String, required: true },
   dairyId: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
@@ -67,7 +67,7 @@ export const ShiftSummarySchema = new Schema({
   totalQuantity: { type: Number, required: true },
   avgFat: { type: Number, required: true },
   avgSnf: { type: Number, required: true },
-  totalAmount: { type: Number, required: true },
+  amount: { type: Number, required: true },
   closedAt: { type: Date, required: true },
   closedBy: { type: String, required: true },
   dairyId: { type: String, required: true },
@@ -80,7 +80,7 @@ export const SaleSchema = new Schema({
   shift: { type: String, enum: ['Morning', 'Evening'], required: true },
   quantity: { type: Number, required: true },
   rate: { type: Number, required: true },
-  totalAmount: { type: Number, required: true },
+  amount: { type: Number, required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
