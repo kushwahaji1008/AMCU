@@ -33,7 +33,14 @@ async function startServer() {
     console.warn("MONGODB_URI not found in environment variables. Running without MongoDB.");
   }
 
-  app.use(cors());
+  if (!process.env.JWT_SECRET) {
+    console.warn("JWT_SECRET not found in environment variables. Using default insecure secret key.");
+  }
+
+  app.use(cors({
+    origin: ['capacitor://localhost', 'http://localhost'],
+    credentials: true
+  }));
   app.use(express.json());
 
   // Mount Backend API

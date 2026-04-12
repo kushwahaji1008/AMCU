@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://amcu.onrender.com/api',
 });
 
 api.interceptors.request.use((config) => {
@@ -39,8 +39,12 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('profile');
-      const reason = encodeURIComponent(message);
-      window.location.href = `/login?reason=${reason}`;
+      
+      // Only redirect if not already on the login page
+      if (!window.location.pathname.includes('/login')) {
+        const reason = encodeURIComponent(message);
+        window.location.href = `/login?reason=${reason}`;
+      }
     }
     
     // Create a standardized error object

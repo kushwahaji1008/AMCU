@@ -167,8 +167,18 @@ export default function FarmerProfile() {
       ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length 
       : 0;
     
-    return { totalQty, totalAmt, avgFat };
-  }, [transactions]);
+    // Calculate current balance from ledger entries
+    // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
+    const currentBalance = ledger.reduce((sum, entry) => {
+      if (entry.type.toLowerCase() === 'credit') {
+        return sum + (entry.amount || 0);
+      } else {
+        return sum - (entry.amount || 0);
+      }
+    }, 0);
+    
+    return { totalQty, totalAmt, avgFat, currentBalance };
+  }, [transactions, ledger]);
 
   const chartData = useMemo(() => {
     return [...transactions]
@@ -259,8 +269,13 @@ export default function FarmerProfile() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
               <Wallet className="text-stone-900 dark:text-white mb-3" size={24} />
-              <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Pending Balance</p>
-              <p className="text-xl font-serif font-medium text-stone-900 dark:text-white">₹{(farmer.balance || 0).toFixed(2)}</p>
+              <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">Current Balance</p>
+              <p className={cn(
+                "text-xl font-serif font-medium",
+                stats.currentBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+              )}>
+                ₹{(stats.currentBalance || 0).toFixed(2)}
+              </p>
             </div>
             <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
               <IndianRupee className="text-emerald-600 dark:text-emerald-400 mb-3" size={24} />

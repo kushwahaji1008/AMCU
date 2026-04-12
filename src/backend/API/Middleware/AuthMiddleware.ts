@@ -36,7 +36,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
   const databaseId = req.headers['x-database-id'] as string || '(default)';
 
   // 1. Handle Unauthenticated Requests
-  if (!token) {
+  if (!token || token === 'null' || token === 'undefined') {
     // For non-authenticated requests that still need a database context (e.g., public info)
     return requestContext.run({ databaseId }, () => next());
   }
@@ -89,8 +89,22 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       userId: decoded.id,
       role: decoded.role
     }, () => next());
-  } catch (error) {
-    res.status(401).json({ message: 'Invalid or expired token' });
+  } catch (error: any) {
+    let message = 'Invalid or expired token';
+    let code = 'AUTH_ERROR';
+
+    if (error.name === 'TokenExpiredError') {
+      message = 'Your session has expired. Please log in again.';
+      code = 'TOKEN_EXPIRED';
+    } else if (error.name === 'JsonWebTokenError') {
+      message = 'Invalid authentication token. Please log in again.';
+      code = 'TOKEN_INVALID';
+    }
+
+    res.status(401).json({ message, code, detail: error.message });
+    
+    // Log for server-side debugging
+    console.warn(`[Auth] Authentication failed: ${message} (${error.message})`);
   }
 };
 
