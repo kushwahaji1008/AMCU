@@ -1,0 +1,6 @@
+[
+	{
+		"pkg": "capacitor-sms-sender",
+		"classpath": "com.iqbalfn.capacitor.smssender.SmsSenderPlugin"
+	}
+]
