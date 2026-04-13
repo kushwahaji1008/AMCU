@@ -51,6 +51,17 @@ export default function CollectionEntry() {
     }
   };
 
+  const fetchRateSettings = async () => {
+    try {
+      const response = await rateApi.getSettings();
+      if (response.data && Object.keys(response.data).length > 0) {
+        setRateSettings(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch rate settings', err);
+    }
+  };
+
   const fetchTransactions = async () => {
     try {
       const response = await collectionApi.getReport(selectedDate);
@@ -64,6 +75,7 @@ export default function CollectionEntry() {
 
   useEffect(() => {
     fetchRateCharts();
+    fetchRateSettings();
   }, []);
 
   useEffect(() => {
@@ -77,20 +89,47 @@ export default function CollectionEntry() {
     const snf = parseFloat(formData.snf) || 0;
 
     if (qty > 0 && fat > 0) {
-      // Simple fallback rate calculation for now
-      // In a real app, this would use the same logic as the backend or more complex frontend logic
-      const baseRate = formData.milkType === 'Cow' ? 35 : 45;
-      const fatStd = formData.milkType === 'Cow' ? 3.5 : 6.0;
-      const rate = baseRate + (fat - fatStd) * 5 + (snf - 8.5) * 2;
+      let rate = 0;
+      
+      // 1. Check if there's an explicit rate chart entry
+      const explicitRate = rateCharts.find(
+        r => r.milkType === formData.milkType && 
+             fat >= (r.fatMin || r.fat || 0) && fat <= (r.fatMax || r.fat || 100) &&
+             snf >= (r.snfMin || r.snf || 0) && snf <= (r.snfMax || r.snf || 100)
+      );
+
+      if (explicitRate && explicitRate.rate) {
+        rate = explicitRate.rate;
+      } else if (rateSettings) {
+        // 2. Use formula from settings
+        if (fat < (rateSettings.maxFatForFormula1 || 6.0)) {
+          // Formula 1: Rate = (FAT * fatMultiplier1) + (SNF * snfMultiplier1)
+          rate = (fat * (rateSettings.fatMultiplier1 || 3.96)) + (snf * (rateSettings.snfMultiplier1 || 2.64));
+        } else {
+          // Formula 2: Rate = FAT * fatMultiplier2 - SNF Deduction
+          const snfKey = snf.toFixed(1);
+          const deduction = rateSettings.snfDeductions?.[snfKey] || 0;
+          rate = (fat * (rateSettings.fatMultiplier2 || 7.77)) - deduction;
+        }
+      } else {
+        // 3. Fallback
+        const baseRate = formData.milkType === 'Cow' ? 35 : 45;
+        const fatStd = formData.milkType === 'Cow' ? 3.5 : 6.0;
+        rate = baseRate + (fat - fatStd) * 5 + (snf - 8.5) * 2;
+        rate = Math.max(rate, 20);
+      }
+      
+      // Round rate to 2 decimal places
+      rate = Math.round(rate * 100) / 100;
       
       setCalculated({
-        rate: Math.max(rate, 20),
-        amount: qty * Math.max(rate, 20),
+        rate: rate,
+        amount: Math.round(qty * rate * 100) / 100,
       });
     } else {
       setCalculated({ rate: 0, amount: 0 });
     }
-  }, [formData]);
+  }, [formData, rateCharts, rateSettings]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
