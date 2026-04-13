@@ -3,7 +3,7 @@ import { SmsSender } from 'capacitor-sms-sender';
 
 export const smsService = {
   /**
-   * Sends an SMS directly using the device's SIM card.
+   * Sends an SMS directly using the device's SIM card in the background.
    * Only works on Android native devices with SEND_SMS permission.
    */
   sendDirectSMS: async (phoneNumber: string, message: string): Promise<{ success: boolean; message?: string }> => {
