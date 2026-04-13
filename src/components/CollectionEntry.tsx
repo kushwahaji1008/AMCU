@@ -8,6 +8,7 @@ import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, Qr
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { smsService } from '../services/smsService';
 
 export default function CollectionEntry() {
   const { profile } = useAuth();
@@ -244,6 +245,12 @@ export default function CollectionEntry() {
 
       await collectionApi.create(txnData);
       
+      // Send SMS to farmer
+      if (farmer.mobile) {
+        const smsMsg = `Dear ${farmer.name}, Milk collected: ${txnData.quantity}L, FAT: ${txnData.fat}, SNF: ${txnData.snf}, Rate: Rs.${txnData.rate}/L. Total: Rs.${calculated.amount}. - DugdhaSetu`;
+        smsService.sendDirectSMS(farmer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+      }
+
       setSuccess(true);
       fetchTransactions();
       setTimeout(() => {

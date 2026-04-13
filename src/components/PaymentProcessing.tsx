@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { farmerApi, paymentApi } from '../services/api';
+import { smsService } from '../services/smsService';
 
 export default function PaymentProcessing() {
   const { profile } = useAuth();
@@ -83,6 +84,12 @@ export default function PaymentProcessing() {
 
       await paymentApi.recordPayment(paymentData);
       
+      // Send SMS to farmer
+      if (selectedFarmer.mobile) {
+        const smsMsg = `Dear ${selectedFarmer.name}, a payment of Rs.${amount} has been processed via ${paymentMethod}. Current Balance: Rs.${(balance - amount).toFixed(2)}. - DugdhaSetu`;
+        smsService.sendDirectSMS(selectedFarmer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+      }
+
       toast.success(`Payment of ₹${amount} processed for ${selectedFarmer.name}`);
       setPaymentAmount('');
       setReference('');
