@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "DugdhaSetu",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -12,8 +12,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.0",
-    "@capacitor/core": "^8.3.0",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/express-useragent": "^1.0.5",
@@ -21,7 +19,6 @@
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.14.0",
     "bcryptjs": "^3.0.3",
-    "capacitor-sms-sender": "^1.1.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
@@ -57,7 +54,6 @@
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
