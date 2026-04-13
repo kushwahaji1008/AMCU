@@ -1,9 +1,0 @@
-diff --git a/node_modules/capacitor-sms-sender/android/build.gradle b/node_modules/capacitor-sms-sender/android/build.gradle
---- a/node_modules/capacitor-sms-sender/android/build.gradle
-+++ b/node_modules/capacitor-sms-sender/android/build.gradle
-@@ -1,4 +1,5 @@
- android {
-+    namespace "com.capacitor.sms.sender"
-     compileSdkVersion project.hasProperty('compileSdkVersion') ? project.compileSdkVersion : 33
-     defaultConfig {
-         minSdkVersion project.hasProperty('minSdkVersion') ? project.minSdkVersion : 22
