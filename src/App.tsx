@@ -6,12 +6,13 @@
  * Includes route protection logic for authenticated and admin users.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LanguageProvider } from './LanguageContext';
 import { ThemeProvider } from './ThemeContext';
+import { syncManager } from './services/syncManager';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import CollectionEntry from './components/CollectionEntry';
@@ -76,6 +77,11 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Trigger initial sync when the app loads
+    syncManager.sync();
+  }, []);
+
   return (
     <ErrorBoundary>
       <AuthProvider>

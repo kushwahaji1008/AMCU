@@ -1,7 +1,7 @@
 {
-  "name": "DugdhaSetu",
+  "name": "react-example",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -12,16 +12,22 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/network": "^8.0.1",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/express-useragent": "^1.0.5",
     "@types/jsbarcode": "^3.11.4",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.14.0",
     "bcryptjs": "^3.0.3",
+    "capacitor-sms-sender": "^1.1.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
+    "dexie": "^4.4.2",
     "dotenv": "^17.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.3.2",
@@ -50,10 +56,12 @@
     "swagger-ui-express": "^5.0.1",
     "tailwind-merge": "^3.5.0",
     "tsx": "^4.21.0",
+    "uuid": "^13.0.0",
     "vite": "^6.2.0",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
