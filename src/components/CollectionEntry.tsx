@@ -56,7 +56,7 @@ export default function CollectionEntry() {
     try {
       const response = await rateApi.getSettings();
       if (response.data && Object.keys(response.data).length > 0) {
-        setRateSettings(response.data);
+        setRateSettings(response.data as RateSettings);
       }
     } catch (err) {
       console.error('Failed to fetch rate settings', err);
@@ -67,7 +67,7 @@ export default function CollectionEntry() {
     try {
       const response = await collectionApi.getReport(selectedDate);
       // Filter by shift on frontend for now
-      const filtered = response.data.filter((t: any) => t.shift === selectedShift);
+      const filtered = (response.data || []).filter((t: any) => t.shift === selectedShift);
       setTransactions(filtered);
     } catch (err) {
       handleError(err, 'Failed to fetch transactions');
@@ -517,8 +517,8 @@ export default function CollectionEntry() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
-              {transactions.map((txn) => (
-                <tr key={txn.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+              {(transactions || []).map((txn, idx) => (
+                <tr key={txn.id || `txn-${idx}`} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                   <td className="py-4 px-6 text-sm text-stone-500 dark:text-stone-400">
                     {txn.date ? format(new Date(txn.date), 'hh:mm a') : '...'}
                   </td>

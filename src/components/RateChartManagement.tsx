@@ -60,7 +60,7 @@ export default function RateChartManagement() {
       try {
         const response = await rateApi.getSettings();
         if (response.data && Object.keys(response.data).length > 0) {
-          setRateSettings(response.data);
+          setRateSettings(response.data as RateSettings);
         }
       } catch (err) {
         handleError(err, "Failed to fetch rate settings");

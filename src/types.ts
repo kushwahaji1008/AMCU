@@ -49,6 +49,10 @@ export interface RateChart {
   fat?: number;
   snf?: number;
   rate?: number;
+  fatMin?: number;
+  fatMax?: number;
+  snfMin?: number;
+  snfMax?: number;
 }
 
 export interface RateSettings {

@@ -15,18 +15,19 @@ export const smsService = {
     try {
       // Check for permissions
       const permission = await SmsSender.checkPermissions();
-      if (permission.sms !== 'granted') {
+      if (permission.send_sms !== 'granted') {
         const request = await SmsSender.requestPermissions();
-        if (request.sms !== 'granted') {
+        if (request.send_sms !== 'granted') {
           return { success: false, message: 'SMS permission denied' };
         }
       }
 
       // Send SMS
-      await SmsSender.sendSms({
-        phoneNumber: phoneNumber,
-        message: message,
-        simId: 0 // 0 is usually the default SIM
+      await SmsSender.send({
+        id: Math.floor(Math.random() * 1000000),
+        phone: phoneNumber,
+        text: message,
+        sim: 0 // 0 is usually the default SIM
       });
       
       return { success: true };

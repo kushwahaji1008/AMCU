@@ -65,13 +65,13 @@ export default function Dashboard() {
           avgSnf: data.avgSnf,
         }));
         
-        setRecentTxns(data.recentTxns);
-        setTrendData(data.trendData);
+        setRecentTxns(data.recentTxns || []);
+        setTrendData(data.trendData || []);
         
         // Mock top farmers for now as backend doesn't return it yet
         // Or calculate it from trendData if it has enough info
         const farmerMap = new Map<string, number>();
-        data.trendData.forEach((txn: any) => {
+        (data.trendData || []).forEach((txn: any) => {
           farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + txn.quantity);
         });
         const sorted = Array.from(farmerMap.entries())
@@ -384,8 +384,8 @@ export default function Dashboard() {
               <span className="bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-1 rounded-full">3 New</span>
             </div>
             <div className="divide-y divide-stone-50 dark:divide-stone-800">
-              {alerts.map((alert) => (
-                <div key={alert.id} className="p-6 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
+              {alerts.map((alert, idx) => (
+                <div key={alert.id || `alert-${idx}`} className="p-6 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
                   <div className="flex gap-4">
                     <div className={cn(
                       "mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
@@ -412,7 +412,7 @@ export default function Dashboard() {
             </div>
             <div className="p-8 space-y-6">
               {topFarmers.map((farmer, idx) => (
-                <div key={farmer.name} className="flex items-center justify-between">
+                <div key={farmer.name || `farmer-${idx}`} className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shadow-sm",
@@ -437,8 +437,8 @@ export default function Dashboard() {
               <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Recent Activity</h3>
             </div>
             <div className="divide-y divide-stone-50 dark:divide-stone-800">
-              {recentTxns.map((txn) => (
-                <div key={txn.id} className="p-6 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
+              {recentTxns.map((txn, idx) => (
+                <div key={txn.id || `txn-${idx}`} className="p-6 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
                   <div>
                     <p className="text-sm font-semibold text-stone-900 dark:text-white">{txn.farmerName}</p>
                     <p className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest mt-1">{txn.shift} • {(txn.quantity || 0).toFixed(1)} kg</p>

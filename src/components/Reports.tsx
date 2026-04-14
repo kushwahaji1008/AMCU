@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { CollectionTransaction } from '../types';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
-import { FileText, Download, Filter, Calendar as CalendarIcon, ShieldCheck, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
+import { FileText, Download, Filter, Calendar as CalendarIcon, ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { collectionApi } from '../services/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Reports() {
   const { profile } = useAuth();
@@ -23,7 +25,7 @@ export default function Reports() {
     setLoading(true);
     try {
       const response = await collectionApi.getReport(dateRange.start, dateRange.end);
-      let data = response.data;
+      let data = response.data || [];
       
       if (activeTab === 'pending') {
         data = data.filter((t: any) => t.isManual && !t.isApproved);
@@ -91,6 +93,64 @@ export default function Reports() {
     toast.success('Report exported as CSV');
   };
 
+  const exportToPDF = () => {
+    if (transactions.length === 0) {
+      toast.error('No records to export');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(18);
+      doc.text('Collection Report', 105, 15, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`Period: ${format(new Date(dateRange.start), 'dd/MM/yyyy')} to ${format(new Date(dateRange.end), 'dd/MM/yyyy')}`, 105, 22, { align: 'center' });
+      doc.text(`Dairy: ${profile?.dairyName || 'DugdhaSetu'}`, 14, 30);
+      
+      // Table
+      const tableData = transactions.map((t: any, index: number) => [
+        index + 1,
+        t.date ? format(new Date(t.date), 'dd/MM/yy') : '',
+        t.shift.charAt(0),
+        t.farmerName || t.farmerId,
+        t.milkType.charAt(0),
+        t.quantity.toFixed(1),
+        t.fat.toFixed(1),
+        t.snf.toFixed(1),
+        t.rate.toFixed(2),
+        (t.amount || 0).toFixed(2)
+      ]);
+
+      const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
+      const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      autoTable(doc, {
+        startY: 35,
+        head: [['S.No', 'Date', 'S', 'Farmer Name', 'T', 'Qty', 'Fat', 'SNF', 'Rate', 'Amount']],
+        body: tableData,
+        foot: [[
+          'Total', '', '', '', '', 
+          totalQty.toFixed(1), 
+          '', '', '', 
+          totalAmt.toFixed(2)
+        ]],
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1 },
+        headStyles: { fillColor: [41, 37, 36] },
+        footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
+      });
+
+      doc.save(`Collection_Report_${dateRange.start}_to_${dateRange.end}.pdf`);
+      toast.success('Report exported as PDF');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate PDF');
+    }
+  };
+
   const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
   const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   const avgFat = transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length : 0;
@@ -133,6 +193,13 @@ export default function Reports() {
           >
             <Download size={16} />
             Export CSV
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400 rounded-xl text-sm font-medium hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+          >
+            <Printer size={16} />
+            Export PDF
           </button>
           <button className="flex items-center justify-center gap-2 px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl text-sm font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors">
             <FileText size={16} />
@@ -211,8 +278,8 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
-              {transactions.map((t) => (
-                <tr key={t.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
+              {(transactions || []).map((t, idx) => (
+                <tr key={t.id || `txn-${idx}`} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                   <td className="px-6 py-4 text-xs text-stone-500 dark:text-stone-400">
                     {t.date ? format(new Date(t.date), 'dd MMM, hh:mm a') : 'Pending...'}
                   </td>

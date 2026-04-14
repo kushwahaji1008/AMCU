@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { dairyApi } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
+import ErrorBoundary from './ErrorBoundary';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout, switchDatabase, isAuthReady } = useAuth();
@@ -206,15 +207,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          key={location.pathname}
-          transition={{ duration: 0.3, ease: "easeOut" }}
-          className="max-w-6xl mx-auto"
-        >
-          {children}
-        </motion.div>
+        <ErrorBoundary>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            key={location.pathname}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="max-w-6xl mx-auto"
+          >
+            {children}
+          </motion.div>
+        </ErrorBoundary>
       </main>
 
       {/* Overlay */}

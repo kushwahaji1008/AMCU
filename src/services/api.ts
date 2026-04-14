@@ -240,14 +240,14 @@ export const reportApi = {
 
     return {
       data: {
-        todayCollection: todayQty,
-        morningCollection: morningQty,
-        eveningCollection: eveningQty,
+        todayQty: todayQty,
+        morningQty: morningQty,
+        eveningQty: eveningQty,
         todayAmount: todayAmount,
-        activeFarmers: activeFarmers,
+        totalFarmers: activeFarmers,
         avgFat: todayCollections.length ? (fatSum / todayCollections.length) : 0,
         avgSnf: todayCollections.length ? (snfSum / todayCollections.length) : 0,
-        recentTransactions: collections.slice(-5).reverse(),
+        recentTxns: collections.slice(-5).reverse(),
         trendData
       }
     };

@@ -51,7 +51,7 @@ export default function Billing() {
     try {
       const res = await collectionApi.getDailyReport(purchaseDate);
       // Filter by shift
-      const filtered = res.data.filter((c: any) => c.shift === purchaseShift);
+      const filtered = (res.data || []).filter((c: any) => c.shift === purchaseShift);
       setPurchaseData(filtered);
     } catch (error) {
       console.error(error);
@@ -64,48 +64,54 @@ export default function Billing() {
   const downloadPurchasePDF = () => {
     if (purchaseData.length === 0) return;
     
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(18);
-    doc.text('Milk Purchase Register', 105, 15, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.text(`Date: ${format(new Date(purchaseDate), 'dd/MM/yyyy')}`, 14, 25);
-    doc.text(`Shift: ${purchaseShift}`, 105, 25, { align: 'center' });
-    doc.text(`Dairy: ${profile?.dairyName || 'DugdhaSetu'}`, 196, 25, { align: 'right' });
-    
-    // Table
-    const tableData = purchaseData.map((c: any, index: number) => [
-      index + 1,
-      c.farmerName || c.farmerId,
-      c.lacto || '-',
-      c.quantity.toFixed(2),
-      c.fat.toFixed(1),
-      c.rate.toFixed(2),
-      (c.amount || 0).toFixed(2)
-    ]);
+    try {
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(18);
+      doc.text('Milk Purchase Register', 105, 15, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`Date: ${format(new Date(purchaseDate), 'dd/MM/yyyy')}`, 14, 25);
+      doc.text(`Shift: ${purchaseShift}`, 105, 25, { align: 'center' });
+      doc.text(`Dairy: ${profile?.dairyName || 'DugdhaSetu'}`, 196, 25, { align: 'right' });
+      
+      // Table
+      const tableData = purchaseData.map((c: any, index: number) => [
+        index + 1,
+        c.farmerName || c.farmerId,
+        c.lacto || '-',
+        c.quantity.toFixed(2),
+        c.fat.toFixed(1),
+        c.rate.toFixed(2),
+        (c.amount || 0).toFixed(2)
+      ]);
 
-    const totalQty = purchaseData.reduce((sum, c) => sum + c.quantity, 0);
-    const totalAmt = purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0);
+      const totalQty = purchaseData.reduce((sum, c) => sum + c.quantity, 0);
+      const totalAmt = purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0);
 
-    autoTable(doc, {
-      startY: 35,
-      head: [['S.No', 'Farmer Name', 'Lacto', 'Qty (L)', 'Fat', 'Rate', 'Amount']],
-      body: tableData,
-      foot: [[
-        'Total', '', '', 
-        totalQty.toFixed(2), 
-        '', 
-        '', 
-        totalAmt.toFixed(2)
-      ]],
-      theme: 'grid',
-      headStyles: { fillColor: [41, 37, 36] },
-      footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
-    });
+      autoTable(doc, {
+        startY: 35,
+        head: [['S.No', 'Farmer Name', 'Lacto', 'Qty (L)', 'Fat', 'Rate', 'Amount']],
+        body: tableData,
+        foot: [[
+          'Total', '', '', 
+          totalQty.toFixed(2), 
+          '', 
+          '', 
+          totalAmt.toFixed(2)
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [41, 37, 36] },
+        footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
+      });
 
-    doc.save(`Purchase_Book_${purchaseDate}_${purchaseShift}.pdf`);
+      doc.save(`Purchase_Book_${purchaseDate}_${purchaseShift}.pdf`);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const getDaysInPeriod = () => {
@@ -126,78 +132,84 @@ export default function Billing() {
   const downloadPaymentPDF = () => {
     if (bills.length === 0) return;
 
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const dairyName = profile?.dairyName || 'Dairy Management System';
-    const periodLabel = periods.find(p => p.id === period)?.label || '';
-    const monthLabel = months[month];
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const dairyName = profile?.dairyName || 'Dairy Management System';
+      const periodLabel = periods.find(p => p.id === period)?.label || '';
+      const monthLabel = months[month];
 
-    doc.setFontSize(18);
-    doc.text(dairyName, 148, 15, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text(`Payment Register - ${monthLabel} ${year} (${periodLabel})`, 148, 22, { align: 'center' });
+      doc.setFontSize(18);
+      doc.text(dairyName, 148, 15, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`Payment Register - ${monthLabel} ${year} (${periodLabel})`, 148, 22, { align: 'center' });
 
-    const days = getDaysInPeriod();
-    const head = [
-      [
-        { content: 'S.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        { content: 'Farmer Name', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        ...days.map(d => ({ content: `${d}`, colSpan: 2, styles: { halign: 'center' } })),
-        { content: 'Total', colSpan: 2, styles: { halign: 'center' } }
-      ],
-      [
-        ...days.flatMap(() => [
-          { content: 'M', styles: { halign: 'center' } },
-          { content: 'E', styles: { halign: 'center' } }
-        ]),
-        { content: 'Qty', styles: { halign: 'center' } },
-        { content: 'Amt', styles: { halign: 'center' } }
-      ]
-    ];
-
-    const body: any[] = [];
-    bills.forEach((bill, idx) => {
-      const qtyRow: any[] = [
-        { content: `${idx + 1}`, rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        { content: `${bill.farmerName}`, rowSpan: 2, styles: { valign: 'middle' } },
+      const days = getDaysInPeriod();
+      const head = [
+        [
+          { content: 'S.No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Farmer Name', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          ...days.map(d => ({ content: `${d}`, colSpan: 2, styles: { halign: 'center' } })),
+          { content: 'Total', colSpan: 2, styles: { halign: 'center' } }
+        ],
+        [
+          ...days.flatMap(() => [
+            { content: 'M', styles: { halign: 'center' } },
+            { content: 'E', styles: { halign: 'center' } }
+          ]),
+          { content: 'Qty', styles: { halign: 'center' } },
+          { content: 'Amt', styles: { halign: 'center' } }
+        ]
       ];
-      const amtRow: any[] = [];
 
-      days.forEach(day => {
-        const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
-        const morning = bill.collections.find((c: any) => {
-          const cDate = new Date(c.date);
-          return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Morning';
+      const body: any[] = [];
+      bills.forEach((bill, idx) => {
+        const qtyRow: any[] = [
+          { content: `${idx + 1}`, rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: `${bill.farmerName}`, rowSpan: 2, styles: { valign: 'middle' } },
+        ];
+        const amtRow: any[] = [];
+
+        days.forEach(day => {
+          const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
+          const morning = bill.collections.find((c: any) => {
+            const cDate = new Date(c.date);
+            return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Morning';
+          });
+          const evening = bill.collections.find((c: any) => {
+            const cDate = new Date(c.date);
+            return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Evening';
+          });
+
+          qtyRow.push({ content: morning ? morning.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
+          qtyRow.push({ content: evening ? evening.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
+
+          amtRow.push({ content: morning ? (morning.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
+          amtRow.push({ content: evening ? (evening.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
         });
-        const evening = bill.collections.find((c: any) => {
-          const cDate = new Date(c.date);
-          return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Evening';
-        });
 
-        qtyRow.push({ content: morning ? morning.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
-        qtyRow.push({ content: evening ? evening.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
+        qtyRow.push({ content: bill.totalQuantity.toFixed(1), styles: { halign: 'center', fontStyle: 'bold' } });
+        amtRow.push({ content: (bill.amount || 0).toFixed(0), styles: { halign: 'center', fontStyle: 'bold' } });
 
-        amtRow.push({ content: morning ? (morning.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
-        amtRow.push({ content: evening ? (evening.amount || 0).toFixed(0) : '-', styles: { halign: 'center' } });
+        body.push(qtyRow);
+        body.push(amtRow);
       });
 
-      qtyRow.push({ content: bill.totalQuantity.toFixed(1), styles: { halign: 'center', fontStyle: 'bold' } });
-      amtRow.push({ content: (bill.amount || 0).toFixed(0), styles: { halign: 'center', fontStyle: 'bold' } });
+      autoTable(doc, {
+        head: head as any,
+        body: body,
+        startY: 30,
+        theme: 'grid',
+        styles: { fontSize: 6, cellPadding: 1 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+      });
 
-      body.push(qtyRow);
-      body.push(amtRow);
-    });
-
-    autoTable(doc, {
-      head: head as any,
-      body: body,
-      startY: 30,
-      theme: 'grid',
-      styles: { fontSize: 6, cellPadding: 1 },
-      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    });
-
-    doc.save(`Payment_Register_${monthLabel}_${periodLabel}.pdf`);
+      doc.save(`Payment_Register_${monthLabel}_${periodLabel}.pdf`);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const months = [
@@ -444,18 +456,30 @@ export default function Billing() {
 
   const downloadAllPDF = () => {
     if (bills.length === 0) return;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    bills.forEach((bill, index) => {
-      if (index > 0) doc.addPage();
-      generateDetailedBillPDF(doc, bill);
-    });
-    doc.save(`Dairy_Consolidated_Bills_${format(new Date(bills[0].startDate), 'yyyyMMdd')}.pdf`);
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      bills.forEach((bill, index) => {
+        if (index > 0) doc.addPage();
+        generateDetailedBillPDF(doc, bill);
+      });
+      doc.save(`Dairy_Consolidated_Bills_${format(new Date(bills[0].startDate), 'yyyyMMdd')}.pdf`);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const downloadPDF = (bill: any) => {
-    const doc = new jsPDF('p', 'mm', 'a4');
-    generateSimpleBillPDF(doc, bill);
-    doc.save(`Farmer_Bill_${bill.farmerId}_${format(new Date(bill.startDate), 'yyyyMMdd')}.pdf`);
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      generateSimpleBillPDF(doc, bill);
+      doc.save(`Farmer_Bill_${bill.farmerId}_${format(new Date(bill.startDate), 'yyyyMMdd')}.pdf`);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const periods = [
