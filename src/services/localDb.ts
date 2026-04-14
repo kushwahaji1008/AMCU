@@ -19,8 +19,10 @@ export class DugdhaSetuDB extends Dexie {
   ledger!: Table<LedgerEntry, string>;
   syncQueue!: Table<SyncQueueItem, number>;
 
-  constructor() {
-    super('DugdhaSetuDB');
+  constructor(databaseId: string = 'default') {
+    // Sanitize databaseId for use as a database name
+    const dbName = `DugdhaSetu_${databaseId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    super(dbName);
     
     // Define tables and indexes
     this.version(1).stores({
@@ -34,4 +36,10 @@ export class DugdhaSetuDB extends Dexie {
   }
 }
 
-export const db = new DugdhaSetuDB();
+// Singleton instance that can be re-initialized
+export let db = new DugdhaSetuDB(localStorage.getItem('databaseId') || 'default');
+
+export const initDb = (databaseId: string) => {
+  db = new DugdhaSetuDB(databaseId);
+  return db;
+};

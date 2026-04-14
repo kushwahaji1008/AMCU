@@ -37,6 +37,7 @@ import Ledger from './components/Ledger';
 import Billing from './components/Billing';
 import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
+import BackButtonHandler from './components/BackButtonHandler';
 
 /**
  * Higher-order component to protect routes that require authentication.
@@ -91,6 +92,7 @@ function App() {
             <Toaster position="top-right" richColors />
             
             <Router>
+              <BackButtonHandler />
               <Layout>
                 <Routes>
                   {/* Public Routes */}

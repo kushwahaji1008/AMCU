@@ -37,6 +37,15 @@ class SyncManager {
     }
   }
 
+  async clearLocalData() {
+    await db.farmers.clear();
+    await db.collections.clear();
+    await db.rateCharts.clear();
+    await db.rateSettings.clear();
+    await db.ledger.clear();
+    await db.syncQueue.clear();
+  }
+
   private async pushLocalChanges() {
     const pendingItems = await db.syncQueue.where('status').equals('PENDING').toArray();
     
@@ -110,11 +119,8 @@ class SyncManager {
         await db.ledger.bulkPut(data);
       }
 
-      // Pull Collections (Last 30 days)
-      const date = new Date();
-      date.setDate(date.getDate() - 30);
-      const startDate = date.toISOString().split('T')[0];
-      const collectionsRes = await api.get(`/collections/report?date=${startDate}`);
+      // Pull Collections (Everything)
+      const collectionsRes = await api.get('/collections/report');
       if (collectionsRes.data && Array.isArray(collectionsRes.data)) {
         const data = collectionsRes.data.map((item: any) => ({ ...item, dairyId }));
         await db.collections.bulkPut(data);

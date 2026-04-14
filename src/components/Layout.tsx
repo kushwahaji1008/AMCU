@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
   Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2,
-  Sun, Moon, Languages
+  Sun, Moon, Languages, ChevronLeft
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { dairyApi } from '../services/api';
@@ -192,6 +192,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <header className="md:hidden bg-white dark:bg-stone-900 border-b border-stone-100 dark:border-stone-800 p-4 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
+          {location.pathname !== '/' && (
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 -ml-2 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg mr-1"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          )}
           <div className="w-8 h-8 bg-stone-900 dark:bg-white rounded-lg flex items-center justify-center">
             <Milk className="text-white dark:text-stone-900 w-5 h-5" />
           </div>
