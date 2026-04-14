@@ -10,8 +10,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { requestContext } from '../../Core/RequestContext';
 import { dbManager } from '../../Infrastructure/Persistence/Mongo/DatabaseManager';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { JWT_CONFIG } from '../Config/Auth';
 
 /**
  * Extended Request interface to include the authenticated user.
@@ -43,7 +42,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
 
   try {
     // 2. Verify JWT Signature
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_CONFIG.secret) as any;
     
     // 3. Verify Session Fingerprint
     // Ensures the token is being used by the same browser/device it was issued to.

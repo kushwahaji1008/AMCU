@@ -1,7 +1,12 @@
+/// <reference types="vite/client" />
 import axios from 'axios';
 
+// For Android/Native, we need a full URL. For Web, we can use relative or window.location.origin
+// VITE_API_URL should be set to the production server URL (e.g., https://your-app.onrender.com/api)
+const baseURL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? `${window.location.origin}/api` : 'https://amcu.onrender.com/api');
+
 const api = axios.create({
-  baseURL: 'https://amcu.onrender.com/api',
+  baseURL,
 });
 
 api.interceptors.request.use((config) => {

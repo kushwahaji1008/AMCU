@@ -11,8 +11,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { IUserRepository, IDairyRepository, ILoginAuditRepository } from '../Interfaces/IRepositories';
 import { User } from '../../Core/Entities/Sale';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { JWT_CONFIG } from '../../API/Config/Auth';
 
 export class AuthService {
   constructor(
@@ -107,8 +106,8 @@ export class AuthService {
         fp: fingerprint,
         sid: sessionId
       },
-      JWT_SECRET,
-      { expiresIn: '1d' }
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
     );
 
     // 7. Log Successful Login
@@ -250,8 +249,8 @@ export class AuthService {
         fp: fingerprint,
         sid: sessionId
       },
-      JWT_SECRET,
-      { expiresIn: '1d' }
+      JWT_CONFIG.secret,
+      { expiresIn: JWT_CONFIG.expiresIn }
     );
 
     // 6. Log Successful Login

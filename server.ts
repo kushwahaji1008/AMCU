@@ -1,16 +1,14 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
 import backendApp, { seedDatabase } from "./src/backend/index";
 
-dotenv.config();
-
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // MongoDB Connection
   const MONGODB_URI = process.env.MONGODB_URI;
