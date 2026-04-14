@@ -2,6 +2,7 @@ import axios from 'axios';
 import { db } from './localDb';
 import { syncManager } from './syncManager';
 import { v4 as uuidv4 } from 'uuid'; // We need to generate IDs locally
+import { toDate } from '../firebase';
 
 const api = axios.create({
   baseURL: 'https://amcu.onrender.com/api',
@@ -61,6 +62,8 @@ api.interceptors.response.use(
 
 export default api;
 
+const getCurrentDairyId = () => localStorage.getItem('databaseId') || '';
+
 export const authApi = {
   login: (credentials: any) => api.post('/auth/login', credentials),
   register: (data: any) => api.post('/auth/register', data),
@@ -77,7 +80,8 @@ export const adminApi = {
 
 export const farmerApi = {
   getAll: async () => {
-    const farmers = await db.farmers.toArray();
+    const dairyId = getCurrentDairyId();
+    const farmers = await db.farmers.where('dairyId').equals(dairyId).toArray();
     return { data: farmers };
   },
   getById: async (id: string) => {
@@ -85,13 +89,15 @@ export const farmerApi = {
     return { data: farmer };
   },
   search: async (farmerId: string) => {
-    const farmer = await db.farmers.where('farmerId').equals(farmerId).first();
+    const dairyId = getCurrentDairyId();
+    const farmer = await db.farmers.where({ farmerId, dairyId }).first();
     if (!farmer) throw { response: { status: 404 } };
     return { data: farmer };
   },
   create: async (data: any) => {
     const id = data.id || uuidv4();
-    const newFarmer = { ...data, id, createdAt: new Date().toISOString(), balance: 0 };
+    const dairyId = getCurrentDairyId();
+    const newFarmer = { ...data, id, dairyId, createdAt: new Date().toISOString(), balance: 0 };
     await db.farmers.add(newFarmer);
     await db.syncQueue.add({ action: 'CREATE', entity: 'FARMER', data: newFarmer, status: 'PENDING', timestamp: Date.now() });
     syncManager.sync();
@@ -123,7 +129,8 @@ export const farmerApi = {
 export const collectionApi = {
   create: async (data: any) => {
     const id = data.id || uuidv4();
-    const newCollection = { ...data, id, createdAt: new Date().toISOString() };
+    const dairyId = getCurrentDairyId();
+    const newCollection = { ...data, id, dairyId, createdAt: new Date().toISOString() };
     await db.collections.add(newCollection);
     
     // Update farmer balance locally
@@ -141,20 +148,30 @@ export const collectionApi = {
     return { data: await db.collections.get(id) };
   },
   getDailyReport: async (date: string, endDate?: string) => {
-    let collections = await db.collections.toArray();
+    const dairyId = getCurrentDairyId();
+    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
     collections = collections.filter(c => {
-      const cDate = new Date(c.date).toISOString().split('T')[0];
-      if (endDate) return cDate >= date && cDate <= endDate;
-      return cDate === date;
+      try {
+        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
+        if (endDate) return cDate >= date && cDate <= endDate;
+        return cDate === date;
+      } catch (e) {
+        return false;
+      }
     });
     return { data: collections };
   },
   getReport: async (date: string, endDate?: string) => {
-    let collections = await db.collections.toArray();
+    const dairyId = getCurrentDairyId();
+    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
     collections = collections.filter(c => {
-      const cDate = new Date(c.date).toISOString().split('T')[0];
-      if (endDate) return cDate >= date && cDate <= endDate;
-      return cDate === date;
+      try {
+        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
+        if (endDate) return cDate >= date && cDate <= endDate;
+        return cDate === date;
+      } catch (e) {
+        return false;
+      }
     });
     return { data: collections };
   },
@@ -172,10 +189,15 @@ export const shiftApi = {
   },
   getSummary: async (date: string, shift: string) => {
     // Compute from local collections
-    const collections = await db.collections.toArray();
-    const shiftCollections = collections.filter(c => 
-      new Date(c.date).toISOString().split('T')[0] === date && c.shift === shift
-    );
+    const dairyId = getCurrentDairyId();
+    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
+    const shiftCollections = collections.filter(c => {
+      try {
+        return toDate(c.date || c.timestamp).toISOString().split('T')[0] === date && c.shift === shift;
+      } catch (e) {
+        return false;
+      }
+    });
     
     const totalFarmers = new Set(shiftCollections.map(c => c.farmerId)).size;
     const totalQuantity = shiftCollections.reduce((sum, c) => sum + c.quantity, 0);
@@ -209,8 +231,17 @@ export const saleApi = {
 export const reportApi = {
   getDashboard: async () => {
     const today = new Date().toISOString().split('T')[0];
-    const collections = await db.collections.toArray();
-    const todayCollections = collections.filter(c => new Date(c.date).toISOString().split('T')[0] === today);
+    const dairyId = getCurrentDairyId();
+    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
+    
+    const todayCollections = collections.filter(c => {
+      try {
+        const d = toDate(c.date || c.timestamp);
+        return d.toISOString().split('T')[0] === today;
+      } catch (e) {
+        return false;
+      }
+    });
     
     let todayQty = 0, morningQty = 0, eveningQty = 0, todayAmount = 0, fatSum = 0, snfSum = 0;
     todayCollections.forEach(c => {
@@ -222,21 +253,14 @@ export const reportApi = {
       snfSum += c.snf;
     });
 
-    const activeFarmers = await db.farmers.count();
+    const activeFarmers = await db.farmers.where('dairyId').equals(dairyId).count();
     
-    // Trend data (last 7 days)
-    const trendData = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const dayCollections = collections.filter(c => new Date(c.date).toISOString().split('T')[0] === dateStr);
-      trendData.push({
-        date: dateStr,
-        quantity: dayCollections.reduce((sum, c) => sum + c.quantity, 0),
-        amount: dayCollections.reduce((sum, c) => sum + c.amount, 0)
-      });
-    }
+    // Sort collections by date descending for recent transactions
+    const sortedCollections = [...collections].sort((a, b) => {
+      const dateA = new Date(a.date || a.timestamp).getTime();
+      const dateB = new Date(b.date || b.timestamp).getTime();
+      return dateB - dateA;
+    });
 
     return {
       data: {
@@ -247,14 +271,21 @@ export const reportApi = {
         totalFarmers: activeFarmers,
         avgFat: todayCollections.length ? (fatSum / todayCollections.length) : 0,
         avgSnf: todayCollections.length ? (snfSum / todayCollections.length) : 0,
-        recentTxns: collections.slice(-5).reverse(),
-        trendData
+        recentTxns: sortedCollections.slice(0, 5),
+        trendData: collections // Return raw collections for Dashboard to process
       }
     };
   },
   getDaily: async (date: string) => {
-    const collections = await db.collections.toArray();
-    const daily = collections.filter(c => new Date(c.date).toISOString().split('T')[0] === date);
+    const dairyId = getCurrentDairyId();
+    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
+    const daily = collections.filter(c => {
+      try {
+        return toDate(c.date || c.timestamp).toISOString().split('T')[0] === date;
+      } catch (e) {
+        return false;
+      }
+    });
     return { data: daily };
   },
   getFarmer: async (farmerId: string) => {
@@ -277,10 +308,15 @@ export const reportApi = {
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
 
-    let collections = await db.collections.toArray();
+    const dairyId = getCurrentDairyId();
+    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
     collections = collections.filter(c => {
-      const cDate = new Date(c.date).toISOString().split('T')[0];
-      return cDate >= startStr && cDate <= endStr && (!farmerId || c.farmerId === farmerId);
+      try {
+        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
+        return cDate >= startStr && cDate <= endStr && (!farmerId || c.farmerId === farmerId);
+      } catch (e) {
+        return false;
+      }
     });
 
     // Group by farmer
@@ -308,12 +344,14 @@ export const reportApi = {
 
 export const rateApi = {
   getAll: async () => {
-    const rates = await db.rateCharts.toArray();
+    const dairyId = getCurrentDairyId();
+    const rates = await db.rateCharts.where('dairyId').equals(dairyId).toArray();
     return { data: rates };
   },
   create: async (data: any) => {
     const id = data.id || uuidv4();
-    const newRate = { ...data, id };
+    const dairyId = getCurrentDairyId();
+    const newRate = { ...data, id, dairyId };
     await db.rateCharts.add(newRate);
     await db.syncQueue.add({ action: 'CREATE', entity: 'RATE_CHART', data: newRate, status: 'PENDING', timestamp: Date.now() });
     syncManager.sync();
@@ -333,12 +371,14 @@ export const rateApi = {
     return { data: { success: true } };
   },
   getSettings: async () => {
-    const settings = await db.rateSettings.get('default');
+    const dairyId = getCurrentDairyId();
+    const settings = await db.rateSettings.where('dairyId').equals(dairyId).first();
     return { data: settings || {} };
   },
   saveSettings: async (data: any) => {
-    await db.rateSettings.put({ ...data, id: 'default' });
-    await db.syncQueue.add({ action: 'UPDATE', entity: 'RATE_SETTINGS', data, status: 'PENDING', timestamp: Date.now() });
+    const dairyId = getCurrentDairyId();
+    await db.rateSettings.put({ ...data, id: 'default', dairyId });
+    await db.syncQueue.add({ action: 'UPDATE', entity: 'RATE_SETTINGS', data: { ...data, dairyId }, status: 'PENDING', timestamp: Date.now() });
     syncManager.sync();
     return { data: { success: true } };
   },
@@ -346,7 +386,8 @@ export const rateApi = {
 
 export const paymentApi = {
   getLedger: async () => {
-    const ledger = await db.ledger.toArray();
+    const dairyId = getCurrentDairyId();
+    const ledger = await db.ledger.where('dairyId').equals(dairyId).toArray();
     return { data: ledger };
   },
   getLedgerByFarmerId: async (farmerId: string) => {
@@ -355,7 +396,8 @@ export const paymentApi = {
   },
   recordPayment: async (data: any) => {
     const id = data.id || uuidv4();
-    const newPayment = { ...data, id, type: 'debit' };
+    const dairyId = getCurrentDairyId();
+    const newPayment = { ...data, id, dairyId, type: 'debit' };
     await db.ledger.add(newPayment);
     
     // Update farmer balance locally
@@ -379,4 +421,5 @@ export const userApi = {
 
 export const dairyApi = {
   getAll: () => api.get('/dairies'),
+  update: (id: string, data: any) => api.put(`/dairies/${id}`, data),
 };

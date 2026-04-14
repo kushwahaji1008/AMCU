@@ -23,6 +23,8 @@ export interface UserProfile {
   adminId?: string;
   databaseId: string;
   createdAt: any;
+  address?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -36,6 +38,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   switchDatabase: (databaseId: string) => void;
+  updateProfile: (data: Partial<UserProfile>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -192,6 +195,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = (data: Partial<UserProfile>) => {
+    if (profile) {
+      const newProfile = { ...profile, ...data };
+      setProfile(newProfile);
+      localStorage.setItem('profile', JSON.stringify(newProfile));
+    }
+  };
+
   const signInWithGoogle = async () => {
     throw new Error("Google Sign-In is not supported in this version. Please use Email/Password.");
   };
@@ -207,7 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInSuperAdmin,
       signInWithGoogle,
       logout,
-      switchDatabase
+      switchDatabase,
+      updateProfile
     }}>
       {children}
     </AuthContext.Provider>

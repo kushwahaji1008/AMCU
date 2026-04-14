@@ -6,6 +6,7 @@ import { useLanguage } from '../LanguageContext';
 import { Farmer } from '../types';
 import { Plus, UserPlus, Search, MoreVertical, Check, X, Eye, QrCode, Download, Edit2, Trash2 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
@@ -61,6 +62,30 @@ export default function FarmerManagement() {
     } catch (err) {
       console.error('Barcode generation failed:', err);
       toast.error('Failed to generate barcode');
+    }
+  };
+
+  const downloadQRCode = async (farmerId: string, farmerName: string) => {
+    try {
+      const url = await QRCode.toDataURL(farmerId, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `QRCode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`QR Code for ${farmerName} downloaded`);
+    } catch (err) {
+      console.error('QR Code generation failed:', err);
+      toast.error('Failed to generate QR code');
     }
   };
 
@@ -384,9 +409,9 @@ export default function FarmerManagement() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
-                        onClick={() => downloadBarcode(f.farmerId, f.name)}
-                        className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
-                        title="Download Barcode"
+                        onClick={() => downloadQRCode(f.farmerId, f.name)}
+                        className="p-2 text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition-colors"
+                        title="Download QR Code"
                       >
                         <QrCode size={18} />
                       </button>

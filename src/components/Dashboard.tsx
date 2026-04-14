@@ -91,12 +91,12 @@ export default function Dashboard() {
   }, [profile?.dairyId, timeRange]);
 
   const processedChartData = useMemo(() => {
-    const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number }>();
+    const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number; cow: number; buffalo: number }>();
     
     // Initialize map with all days in range
     for (let i = 0; i < timeRange; i++) {
       const dateStr = format(subDays(new Date(), i), 'yyyy-MM-dd');
-      dailyMap.set(dateStr, { qty: 0, morning: 0, evening: 0, fatSum: 0, snfSum: 0, count: 0 });
+      dailyMap.set(dateStr, { qty: 0, morning: 0, evening: 0, fatSum: 0, snfSum: 0, count: 0, cow: 0, buffalo: 0 });
     }
 
     trendData.forEach(txn => {
@@ -106,6 +106,10 @@ export default function Dashboard() {
         current.qty += txn.quantity;
         if (txn.shift === 'Morning') current.morning += txn.quantity;
         else current.evening += txn.quantity;
+        
+        if (txn.milkType === 'Cow') current.cow += txn.quantity;
+        else if (txn.milkType === 'Buffalo') current.buffalo += txn.quantity;
+        
         current.fatSum += txn.fat;
         current.snfSum += txn.snf;
         current.count += 1;
@@ -118,6 +122,8 @@ export default function Dashboard() {
         quantity: Number((data.qty || 0).toFixed(1)),
         morning: Number((data.morning || 0).toFixed(1)),
         evening: Number((data.evening || 0).toFixed(1)),
+        cow: Number((data.cow || 0).toFixed(1)),
+        buffalo: Number((data.buffalo || 0).toFixed(1)),
         avgFat: data.count > 0 ? Number(((data.fatSum || 0) / data.count).toFixed(2)) : 0,
         avgSnf: data.count > 0 ? Number(((data.snfSum || 0) / data.count).toFixed(2)) : 0,
         fullDate: date
@@ -237,16 +243,19 @@ export default function Dashboard() {
           whileHover={{ y: -5 }}
           className="glass-card p-8 rounded-[2.5rem]"
         >
-          <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em] mb-6">Hardware Status</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Hardware Status</h3>
+            <Link to="/devices" className="text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-widest">Manage</Link>
+          </div>
           <div className="space-y-5">
             {[
               { label: 'Weighing Scale', icon: Wifi, status: 'online' },
               { label: 'Milk Analyzer', icon: Activity, status: 'online' },
               { label: 'Printer', icon: RefreshCw, status: 'warning' },
             ].map((device) => (
-              <div key={device.label} className="flex items-center justify-between">
+              <div key={device.label} className="flex items-center justify-between group cursor-pointer">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-stone-50 dark:bg-stone-800 rounded-xl flex items-center justify-center">
+                  <div className="w-10 h-10 bg-stone-50 dark:bg-stone-800 rounded-xl flex items-center justify-center group-hover:bg-stone-100 dark:group-hover:bg-stone-700 transition-colors">
                     <device.icon size={16} className="text-stone-400 dark:text-stone-500" />
                   </div>
                   <span className="text-sm font-medium text-stone-600 dark:text-stone-300">{device.label}</span>
@@ -319,34 +328,67 @@ export default function Dashboard() {
           </div>
 
           {/* Shift Comparison Chart */}
-          <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Shift Comparison</h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-amber-400 rounded-full"></span>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">Morning</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-indigo-500 rounded-full"></span>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">Evening</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Shift Comparison</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 bg-amber-400 rounded-full"></span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">M</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 bg-indigo-500 rounded-full"></span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">E</span>
+                  </div>
                 </div>
               </div>
+              <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={processedChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
+                      cursor={{ fill: '#f8fafc' }}
+                    />
+                    <Bar dataKey="morning" fill="#fbbf24" radius={[4, 4, 0, 0]} barSize={12} />
+                    <Bar dataKey="evening" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={12} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedChartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
-                    cursor={{ fill: '#f8fafc' }}
-                  />
-                  <Bar dataKey="morning" fill="#fbbf24" radius={[4, 4, 0, 0]} barSize={12} />
-                  <Bar dataKey="evening" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
+
+            <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Milk Type</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 bg-blue-400 rounded-full"></span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">Cow</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 bg-stone-400 rounded-full"></span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">Buf</span>
+                  </div>
+                </div>
+              </div>
+              <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={processedChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
+                      cursor={{ fill: '#f8fafc' }}
+                    />
+                    <Bar dataKey="cow" fill="#60a5fa" radius={[4, 4, 0, 0]} barSize={12} />
+                    <Bar dataKey="buffalo" fill="#94a3b8" radius={[4, 4, 0, 0]} barSize={12} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 

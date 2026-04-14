@@ -62,19 +62,38 @@ export default function Billing() {
   };
 
   const downloadPurchasePDF = () => {
-    if (purchaseData.length === 0) return;
+    if (purchaseData.length === 0) {
+      toast.error('No purchase data to export');
+      return;
+    }
     
     try {
       const doc = new jsPDF();
+      const dairyName = profile?.dairyName || 'DugdhaSetu';
+      const dairyAddress = profile?.address || '';
+      const dairyContact = profile?.phone || '';
       
       // Header
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text('Milk Purchase Register', 105, 15, { align: 'center' });
+      doc.text(dairyName, 105, 15, { align: 'center' });
       
-      doc.setFontSize(12);
-      doc.text(`Date: ${format(new Date(purchaseDate), 'dd/MM/yyyy')}`, 14, 25);
-      doc.text(`Shift: ${purchaseShift}`, 105, 25, { align: 'center' });
-      doc.text(`Dairy: ${profile?.dairyName || 'DugdhaSetu'}`, 196, 25, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      if (dairyAddress) doc.text(dairyAddress, 105, 20, { align: 'center' });
+      if (dairyContact) doc.text(`Contact: ${dairyContact}`, 105, 24, { align: 'center' });
+      
+      doc.line(14, 28, 196, 28);
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Milk Purchase Register', 105, 35, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Date: ${format(new Date(purchaseDate), 'dd/MM/yyyy')}`, 14, 42);
+      doc.text(`Shift: ${purchaseShift}`, 105, 42, { align: 'center' });
+      doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 196, 42, { align: 'right' });
       
       // Table
       const tableData = purchaseData.map((c: any, index: number) => [
@@ -83,31 +102,34 @@ export default function Billing() {
         c.lacto || '-',
         c.quantity.toFixed(2),
         c.fat.toFixed(1),
+        c.snf.toFixed(1),
         c.rate.toFixed(2),
         (c.amount || 0).toFixed(2)
       ]);
 
-      const totalQty = purchaseData.reduce((sum, c) => sum + c.quantity, 0);
+      const totalQty = purchaseData.reduce((sum, c) => sum + (c.quantity || 0), 0);
       const totalAmt = purchaseData.reduce((sum, c) => sum + (c.amount || 0), 0);
 
       autoTable(doc, {
-        startY: 35,
-        head: [['S.No', 'Farmer Name', 'Lacto', 'Qty (L)', 'Fat', 'Rate', 'Amount']],
+        startY: 48,
+        head: [['S.No', 'Farmer Name', 'Lacto', 'Qty (L)', 'Fat', 'SNF', 'Rate', 'Amount']],
         body: tableData,
         foot: [[
           'Total', '', '', 
           totalQty.toFixed(2), 
           '', 
           '', 
+          '',
           totalAmt.toFixed(2)
         ]],
         theme: 'grid',
-        headStyles: { fillColor: [41, 37, 36] },
-        footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
+        headStyles: { fillColor: [41, 37, 36], textColor: 255, fontSize: 9 },
+        bodyStyles: { fontSize: 8 },
+        footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold', fontSize: 9 }
       });
 
       doc.save(`Purchase_Book_${purchaseDate}_${purchaseShift}.pdf`);
-      toast.success('PDF downloaded successfully');
+      toast.success('Purchase Register downloaded');
     } catch (error) {
       console.error('PDF generation failed:', error);
       toast.error('Failed to generate PDF');
@@ -130,18 +152,29 @@ export default function Billing() {
   };
 
   const downloadPaymentPDF = () => {
-    if (bills.length === 0) return;
+    if (bills.length === 0) {
+      toast.error('No payment data to export');
+      return;
+    }
 
     try {
       const doc = new jsPDF('l', 'mm', 'a4');
-      const dairyName = profile?.dairyName || 'Dairy Management System';
+      const dairyName = profile?.dairyName || 'DugdhaSetu';
+      const dairyAddress = profile?.address || '';
       const periodLabel = periods.find(p => p.id === period)?.label || '';
       const monthLabel = months[month];
 
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text(dairyName, 148, 15, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(`Payment Register - ${monthLabel} ${year} (${periodLabel})`, 148, 22, { align: 'center' });
+      doc.text(dairyName, 148, 12, { align: 'center' });
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      if (dairyAddress) doc.text(dairyAddress, 148, 17, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Payment Register - ${monthLabel} ${year} (${periodLabel})`, 148, 25, { align: 'center' });
 
       const days = getDaysInPeriod();
       const head = [
@@ -197,15 +230,15 @@ export default function Billing() {
       autoTable(doc, {
         head: head as any,
         body: body,
-        startY: 30,
+        startY: 32,
         theme: 'grid',
         styles: { fontSize: 6, cellPadding: 1 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+        headStyles: { fillColor: [41, 37, 36], textColor: 255 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
       });
 
       doc.save(`Payment_Register_${monthLabel}_${periodLabel}.pdf`);
-      toast.success('PDF downloaded successfully');
+      toast.success('Payment Register downloaded');
     } catch (error) {
       console.error('PDF generation failed:', error);
       toast.error('Failed to generate PDF');
@@ -246,17 +279,37 @@ export default function Billing() {
   };
 
   const generateSimpleBillPDF = (doc: jsPDF, bill: any) => {
-    // Header
-    doc.setFontSize(20);
-    doc.text('DugdhaSetu - Milk Bill', 105, 15, { align: 'center' });
+    const dairyName = profile?.dairyName || 'DugdhaSetu';
+    const dairyAddress = profile?.address || '';
     
+    // Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.text(dairyName, 105, 15, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Period: ${format(new Date(bill.startDate), 'dd MMM yyyy')} to ${format(new Date(bill.endDate), 'dd MMM yyyy')}`, 105, 22, { align: 'center' });
+    if (dairyAddress) doc.text(dairyAddress, 105, 20, { align: 'center' });
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('Milk Bill', 105, 28, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Period: ${format(new Date(bill.startDate), 'dd MMM yyyy')} to ${format(new Date(bill.endDate), 'dd MMM yyyy')}`, 105, 34, { align: 'center' });
+    
+    doc.line(14, 38, 196, 38);
     
     // Farmer Info
-    doc.setFontSize(12);
-    doc.text(`Farmer: ${bill.farmerName} (${bill.farmerId})`, 14, 35);
-    doc.text(`Village: ${bill.village}`, 14, 42);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Farmer: ${bill.farmerName}`, 14, 45);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`ID: ${bill.farmerId}`, 14, 50);
+    doc.text(`Village: ${bill.village}`, 14, 55);
+    
+    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 196, 45, { align: 'right' });
     
     // Table
     const tableData = bill.collections.map((c: any) => [
@@ -271,7 +324,7 @@ export default function Billing() {
     ]);
 
     autoTable(doc, {
-      startY: 50,
+      startY: 60,
       head: [['Date', 'Shift', 'Type', 'Qty (L)', 'Fat', 'SNF', 'Rate', 'Amount']],
       body: tableData,
       foot: [[
@@ -283,9 +336,18 @@ export default function Billing() {
         (bill.amount || 0).toFixed(2)
       ]],
       theme: 'grid',
-      headStyles: { fillColor: [41, 37, 36] },
-      footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
+      headStyles: { fillColor: [41, 37, 36], textColor: 255 },
+      footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' },
+      styles: { fontSize: 9 }
     });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Net Payable: Rs. ${(bill.amount || 0).toFixed(2)}`, 196, finalY, { align: 'right' });
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.text(`In words: ${numberToWords(Math.round(bill.amount || 0))}`, 14, finalY + 5);
   };
 
   const generateDetailedBillPDF = (doc: jsPDF, bill: any) => {

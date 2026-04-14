@@ -101,14 +101,30 @@ export default function Reports() {
 
     try {
       const doc = new jsPDF();
+      const dairyName = profile?.dairyName || 'DugdhaSetu';
+      const dairyAddress = profile?.address || '';
+      const dairyContact = profile?.phone || '';
       
       // Header
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text('Collection Report', 105, 15, { align: 'center' });
+      doc.text(dairyName, 105, 15, { align: 'center' });
       
-      doc.setFontSize(12);
-      doc.text(`Period: ${format(new Date(dateRange.start), 'dd/MM/yyyy')} to ${format(new Date(dateRange.end), 'dd/MM/yyyy')}`, 105, 22, { align: 'center' });
-      doc.text(`Dairy: ${profile?.dairyName || 'DugdhaSetu'}`, 14, 30);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      if (dairyAddress) doc.text(dairyAddress, 105, 20, { align: 'center' });
+      if (dairyContact) doc.text(`Contact: ${dairyContact}`, 105, 24, { align: 'center' });
+      
+      doc.line(14, 28, 196, 28);
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Collection Report', 105, 35, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Period: ${format(new Date(dateRange.start), 'dd/MM/yyyy')} to ${format(new Date(dateRange.end), 'dd/MM/yyyy')}`, 105, 42, { align: 'center' });
+      doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 196, 42, { align: 'right' });
       
       // Table
       const tableData = transactions.map((t: any, index: number) => [
@@ -128,7 +144,7 @@ export default function Reports() {
       const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
       autoTable(doc, {
-        startY: 35,
+        startY: 48,
         head: [['S.No', 'Date', 'S', 'Farmer Name', 'T', 'Qty', 'Fat', 'SNF', 'Rate', 'Amount']],
         body: tableData,
         foot: [[
@@ -139,7 +155,7 @@ export default function Reports() {
         ]],
         theme: 'grid',
         styles: { fontSize: 8, cellPadding: 1 },
-        headStyles: { fillColor: [41, 37, 36] },
+        headStyles: { fillColor: [41, 37, 36], textColor: 255 },
         footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
       });
 

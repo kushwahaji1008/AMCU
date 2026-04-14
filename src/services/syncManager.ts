@@ -79,43 +79,45 @@ class SyncManager {
   }
 
   private async pullServerChanges() {
+    const dairyId = localStorage.getItem('databaseId') || '';
+    if (!dairyId) return;
+
     try {
       // Pull Farmers
       const farmersRes = await api.get('/farmers');
-      if (farmersRes.data) {
-        await db.farmers.clear();
-        await db.farmers.bulkAdd(farmersRes.data);
+      if (farmersRes.data && Array.isArray(farmersRes.data)) {
+        const data = farmersRes.data.map((item: any) => ({ ...item, dairyId }));
+        await db.farmers.bulkPut(data);
       }
 
       // Pull Rate Charts
       const ratesRes = await api.get('/rates');
-      if (ratesRes.data) {
-        await db.rateCharts.clear();
-        await db.rateCharts.bulkAdd(ratesRes.data);
+      if (ratesRes.data && Array.isArray(ratesRes.data)) {
+        const data = ratesRes.data.map((item: any) => ({ ...item, dairyId }));
+        await db.rateCharts.bulkPut(data);
       }
 
       // Pull Rate Settings
       const settingsRes = await api.get('/rates/settings');
       if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
-        await db.rateSettings.clear();
-        await db.rateSettings.add({ id: 'default', ...settingsRes.data });
+        await db.rateSettings.put({ id: 'default', ...settingsRes.data, dairyId });
       }
 
       // Pull Ledger
       const ledgerRes = await api.get('/ledger');
-      if (ledgerRes.data) {
-        await db.ledger.clear();
-        await db.ledger.bulkAdd(ledgerRes.data);
+      if (ledgerRes.data && Array.isArray(ledgerRes.data)) {
+        const data = ledgerRes.data.map((item: any) => ({ ...item, dairyId }));
+        await db.ledger.bulkPut(data);
       }
 
-      // Pull Collections (Last 30 days to save space)
+      // Pull Collections (Last 30 days)
       const date = new Date();
       date.setDate(date.getDate() - 30);
       const startDate = date.toISOString().split('T')[0];
       const collectionsRes = await api.get(`/collections/report?date=${startDate}`);
-      if (collectionsRes.data) {
-        await db.collections.clear();
-        await db.collections.bulkAdd(collectionsRes.data);
+      if (collectionsRes.data && Array.isArray(collectionsRes.data)) {
+        const data = collectionsRes.data.map((item: any) => ({ ...item, dairyId }));
+        await db.collections.bulkPut(data);
       }
 
     } catch (error) {

@@ -9,6 +9,7 @@ import {
   History, ArrowUpRight, ArrowDownLeft, Wallet
 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
@@ -69,6 +70,31 @@ export default function FarmerProfile() {
     } catch (err) {
       console.error('Barcode generation failed:', err);
       toast.error('Failed to generate barcode');
+    }
+  };
+
+  const downloadQRCode = async () => {
+    if (!farmer) return;
+    try {
+      const url = await QRCode.toDataURL(farmer.farmerId, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `QRCode_${farmer.farmerId}_${farmer.name.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`QR Code for ${farmer.name} downloaded`);
+    } catch (err) {
+      console.error('QR Code generation failed:', err);
+      toast.error('Failed to generate QR code');
     }
   };
 
@@ -229,7 +255,14 @@ export default function FarmerProfile() {
                 className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
               >
                 <Download size={10} />
-                Download Barcode
+                Barcode
+              </button>
+              <button 
+                onClick={downloadQRCode}
+                className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+              >
+                <Download size={10} />
+                QR Code
               </button>
               • {farmer.village}
             </p>
@@ -237,9 +270,9 @@ export default function FarmerProfile() {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={downloadBarcode}
+            onClick={downloadQRCode}
             className="p-3 border border-stone-100 dark:border-stone-800 rounded-2xl hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors text-stone-600 dark:text-stone-400"
-            title="Download Barcode"
+            title="Download QR Code"
           >
             <QrCode size={20} />
           </button>
