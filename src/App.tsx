@@ -12,7 +12,6 @@ import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LanguageProvider } from './LanguageContext';
 import { ThemeProvider } from './ThemeContext';
-import { syncManager } from './services/syncManager';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import CollectionEntry from './components/CollectionEntry';
@@ -27,9 +26,7 @@ import DeviceIntegration from './components/DeviceIntegration';
 import UserManagement from './components/UserManagement';
 import Settings from './components/Settings';
 import AuditLog from './components/AuditLog';
-import BackupRestore from './components/BackupRestore';
 import HelpAbout from './components/HelpAbout';
-import Synchronization from './components/Synchronization';
 import Login from './components/Login';
 import Register from './components/Register';
 import MobileApp from './components/MobileApp';
@@ -78,11 +75,6 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  useEffect(() => {
-    // Trigger initial sync when the app loads
-    syncManager.sync();
-  }, []);
-
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -119,8 +111,6 @@ function App() {
                   <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
                   <Route path="/audit" element={<SuperAdminRoute><AuditLog /></SuperAdminRoute>} />
-                  <Route path="/backup" element={<AdminRoute><BackupRestore /></AdminRoute>} />
-                  <Route path="/sync" element={<AdminRoute><Synchronization /></AdminRoute>} />
                   <Route path="/dairies" element={<SuperAdminRoute><DairyManagement /></SuperAdminRoute>} />
                 </Routes>
               </Layout>

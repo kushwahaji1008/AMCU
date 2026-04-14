@@ -1,8 +1,4 @@
 import axios from 'axios';
-import { db } from './localDb';
-import { syncManager } from './syncManager';
-import { v4 as uuidv4 } from 'uuid'; // We need to generate IDs locally
-import { toDate } from '../firebase';
 
 const api = axios.create({
   baseURL: 'https://amcu.onrender.com/api',
@@ -62,8 +58,6 @@ api.interceptors.response.use(
 
 export default api;
 
-const getCurrentDairyId = () => localStorage.getItem('databaseId') || '';
-
 export const authApi = {
   login: (credentials: any) => api.post('/auth/login', credentials),
   register: (data: any) => api.post('/auth/register', data),
@@ -79,337 +73,56 @@ export const adminApi = {
 };
 
 export const farmerApi = {
-  getAll: async () => {
-    const dairyId = getCurrentDairyId();
-    const farmers = await db.farmers.where('dairyId').equals(dairyId).toArray();
-    return { data: farmers };
-  },
-  getById: async (id: string) => {
-    const farmer = await db.farmers.get(id);
-    return { data: farmer };
-  },
-  search: async (farmerId: string) => {
-    const dairyId = getCurrentDairyId();
-    const farmer = await db.farmers.where({ farmerId, dairyId }).first();
-    if (!farmer) throw { response: { status: 404 } };
-    return { data: farmer };
-  },
-  create: async (data: any) => {
-    const id = data.id || uuidv4();
-    const dairyId = getCurrentDairyId();
-    const newFarmer = { ...data, id, dairyId, createdAt: new Date().toISOString(), balance: 0 };
-    await db.farmers.add(newFarmer);
-    await db.syncQueue.add({ action: 'CREATE', entity: 'FARMER', data: newFarmer, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: newFarmer };
-  },
-  update: async (id: string, data: any) => {
-    await db.farmers.update(id, data);
-    const updated = await db.farmers.get(id);
-    await db.syncQueue.add({ action: 'UPDATE', entity: 'FARMER', data: updated, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: updated };
-  },
-  delete: async (id: string) => {
-    await db.farmers.delete(id);
-    await db.syncQueue.add({ action: 'DELETE', entity: 'FARMER', data: { id }, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: { success: true } };
-  },
-  getSummary: async (id: string) => {
-    // Simplified local summary
-    const farmer = await db.farmers.get(id);
-    const collections = await db.collections.where('farmerId').equals(id).toArray();
-    const totalQuantity = collections.reduce((sum, c) => sum + c.quantity, 0);
-    const totalAmount = collections.reduce((sum, c) => sum + c.amount, 0);
-    return { data: { farmer, totalQuantity, totalAmount, recentCollections: collections.slice(-5) } };
-  },
+  getAll: () => api.get('/farmers'),
+  getById: (id: string) => api.get(`/farmers/${id}`),
+  search: (farmerId: string) => api.get(`/farmers/search/${farmerId}`),
+  create: (data: any) => api.post('/farmers', data),
+  update: (id: string, data: any) => api.put(`/farmers/${id}`, data),
+  delete: (id: string) => api.delete(`/farmers/${id}`),
+  getSummary: (id: string) => api.get(`/farmers/${id}/summary`),
 };
 
 export const collectionApi = {
-  create: async (data: any) => {
-    const id = data.id || uuidv4();
-    const dairyId = getCurrentDairyId();
-    const newCollection = { ...data, id, dairyId, createdAt: new Date().toISOString() };
-    await db.collections.add(newCollection);
-    
-    // Update farmer balance locally
-    const farmer = await db.farmers.get(data.farmerId);
-    if (farmer) {
-      await db.farmers.update(data.farmerId, { balance: (farmer.balance || 0) + data.amount });
-    }
-
-    await db.syncQueue.add({ action: 'CREATE', entity: 'COLLECTION', data: newCollection, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: newCollection };
-  },
-  update: async (id: string, data: any) => {
-    await db.collections.update(id, data);
-    return { data: await db.collections.get(id) };
-  },
-  getDailyReport: async (date: string, endDate?: string) => {
-    const dairyId = getCurrentDairyId();
-    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    collections = collections.filter(c => {
-      try {
-        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
-        if (endDate) return cDate >= date && cDate <= endDate;
-        return cDate === date;
-      } catch (e) {
-        return false;
-      }
-    });
-    return { data: collections };
-  },
-  getReport: async (date: string, endDate?: string) => {
-    const dairyId = getCurrentDairyId();
-    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    collections = collections.filter(c => {
-      try {
-        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
-        if (endDate) return cDate >= date && cDate <= endDate;
-        return cDate === date;
-      } catch (e) {
-        return false;
-      }
-    });
-    return { data: collections };
-  },
-  getByFarmerId: async (farmerId: string) => {
-    const collections = await db.collections.where('farmerId').equals(farmerId).toArray();
-    return { data: collections };
-  },
+  create: (data: any) => api.post('/collections', data),
+  update: (id: string, data: any) => api.put(`/collections/${id}`, data),
+  getDailyReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+  getReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+  getByFarmerId: (farmerId: string) => api.get(`/collections/farmer/${farmerId}`),
 };
 
 export const shiftApi = {
-  createSummary: async (data: any) => {
-    // We don't have a shift summary table in localDb yet, but we can just mock it or add it
-    // For now, return success
-    return { data: { success: true } };
-  },
-  getSummary: async (date: string, shift: string) => {
-    // Compute from local collections
-    const dairyId = getCurrentDairyId();
-    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    const shiftCollections = collections.filter(c => {
-      try {
-        return toDate(c.date || c.timestamp).toISOString().split('T')[0] === date && c.shift === shift;
-      } catch (e) {
-        return false;
-      }
-    });
-    
-    const totalFarmers = new Set(shiftCollections.map(c => c.farmerId)).size;
-    const totalQuantity = shiftCollections.reduce((sum, c) => sum + c.quantity, 0);
-    const amount = shiftCollections.reduce((sum, c) => sum + c.amount, 0);
-    const avgFat = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + c.fat, 0) / shiftCollections.length : 0;
-    const avgSnf = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + c.snf, 0) / shiftCollections.length : 0;
-
-    return { 
-      data: {
-        date, shift, totalFarmers, totalQuantity, amount, avgFat, avgSnf
-      } 
-    };
-  },
-  getRecent: async (limit: number = 10) => {
-    return { data: [] };
-  },
+  createSummary: (data: any) => api.post('/shifts/summary', data),
+  getSummary: (date: string, shift: string) => api.get(`/shifts/summary?date=${date}&shift=${shift}`),
+  getRecent: (limit: number = 10) => api.get(`/shifts/recent?limit=${limit}`),
 };
 
 export const saleApi = {
-  getCustomers: async () => {
-    return { data: [] };
-  },
-  createCustomer: async (data: any) => {
-    return { data: { ...data, id: uuidv4() } };
-  },
-  recordSale: async (data: any) => {
-    return { data: { ...data, id: uuidv4() } };
-  },
+  getCustomers: () => api.get('/sales/customers'),
+  createCustomer: (data: any) => api.post('/sales/customers', data),
+  recordSale: (data: any) => api.post('/sales', data),
 };
 
 export const reportApi = {
-  getDashboard: async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const dairyId = getCurrentDairyId();
-    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    
-    const todayCollections = collections.filter(c => {
-      try {
-        const d = toDate(c.date || c.timestamp);
-        return d.toISOString().split('T')[0] === today;
-      } catch (e) {
-        return false;
-      }
-    });
-    
-    let todayQty = 0, morningQty = 0, eveningQty = 0, todayAmount = 0, fatSum = 0, snfSum = 0;
-    todayCollections.forEach(c => {
-      todayQty += c.quantity;
-      if (c.shift === 'Morning') morningQty += c.quantity;
-      else eveningQty += c.quantity;
-      todayAmount += c.amount;
-      fatSum += c.fat;
-      snfSum += c.snf;
-    });
-
-    const activeFarmers = await db.farmers.where('dairyId').equals(dairyId).count();
-    
-    // Sort collections by date descending for recent transactions
-    const sortedCollections = [...collections].sort((a, b) => {
-      const dateA = new Date(a.date || a.timestamp).getTime();
-      const dateB = new Date(b.date || b.timestamp).getTime();
-      return dateB - dateA;
-    });
-
-    return {
-      data: {
-        todayQty: todayQty,
-        morningQty: morningQty,
-        eveningQty: eveningQty,
-        todayAmount: todayAmount,
-        totalFarmers: activeFarmers,
-        avgFat: todayCollections.length ? (fatSum / todayCollections.length) : 0,
-        avgSnf: todayCollections.length ? (snfSum / todayCollections.length) : 0,
-        recentTxns: sortedCollections.slice(0, 5),
-        trendData: collections // Return raw collections for Dashboard to process
-      }
-    };
-  },
-  getDaily: async (date: string) => {
-    const dairyId = getCurrentDairyId();
-    const collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    const daily = collections.filter(c => {
-      try {
-        return toDate(c.date || c.timestamp).toISOString().split('T')[0] === date;
-      } catch (e) {
-        return false;
-      }
-    });
-    return { data: daily };
-  },
-  getFarmer: async (farmerId: string) => {
-    const collections = await db.collections.where('farmerId').equals(farmerId).toArray();
-    return { data: collections };
-  },
-  getBills: async (year: number, month: number, period: number, farmerId?: string) => {
-    let startDate: Date, endDate: Date;
-    if (period === 1) {
-      startDate = new Date(year, month, 1);
-      endDate = new Date(year, month, 10);
-    } else if (period === 2) {
-      startDate = new Date(year, month, 11);
-      endDate = new Date(year, month, 20);
-    } else {
-      startDate = new Date(year, month, 21);
-      endDate = new Date(year, month + 1, 0);
-    }
-
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
-
-    const dairyId = getCurrentDairyId();
-    let collections = await db.collections.where('dairyId').equals(dairyId).toArray();
-    collections = collections.filter(c => {
-      try {
-        const cDate = toDate(c.date || c.timestamp).toISOString().split('T')[0];
-        return cDate >= startStr && cDate <= endStr && (!farmerId || c.farmerId === farmerId);
-      } catch (e) {
-        return false;
-      }
-    });
-
-    // Group by farmer
-    const billsMap = new Map();
-    for (const c of collections) {
-      if (!billsMap.has(c.farmerId)) {
-        const farmer = await db.farmers.get(c.farmerId);
-        billsMap.set(c.farmerId, {
-          farmerId: c.farmerId,
-          farmerName: farmer?.name || c.farmerName,
-          totalQuantity: 0,
-          amount: 0,
-          collections: []
-        });
-      }
-      const bill = billsMap.get(c.farmerId);
-      bill.totalQuantity += c.quantity;
-      bill.amount += c.amount;
-      bill.collections.push(c);
-    }
-
-    return { data: Array.from(billsMap.values()) };
-  },
+  getDashboard: () => api.get('/reports/dashboard'),
+  getDaily: (date: string) => api.get(`/reports/daily?date=${date}`),
+  getFarmer: (farmerId: string) => api.get(`/reports/farmer/${farmerId}`),
+  getBills: (year: number, month: number, period: number, farmerId?: string) => 
+    api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`),
 };
 
 export const rateApi = {
-  getAll: async () => {
-    const dairyId = getCurrentDairyId();
-    const rates = await db.rateCharts.where('dairyId').equals(dairyId).toArray();
-    return { data: rates };
-  },
-  create: async (data: any) => {
-    const id = data.id || uuidv4();
-    const dairyId = getCurrentDairyId();
-    const newRate = { ...data, id, dairyId };
-    await db.rateCharts.add(newRate);
-    await db.syncQueue.add({ action: 'CREATE', entity: 'RATE_CHART', data: newRate, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: newRate };
-  },
-  update: async (id: string, data: any) => {
-    await db.rateCharts.update(id, data);
-    const updated = await db.rateCharts.get(id);
-    await db.syncQueue.add({ action: 'UPDATE', entity: 'RATE_CHART', data: updated, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: updated };
-  },
-  delete: async (id: string) => {
-    await db.rateCharts.delete(id);
-    await db.syncQueue.add({ action: 'DELETE', entity: 'RATE_CHART', data: { id }, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: { success: true } };
-  },
-  getSettings: async () => {
-    const dairyId = getCurrentDairyId();
-    const settings = await db.rateSettings.where('dairyId').equals(dairyId).first();
-    return { data: settings || {} };
-  },
-  saveSettings: async (data: any) => {
-    const dairyId = getCurrentDairyId();
-    await db.rateSettings.put({ ...data, id: 'default', dairyId });
-    await db.syncQueue.add({ action: 'UPDATE', entity: 'RATE_SETTINGS', data: { ...data, dairyId }, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: { success: true } };
-  },
+  getAll: () => api.get('/rates'),
+  create: (data: any) => api.post('/rates', data),
+  update: (id: string, data: any) => api.put(`/rates/${id}`, data),
+  delete: (id: string) => api.delete(`/rates/${id}`),
+  getSettings: () => api.get('/rates/settings'),
+  saveSettings: (data: any) => api.post('/rates/settings', data),
 };
 
 export const paymentApi = {
-  getLedger: async () => {
-    const dairyId = getCurrentDairyId();
-    const ledger = await db.ledger.where('dairyId').equals(dairyId).toArray();
-    return { data: ledger };
-  },
-  getLedgerByFarmerId: async (farmerId: string) => {
-    const ledger = await db.ledger.where('farmerId').equals(farmerId).toArray();
-    return { data: ledger };
-  },
-  recordPayment: async (data: any) => {
-    const id = data.id || uuidv4();
-    const dairyId = getCurrentDairyId();
-    const newPayment = { ...data, id, dairyId, type: 'debit' };
-    await db.ledger.add(newPayment);
-    
-    // Update farmer balance locally
-    const farmer = await db.farmers.get(data.farmerId);
-    if (farmer) {
-      await db.farmers.update(data.farmerId, { balance: (farmer.balance || 0) - data.amount });
-    }
-
-    await db.syncQueue.add({ action: 'CREATE', entity: 'PAYMENT', data: newPayment, status: 'PENDING', timestamp: Date.now() });
-    syncManager.sync();
-    return { data: newPayment };
-  },
+  getLedger: () => api.get('/ledger'),
+  getLedgerByFarmerId: (farmerId: string) => api.get(`/ledger/farmer/${farmerId}`),
+  recordPayment: (data: any) => api.post('/payments', data),
 };
 
 export const userApi = {

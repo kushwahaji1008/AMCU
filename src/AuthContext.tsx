@@ -9,8 +9,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from './services/api';
 import { db as firebaseDb } from './firebase';
 import { Firestore } from 'firebase/firestore';
-import { syncManager } from './services/syncManager';
-import { initDb } from './services/localDb';
 
 export interface UserProfile {
   uid: string;
@@ -63,11 +61,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const p = JSON.parse(savedProfile);
         setUser({ token });
         setProfile(p);
-        
-        // Initialize the correct local database for the saved session
-        if (p.databaseId) {
-          initDb(p.databaseId);
-        }
       } catch (e) {
         console.error("Failed to parse saved profile", e);
         localStorage.removeItem('token');
@@ -139,18 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ token });
     setProfile(p);
 
-    // Initialize separate local database for this dairy
-    initDb(p.databaseId);
-
-    // Request persistent storage to prevent OS from clearing data
-    if (navigator.storage && navigator.storage.persist) {
-      await navigator.storage.persist();
-    }
-
-    // Clear local data and trigger full sync for the new user
-    await syncManager.clearLocalData();
-    syncManager.sync();
-
     return { requiresOTP: false };
   };
 
@@ -185,18 +166,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ token });
     setProfile(p);
 
-    // Initialize separate local database for this dairy
-    initDb(p.databaseId);
-
-    // Request persistent storage
-    if (navigator.storage && navigator.storage.persist) {
-      await navigator.storage.persist();
-    }
-
-    // Clear local data and trigger full sync for the new user
-    await syncManager.clearLocalData();
-    syncManager.sync();
-
     return { requiresOTP: false };
   };
 
@@ -209,8 +178,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('databaseId');
     setUser(null);
     setProfile(null);
-    // Clear local data on logout for security and to prevent data mixing
-    await syncManager.clearLocalData();
   };
 
   /**
