@@ -158,10 +158,20 @@ export class ReportingService {
   async finalizePeriodicBills(year: number, month: number, period: 1 | 2 | 3, dairyId: string) {
     const bills = await this.getPeriodicBills(year, month, period);
     const periodStr = `${period === 1 ? '01-10' : period === 2 ? '11-20' : '21-End'} ${format(new Date(year, month, 1), 'MMM yyyy')}`;
+    let processedCount = 0;
 
     for (const bill of bills) {
       const farmer = await this.farmerRepo.getById(bill.id);
       if (!farmer) continue;
+
+      // Create a unique reference ID for this farmer and period
+      const uniqueReferenceId = `BILL-${year}-${month}-${period}-${bill.id}`;
+
+      // Check if this bill has already been finalized for this farmer
+      const existingEntry = await this.ledgerRepo.getByReferenceId(uniqueReferenceId);
+      if (existingEntry) {
+        continue; // Skip if already finalized
+      }
 
       const newBalance = (farmer.balance || 0) + bill.amount;
       
@@ -174,14 +184,16 @@ export class ReportingService {
         farmerId: bill.farmerId,
         type: 'credit',
         amount: bill.amount,
-        referenceId: `BILL-${year}-${month}-${period}`,
+        referenceId: uniqueReferenceId,
         date: new Date(),
         description: `Milk Bill: Period ${periodStr}`,
         balanceAfter: newBalance,
         dairyId: dairyId
       });
+      
+      processedCount++;
     }
 
-    return { success: true, count: bills.length };
+    return { success: true, count: processedCount, totalBills: bills.length };
   }
 }

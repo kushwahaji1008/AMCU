@@ -74,13 +74,21 @@ export default function Billing() {
 
     setLoading(true);
     try {
-      await reportApi.finalizeBills({
+      const response = await reportApi.finalizeBills({
         year,
         month,
         period,
         dairyId: profile?.dairyId || ''
       });
-      toast.success('Bills finalized and posted to ledger successfully');
+      
+      const { count, totalBills } = response.data;
+      if (count === 0) {
+        toast.info('All bills for this period were already finalized.');
+      } else if (count < totalBills) {
+        toast.success(`${count} new bills finalized. ${totalBills - count} were already finalized.`);
+      } else {
+        toast.success('All bills finalized and posted to ledger successfully');
+      }
     } catch (error) {
       console.error(error);
       toast.error('Failed to finalize bills');

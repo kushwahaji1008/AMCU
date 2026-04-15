@@ -43,6 +43,7 @@ export interface ILedgerRepository {
   addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
   getByFarmerInternalId(farmerInternalId: string): Promise<LedgerEntry[]>;
   getAll(): Promise<LedgerEntry[]>;
+  getByReferenceId(referenceId: string): Promise<LedgerEntry | null>;
 }
 
 export interface IShiftSummaryRepository {

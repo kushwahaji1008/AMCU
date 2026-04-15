@@ -264,6 +264,12 @@ export class MongoLedgerRepository implements ILedgerRepository {
     const docs = await model.find().sort({ date: -1 });
     return docs.map(doc => mapDoc<LedgerEntry>(doc));
   }
+
+  async getByReferenceId(referenceId: string): Promise<LedgerEntry | null> {
+    const model = await dbManager.getLedgerModel(getDatabaseId());
+    const doc = await model.findOne({ referenceId });
+    return doc ? mapDoc<LedgerEntry>(doc) : null;
+  }
 }
 
 // --- Shift Summary Repository ---
