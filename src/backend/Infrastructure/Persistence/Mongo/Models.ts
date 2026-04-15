@@ -21,6 +21,7 @@ export const FarmerSchema = new Schema({
 // --- Collection Schema ---
 export const CollectionSchema = new Schema({
   farmerId: { type: String, required: true },
+  farmerCode: { type: String, required: true },
   farmerName: { type: String, required: true },
   date: { type: Date, required: true },
   shift: { type: String, enum: ['Morning', 'Evening'], required: true },

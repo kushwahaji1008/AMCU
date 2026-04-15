@@ -1,6 +1,7 @@
 export interface MilkCollection {
   id: string;
   farmerId: string;
+  farmerCode: string;
   farmerName: string;
   date: Date;
   shift: 'Morning' | 'Evening';

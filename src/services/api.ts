@@ -113,6 +113,8 @@ export const reportApi = {
   getFarmer: (farmerId: string) => api.get(`/reports/farmer/${farmerId}`),
   getBills: (year: number, month: number, period: number, farmerId?: string) => 
     api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`),
+  finalizeBills: (data: { year: number, month: number, period: number, dairyId: string }) =>
+    api.post('/reports/finalize-bills', data),
 };
 
 export const rateApi = {

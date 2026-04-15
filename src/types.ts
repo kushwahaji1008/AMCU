@@ -19,6 +19,7 @@ export interface CollectionTransaction {
   date: string | Date;
   shift: 'Morning' | 'Evening';
   farmerId: string;
+  farmerCode?: string;
   farmerName: string;
   milkType: 'Cow' | 'Buffalo' | 'Mixed';
   quantity: number;

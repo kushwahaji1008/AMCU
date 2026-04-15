@@ -25,30 +25,13 @@ export class CollectionService {
     const amount = data.quantity * rate;
 
     // 2. Create Collection Record
+    const farmer = await this.farmerRepo.getById(data.farmerId);
     const collection = await this.collectionRepo.create({
       ...data,
+      farmerCode: farmer?.farmerId || '',
       rate,
       amount,
     });
-
-    // 3. Update Farmer Balance
-    const farmer = await this.farmerRepo.getById(data.farmerId);
-    if (farmer) {
-      const newBalance = (farmer.balance || 0) + amount;
-      await this.farmerRepo.update(data.farmerId, { balance: newBalance });
-      
-      // 4. Update Ledger (CREDIT → we owe farmer)
-      await this.ledgerRepo.addEntry({
-        farmerId: data.farmerId,
-        type: 'credit',
-        amount: amount,
-        referenceId: collection.id,
-        date: data.date || new Date(),
-        balanceAfter: newBalance,
-        description: `Milk Collection: ${data.quantity}kg @ ₹${rate}/kg`,
-        dairyId: data.dairyId
-      });
-    }
 
     return collection;
   }

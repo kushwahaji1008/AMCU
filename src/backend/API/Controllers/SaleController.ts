@@ -55,4 +55,15 @@ export class ReportingController {
     );
     res.json(bills);
   }
+
+  async finalizePeriodicBills(req: Request, res: Response) {
+    const { year, month, period, dairyId } = req.body;
+    const result = await this.reportingService.finalizePeriodicBills(
+      Number(year),
+      Number(month),
+      Number(period) as 1 | 2 | 3,
+      dairyId as string
+    );
+    res.json(result);
+  }
 }

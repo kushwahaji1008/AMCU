@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, Search, User, Building2, ChevronRight, ChevronLeft, Printer, DollarSign, ShoppingCart } from 'lucide-react';
+import { FileText, Download, Calendar, Search, User, Building2, ChevronRight, ChevronLeft, Printer, DollarSign, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { reportApi, farmerApi, collectionApi } from '../services/api';
@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { pdfService } from '../services/pdfService';
 
 export default function Billing() {
   const { profile } = useAuth();
@@ -61,7 +62,34 @@ export default function Billing() {
     }
   };
 
-  const downloadPurchasePDF = () => {
+  const handleFinalizeBills = async () => {
+    if (bills.length === 0) {
+      toast.error('No bills to finalize. Please view the register first.');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to finalize and post ${bills.length} bills to the ledger? This will update farmer balances.`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await reportApi.finalizeBills({
+        year,
+        month,
+        period,
+        dairyId: profile?.dairyId || ''
+      });
+      toast.success('Bills finalized and posted to ledger successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to finalize bills');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadPurchasePDF = async () => {
     if (purchaseData.length === 0) {
       toast.error('No purchase data to export');
       return;
@@ -98,7 +126,7 @@ export default function Billing() {
       // Table
       const tableData = purchaseData.map((c: any, index: number) => [
         index + 1,
-        c.farmerName || c.farmerId,
+        c.farmerName || c.farmerCode || c.farmerId,
         c.lacto || '-',
         c.quantity.toFixed(2),
         c.fat.toFixed(1),
@@ -128,7 +156,7 @@ export default function Billing() {
         footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold', fontSize: 9 }
       });
 
-      doc.save(`Purchase_Book_${purchaseDate}_${purchaseShift}.pdf`);
+      await pdfService.saveAndOpen(doc, `Purchase_Book_${purchaseDate}_${purchaseShift}.pdf`);
       toast.success('Purchase Register downloaded');
     } catch (error) {
       console.error('PDF generation failed:', error);
@@ -151,7 +179,7 @@ export default function Billing() {
     return days;
   };
 
-  const downloadPaymentPDF = () => {
+  const downloadPaymentPDF = async () => {
     if (bills.length === 0) {
       toast.error('No payment data to export');
       return;
@@ -237,7 +265,7 @@ export default function Billing() {
         alternateRowStyles: { fillColor: [245, 245, 245] },
       });
 
-      doc.save(`Payment_Register_${monthLabel}_${periodLabel}.pdf`);
+      await pdfService.saveAndOpen(doc, `Payment_Register_${monthLabel}_${periodLabel}.pdf`);
       toast.success('Payment Register downloaded');
     } catch (error) {
       console.error('PDF generation failed:', error);
@@ -516,7 +544,7 @@ export default function Billing() {
     });
   };
 
-  const downloadAllPDF = () => {
+  const downloadAllPDF = async () => {
     if (bills.length === 0) return;
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
@@ -524,7 +552,7 @@ export default function Billing() {
         if (index > 0) doc.addPage();
         generateDetailedBillPDF(doc, bill);
       });
-      doc.save(`Dairy_Consolidated_Bills_${format(new Date(bills[0].startDate), 'yyyyMMdd')}.pdf`);
+      await pdfService.saveAndOpen(doc, `Dairy_Consolidated_Bills_${format(new Date(bills[0].startDate), 'yyyyMMdd')}.pdf`);
       toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('PDF generation failed:', error);
@@ -532,11 +560,11 @@ export default function Billing() {
     }
   };
 
-  const downloadPDF = (bill: any) => {
+  const downloadPDF = async (bill: any) => {
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
       generateSimpleBillPDF(doc, bill);
-      doc.save(`Farmer_Bill_${bill.farmerId}_${format(new Date(bill.startDate), 'yyyyMMdd')}.pdf`);
+      await pdfService.saveAndOpen(doc, `Farmer_Bill_${bill.farmerId}_${format(new Date(bill.startDate), 'yyyyMMdd')}.pdf`);
       toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('PDF generation failed:', error);
@@ -753,13 +781,23 @@ export default function Billing() {
                 <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
                   Payment Register - {months[month]} ({periods.find(p => p.id === period)?.label})
                 </h2>
-                <button 
-                  onClick={downloadPaymentPDF}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
-                >
-                  <Printer size={18} />
-                  Print Register
-                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleFinalizeBills}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
+                  >
+                    <CheckCircle2 size={18} />
+                    {loading ? 'Finalizing...' : 'Finalize & Post to Ledger'}
+                  </button>
+                  <button 
+                    onClick={downloadPaymentPDF}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
+                  >
+                    <Printer size={18} />
+                    Print Register
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
@@ -931,7 +969,7 @@ export default function Billing() {
                 {purchaseData.map((c, index) => (
                   <tr key={c.id || index} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/30 transition-colors">
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{index + 1}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">{c.farmerName || c.farmerId}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">{c.farmerName} <span className="text-[10px] text-stone-400 font-mono">({c.farmerCode || c.farmerId})</span></td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.lacto || '-'}</td>
                     <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">{c.quantity.toFixed(2)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.fat.toFixed(1)}</td>

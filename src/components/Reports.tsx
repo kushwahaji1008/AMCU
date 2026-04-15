@@ -9,6 +9,7 @@ import { useErrorHandler } from '../hooks/useErrorHandler';
 import { collectionApi } from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { pdfService } from '../services/pdfService';
 
 export default function Reports() {
   const { profile } = useAuth();
@@ -68,7 +69,7 @@ export default function Reports() {
     const rows = transactions.map(t => [
       t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '',
       t.date ? format(new Date(t.date), 'hh:mm a') : '',
-      t.farmerId,
+      t.farmerCode || t.farmerId,
       t.farmerName,
       t.shift,
       t.milkType,
@@ -93,7 +94,7 @@ export default function Reports() {
     toast.success('Report exported as CSV');
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (transactions.length === 0) {
       toast.error('No records to export');
       return;
@@ -131,7 +132,7 @@ export default function Reports() {
         index + 1,
         t.date ? format(new Date(t.date), 'dd/MM/yy') : '',
         t.shift.charAt(0),
-        t.farmerName || t.farmerId,
+        t.farmerName || t.farmerCode || t.farmerId,
         t.milkType.charAt(0),
         t.quantity.toFixed(1),
         t.fat.toFixed(1),
@@ -159,7 +160,7 @@ export default function Reports() {
         footStyles: { fillColor: [245, 245, 244], textColor: [41, 37, 36], fontStyle: 'bold' }
       });
 
-      doc.save(`Collection_Report_${dateRange.start}_to_${dateRange.end}.pdf`);
+      await pdfService.saveAndOpen(doc, `Collection_Report_${dateRange.start}_to_${dateRange.end}.pdf`);
       toast.success('Report exported as PDF');
     } catch (error) {
       console.error('PDF generation failed:', error);

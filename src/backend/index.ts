@@ -169,7 +169,7 @@ const paymentService = new PaymentService(ledgerRepo, farmerRepo);
 const authService = new AuthService(userRepo, dairyRepo, auditRepo);
 const saleService = new SaleService(saleRepo, customerRepo);
 const customerService = new CustomerService(customerRepo);
-const reportingService = new ReportingService(collectionRepo, saleRepo, farmerRepo);
+const reportingService = new ReportingService(collectionRepo, saleRepo, farmerRepo, ledgerRepo);
 
 // Controllers (API Layer)
 const farmerController = new FarmerController(farmerService);
@@ -339,6 +339,7 @@ app.get('/api/reports/dashboard', authenticate, (req, res, next) => reportingCon
 app.get('/api/reports/daily', authenticate, (req, res, next) => reportingController.getDailyReport(req, res).catch(next));
 app.get('/api/reports/farmer/:farmerId', authenticate, (req, res, next) => reportingController.getFarmerReport(req, res).catch(next));
 app.get('/api/reports/bills', authenticate, (req, res, next) => reportingController.getPeriodicBills(req, res).catch(next));
+app.post('/api/reports/finalize-bills', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => reportingController.finalizePeriodicBills(req, res).catch(next));
 
 // Rate Chart Configuration
 app.get('/api/rates/settings', authenticate, async (req, res, next) => {

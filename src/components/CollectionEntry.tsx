@@ -524,7 +524,7 @@ export default function CollectionEntry() {
                   </td>
                   <td className="py-4 px-6">
                     <div className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</div>
-                    <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerId}</div>
+                    <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerCode || txn.farmerId}</div>
                   </td>
                   <td className="py-4 px-6">
                     <span className={cn(
@@ -581,7 +581,7 @@ export default function CollectionEntry() {
               <div className="text-right">{selectedTxn.shift}</div>
 
               <div className="text-stone-500">Member:</div>
-              <div className="text-right font-bold">{selectedTxn.farmerName} ({selectedTxn.farmerId})</div>
+              <div className="text-right font-bold">{selectedTxn.farmerName} ({selectedTxn.farmerCode || selectedTxn.farmerId})</div>
             </div>
 
             <div className="border-y border-stone-200 py-2 space-y-1">

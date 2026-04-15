@@ -151,7 +151,13 @@ export default function PaymentProcessing() {
                       <p className={cn("text-xs", selectedFarmer?.id === f.id ? "opacity-70" : "text-stone-400")}>ID: {f.farmerId}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-mono font-bold">₹{(f.balance || 0).toFixed(2)}</p>
+                      <p className={cn(
+                        "text-xs font-medium uppercase tracking-wider mb-1",
+                        (f.balance || 0) >= 0 ? "text-emerald-500" : "text-amber-500"
+                      )}>
+                        {(f.balance || 0) >= 0 ? 'Due' : 'Advance'}
+                      </p>
+                      <p className="text-sm font-mono font-bold">₹{Math.abs(f.balance || 0).toFixed(2)}</p>
                     </div>
                   </button>
                 ))}
@@ -172,8 +178,15 @@ export default function PaymentProcessing() {
                     <span className="text-sm font-medium text-stone-900 dark:text-white">{selectedFarmer.name}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Pending Balance</span>
-                    <span className="text-lg font-mono font-bold text-stone-900 dark:text-white">₹{(getFarmerBalance(selectedFarmer) || 0).toFixed(2)}</span>
+                    <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">
+                      {(getFarmerBalance(selectedFarmer) || 0) >= 0 ? 'Net Due to Farmer' : 'Advance Balance'}
+                    </span>
+                    <span className={cn(
+                      "text-lg font-mono font-bold",
+                      (getFarmerBalance(selectedFarmer) || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                    )}>
+                      ₹{Math.abs(getFarmerBalance(selectedFarmer) || 0).toFixed(2)}
+                    </span>
                   </div>
                 </div>
 

@@ -1,4 +1,5 @@
-import { ICollectionRepository, ISaleRepository, IFarmerRepository } from '../Interfaces/IRepositories';
+import { ICollectionRepository, ISaleRepository, IFarmerRepository, ILedgerRepository } from '../Interfaces/IRepositories';
+import { format } from 'date-fns';
 
 export interface DailyReport {
   date: Date;
@@ -25,7 +26,8 @@ export class ReportingService {
   constructor(
     private collectionRepo: ICollectionRepository,
     private saleRepo: ISaleRepository,
-    private farmerRepo: IFarmerRepository
+    private farmerRepo: IFarmerRepository,
+    private ledgerRepo: ILedgerRepository
   ) {}
 
   async getDashboardStats(): Promise<DashboardStats> {
@@ -135,6 +137,7 @@ export class ReportingService {
         : 0;
 
       bills.push({
+        id: internalId,
         farmerId: farmer.farmerId,
         farmerName: farmer.name || 'Unknown',
         village: farmer.village || '',
@@ -149,5 +152,34 @@ export class ReportingService {
     }
 
     return bills;
+  }
+
+  async finalizePeriodicBills(year: number, month: number, period: 1 | 2 | 3, dairyId: string) {
+    const bills = await this.getPeriodicBills(year, month, period);
+    const periodStr = `${period === 1 ? '01-10' : period === 2 ? '11-20' : '21-End'} ${format(new Date(year, month, 1), 'MMM yyyy')}`;
+
+    for (const bill of bills) {
+      const farmer = await this.farmerRepo.getById(bill.id);
+      if (!farmer) continue;
+
+      const newBalance = (farmer.balance || 0) + bill.amount;
+      
+      // 1. Update Farmer Balance
+      await this.farmerRepo.update(bill.id, { balance: newBalance });
+
+      // 2. Add Ledger Entry
+      await this.ledgerRepo.addEntry({
+        farmerId: bill.id,
+        type: 'credit',
+        amount: bill.amount,
+        referenceId: `BILL-${year}-${month}-${period}`,
+        date: new Date(),
+        description: `Milk Bill: Period ${periodStr}`,
+        balanceAfter: newBalance,
+        dairyId: dairyId
+      });
+    }
+
+    return { success: true, count: bills.length };
   }
 }
