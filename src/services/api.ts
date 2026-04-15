@@ -1,65 +1,6 @@
 /// <reference types="vite/client" />
-import axios from 'axios';
-
-// For Android/Native, we need a full URL. For Web, we can use relative or window.location.origin
-// VITE_API_URL should be set to the production server URL (e.g., https://your-app.onrender.com/api)
-const baseURL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') ? `${window.location.origin}/api` : 'https://amcu.onrender.com/api');
-
-const api = axios.create({
-  baseURL,
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  const databaseId = localStorage.getItem('databaseId');
-  
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  
-  if (databaseId) {
-    config.headers['x-database-id'] = databaseId;
-  }
-  
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    let message = 'An unexpected error occurred';
-    
-    if (error.response?.data) {
-      if (typeof error.response.data === 'string') {
-        message = error.response.data;
-      } else if (error.response.data.message) {
-        message = error.response.data.message;
-      } else if (error.response.data.errors && Array.isArray(error.response.data.errors)) {
-        message = error.response.data.errors.map((e: any) => e.msg || e.message).join(', ');
-      }
-    } else if (error.message) {
-      message = error.message;
-    }
-    
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('profile');
-      
-      // Only redirect if not already on the login page
-      if (!window.location.pathname.includes('/login')) {
-        const reason = encodeURIComponent(message);
-        window.location.href = `/login?reason=${reason}`;
-      }
-    }
-    
-    // Create a standardized error object
-    const apiError = new Error(message);
-    (apiError as any).status = error.response?.status;
-    (apiError as any).data = error.response?.data;
-    
-    return Promise.reject(apiError);
-  }
-);
+import api from './axiosInstance';
+import { offlineService } from './offlineService';
 
 export default api;
 
@@ -78,19 +19,70 @@ export const adminApi = {
 };
 
 export const farmerApi = {
-  getAll: () => api.get('/farmers'),
-  getById: (id: string) => api.get(`/farmers/${id}`),
-  search: (farmerId: string) => api.get(`/farmers/search/${farmerId}`),
-  create: (data: any) => api.post('/farmers', data),
-  update: (id: string, data: any) => api.put(`/farmers/${id}`, data),
+  getAll: async () => {
+    if (!offlineService.isOnline) {
+      const docs = await offlineService.getFarmers();
+      return { data: docs };
+    }
+    const res = await api.get('/farmers');
+    // Update local cache silently
+    offlineService.syncFromServer().catch(console.error);
+    return res;
+  },
+  getById: async (id: string) => {
+    if (!offlineService.isOnline) {
+      const doc = await offlineService.getFarmerById(id);
+      return { data: doc };
+    }
+    return api.get(`/farmers/${id}`);
+  },
+  search: async (farmerId: string) => {
+    if (!offlineService.isOnline) {
+      const doc = await offlineService.searchFarmer(farmerId);
+      return { data: doc };
+    }
+    return api.get(`/farmers/search/${farmerId}`);
+  },
+  create: async (data: any) => {
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_FARMER', data);
+      return { data: { ...data, _id: 'temp_' + Date.now() } };
+    }
+    return api.post('/farmers', data);
+  },
+  update: async (id: string, data: any) => {
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('UPDATE_FARMER', { id, data });
+      return { data: { ...data, id } };
+    }
+    return api.put(`/farmers/${id}`, data);
+  },
   delete: (id: string) => api.delete(`/farmers/${id}`),
   getSummary: (id: string) => api.get(`/farmers/${id}/summary`),
 };
 
 export const collectionApi = {
-  create: (data: any) => api.post('/collections', data),
-  update: (id: string, data: any) => api.put(`/collections/${id}`, data),
-  getDailyReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
+  create: async (data: any) => {
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_COLLECTION', data);
+      return { data: { ...data, _id: 'temp_' + Date.now() } };
+    }
+    return api.post('/collections', data);
+  },
+  update: async (id: string, data: any) => {
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('UPDATE_COLLECTION', { id, data });
+      return { data: { ...data, id } };
+    }
+    return api.put(`/collections/${id}`, data);
+  },
+  getDailyReport: async (date: string, endDate?: string) => {
+    if (!offlineService.isOnline && !endDate) {
+      const docs = await offlineService.getCollectionsByDate(date);
+      return { data: docs };
+    }
+    return api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`);
+  },
   getReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
   getByFarmerId: (farmerInternalId: string) => api.get(`/collections/farmer/${farmerInternalId}`),
 };

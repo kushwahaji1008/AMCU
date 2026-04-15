@@ -5,13 +5,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
   Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2,
-  Sun, Moon, Languages, ChevronLeft
+  Sun, Moon, Languages, ChevronLeft, WifiOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { dairyApi } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
 import ErrorBoundary from './ErrorBoundary';
+import { offlineService } from '../services/offlineService';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout, switchDatabase, isAuthReady } = useAuth();
@@ -19,8 +20,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dairies, setDairies] = useState<any[]>([]);
+  const [isOnline, setIsOnline] = useState(offlineService.isOnline);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (profile?.role === 'super_admin') {
@@ -98,6 +113,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
+
+          {/* Offline Indicator */}
+          {!isOnline && (
+            <div className="mx-6 mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <WifiOff size={16} />
+              <span className="text-xs font-medium">Offline Mode</span>
+            </div>
+          )}
 
           {/* Quick Actions / Toggles */}
           <div className="px-6 pb-4 flex items-center gap-2">

@@ -35,6 +35,7 @@ import Billing from './components/Billing';
 import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 import BackButtonHandler from './components/BackButtonHandler';
+import { offlineService } from './services/offlineService';
 
 /**
  * Higher-order component to protect routes that require authentication.
@@ -42,6 +43,12 @@ import BackButtonHandler from './components/BackButtonHandler';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthReady } = useAuth();
   
+  useEffect(() => {
+    if (user && isAuthReady) {
+      offlineService.syncFromServer().catch(console.error);
+    }
+  }, [user, isAuthReady]);
+
   if (!isAuthReady || loading) return null;
   if (!user) return <Navigate to="/login" />;
   
