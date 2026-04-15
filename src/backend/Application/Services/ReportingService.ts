@@ -85,8 +85,8 @@ export class ReportingService {
     };
   }
 
-  async getFarmerWiseReport(farmerId: string) {
-    return this.farmerRepo.getSummary(farmerId);
+  async getFarmerWiseReport(id: string) {
+    return this.farmerRepo.getSummary(id);
   }
 
   async getPeriodicBills(year: number, month: number, period: 1 | 2 | 3, farmerId?: string) {
@@ -111,8 +111,8 @@ export class ReportingService {
 
     // Group collections by farmer
     const grouped = collections.reduce((acc, c) => {
-      if (!acc[c.farmerId]) acc[c.farmerId] = [];
-      acc[c.farmerId].push(c);
+      if (!acc[c.farmerInternalId]) acc[c.farmerInternalId] = [];
+      acc[c.farmerInternalId].push(c);
       return acc;
     }, {} as Record<string, any[]>);
 
@@ -138,7 +138,8 @@ export class ReportingService {
 
       bills.push({
         id: internalId,
-        farmerId: farmer.farmerId,
+        farmerId: farmer.farmerId, // This is the user-assigned ID
+        farmerCode: farmer.farmerCode, // Fallback
         farmerName: farmer.name || 'Unknown',
         village: farmer.village || '',
         startDate,
@@ -169,7 +170,8 @@ export class ReportingService {
 
       // 2. Add Ledger Entry
       await this.ledgerRepo.addEntry({
-        farmerId: bill.id,
+        farmerInternalId: bill.id,
+        farmerId: bill.farmerId,
         type: 'credit',
         amount: bill.amount,
         referenceId: `BILL-${year}-${month}-${period}`,

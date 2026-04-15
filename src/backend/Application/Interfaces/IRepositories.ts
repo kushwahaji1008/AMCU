@@ -16,7 +16,7 @@ export interface IFarmerRepository {
   create(farmer: Omit<Farmer, 'id' | 'createdAt'>): Promise<Farmer>;
   update(id: string, farmer: Partial<Farmer>): Promise<Farmer>;
   delete(id: string): Promise<void>;
-  getSummary(farmerId: string): Promise<FarmerSummary>;
+  getSummary(farmerInternalId: string): Promise<FarmerSummary>;
   getCount(): Promise<number>;
 }
 
@@ -28,7 +28,7 @@ export interface ICollectionRepository {
   getRecent(limit: number): Promise<MilkCollection[]>;
   getTrend(days: number): Promise<MilkCollection[]>;
   update(id: string, collection: Partial<MilkCollection>): Promise<MilkCollection>;
-  getByFarmerId(farmerId: string): Promise<MilkCollection[]>;
+  getByFarmerInternalId(farmerInternalId: string): Promise<MilkCollection[]>;
 }
 
 export interface IRateChartRepository {
@@ -41,7 +41,7 @@ export interface IRateChartRepository {
 
 export interface ILedgerRepository {
   addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
-  getByFarmerId(farmerId: string): Promise<LedgerEntry[]>;
+  getByFarmerInternalId(farmerInternalId: string): Promise<LedgerEntry[]>;
   getAll(): Promise<LedgerEntry[]>;
 }
 

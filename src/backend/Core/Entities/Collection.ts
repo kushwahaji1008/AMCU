@@ -1,7 +1,8 @@
 export interface MilkCollection {
   id: string;
+  farmerInternalId: string;
   farmerId: string;
-  farmerCode: string;
+  farmerCode?: string;
   farmerName: string;
   date: Date;
   shift: 'Morning' | 'Evening';
@@ -28,6 +29,7 @@ export interface RateChart {
 
 export interface LedgerEntry {
   id: string;
+  farmerInternalId: string;
   farmerId: string;
   type: 'credit' | 'debit';
   amount: number;

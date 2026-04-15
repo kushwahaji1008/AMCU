@@ -28,7 +28,9 @@ export class CollectionService {
     const farmer = await this.farmerRepo.getById(data.farmerId);
     const collection = await this.collectionRepo.create({
       ...data,
-      farmerCode: farmer?.farmerId || '',
+      farmerInternalId: farmer?.id || data.farmerId,
+      farmerId: farmer?.farmerId || '',
+      farmerCode: farmer?.farmerCode || '',
       rate,
       amount,
     });
@@ -56,7 +58,7 @@ export class CollectionService {
     return this.shiftSummaryRepo.getRecent(limit);
   }
 
-  async getByFarmerId(farmerId: string): Promise<MilkCollection[]> {
-    return this.collectionRepo.getByFarmerId(farmerId);
+  async getByFarmerId(farmerInternalId: string): Promise<MilkCollection[]> {
+    return this.collectionRepo.getByFarmerInternalId(farmerInternalId);
   }
 }

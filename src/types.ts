@@ -1,6 +1,7 @@
 export interface Farmer {
   id: string;
   farmerId: string;
+  farmerCode?: string;
   name: string;
   mobile: string;
   village: string;
@@ -18,8 +19,9 @@ export interface CollectionTransaction {
   timestamp: string | any;
   date: string | Date;
   shift: 'Morning' | 'Evening';
-  farmerId: string;
-  farmerCode?: string;
+  farmerInternalId: string; // Internal ID
+  farmerId: string; // User-assigned ID
+  farmerCode?: string; // Fallback
   farmerName: string;
   milkType: 'Cow' | 'Buffalo' | 'Mixed';
   quantity: number;
@@ -83,6 +85,7 @@ export interface ShiftSummary {
 
 export interface Payment {
   id: string;
+  farmerInternalId: string;
   farmerId: string;
   farmerName: string;
   amount: number;
@@ -97,6 +100,7 @@ export interface Payment {
 
 export interface LedgerEntry {
   id: string;
+  farmerInternalId: string;
   farmerId: string;
   type: 'credit' | 'debit'; // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
   amount: number;

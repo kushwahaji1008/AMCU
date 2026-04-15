@@ -126,7 +126,7 @@ export default function Billing() {
       // Table
       const tableData = purchaseData.map((c: any, index: number) => [
         index + 1,
-        c.farmerName || c.farmerCode || c.farmerId,
+        c.farmerName || c.farmerId,
         c.lacto || '-',
         c.quantity.toFixed(2),
         c.fat.toFixed(1),
@@ -825,7 +825,7 @@ export default function Billing() {
                     </thead>
                     <tbody>
                       {bills.map((bill, idx) => (
-                        <React.Fragment key={bill.farmerId}>
+                        <React.Fragment key={bill.id}>
                           <tr className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors border-t border-stone-100 dark:border-stone-800">
                             <td rowSpan={2} className="px-4 py-2 text-xs text-stone-500 text-center border-r border-stone-100 dark:border-stone-800">{idx + 1}</td>
                             <td rowSpan={2} className="px-4 py-2 text-xs font-medium text-stone-900 dark:text-white border-r border-stone-100 dark:border-stone-800">{bill.farmerName}</td>
@@ -891,7 +891,7 @@ export default function Billing() {
       {(view === 'farmer' || view === 'dairy') && (
         <div className="space-y-4">
           {bills.map((bill) => (
-          <div key={bill.farmerId} className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
+          <div key={bill.id} className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
             <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-stone-50 dark:border-stone-800">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-stone-100 dark:bg-stone-800 rounded-2xl flex items-center justify-center text-stone-500">
@@ -969,7 +969,7 @@ export default function Billing() {
                 {purchaseData.map((c, index) => (
                   <tr key={c.id || index} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/30 transition-colors">
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{index + 1}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">{c.farmerName} <span className="text-[10px] text-stone-400 font-mono">({c.farmerCode || c.farmerId})</span></td>
+                    <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">{c.farmerName} <span className="text-[10px] text-stone-400 font-mono">({c.farmerId})</span></td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.lacto || '-'}</td>
                     <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">{c.quantity.toFixed(2)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.fat.toFixed(1)}</td>

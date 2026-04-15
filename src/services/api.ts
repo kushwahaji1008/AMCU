@@ -92,7 +92,7 @@ export const collectionApi = {
   update: (id: string, data: any) => api.put(`/collections/${id}`, data),
   getDailyReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
   getReport: (date: string, endDate?: string) => api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`),
-  getByFarmerId: (farmerId: string) => api.get(`/collections/farmer/${farmerId}`),
+  getByFarmerId: (farmerInternalId: string) => api.get(`/collections/farmer/${farmerInternalId}`),
 };
 
 export const shiftApi = {
@@ -110,7 +110,7 @@ export const saleApi = {
 export const reportApi = {
   getDashboard: () => api.get('/reports/dashboard'),
   getDaily: (date: string) => api.get(`/reports/daily?date=${date}`),
-  getFarmer: (farmerId: string) => api.get(`/reports/farmer/${farmerId}`),
+  getFarmer: (id: string) => api.get(`/reports/farmer/${id}`),
   getBills: (year: number, month: number, period: number, farmerId?: string) => 
     api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`),
   finalizeBills: (data: { year: number, month: number, period: number, dairyId: string }) =>
@@ -128,7 +128,7 @@ export const rateApi = {
 
 export const paymentApi = {
   getLedger: () => api.get('/ledger'),
-  getLedgerByFarmerId: (farmerId: string) => api.get(`/ledger/farmer/${farmerId}`),
+  getLedgerByFarmerId: (farmerInternalId: string) => api.get(`/ledger/farmer/${farmerInternalId}`),
   recordPayment: (data: any) => api.post('/payments', data),
 };
 

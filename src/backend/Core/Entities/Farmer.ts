@@ -1,6 +1,7 @@
 export interface Farmer {
   id: string;
   farmerId: string;
+  farmerCode?: string;
   name: string;
   mobile: string;
   village: string;

@@ -13,7 +13,7 @@ import { smsService } from '../services/smsService';
 export default function CollectionEntry() {
   const { profile } = useAuth();
   const { handleError } = useErrorHandler();
-  const [searchId, setSearchId] = useState('');
+  const [searchCode, setSearchCode] = useState('');
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,14 +134,14 @@ export default function CollectionEntry() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchId) return;
+    if (!searchCode) return;
     
     setLoading(true);
     setError(null);
     setFarmer(null);
     
     try {
-      const response = await farmerApi.search(searchId);
+      const response = await farmerApi.search(searchCode);
       const found = response.data;
       
       if (!found) {
@@ -162,13 +162,13 @@ export default function CollectionEntry() {
     }
   };
 
-  const fetchFarmerById = async (id: string) => {
+  const fetchFarmerByCode = async (code: string) => {
     setLoading(true);
     setError(null);
     setFarmer(null);
     
     try {
-      const response = await farmerApi.search(id);
+      const response = await farmerApi.search(code);
       const found = response.data;
       
       if (!found) {
@@ -177,7 +177,7 @@ export default function CollectionEntry() {
       } else {
         setFarmer(found);
         setFormData(prev => ({ ...prev, milkType: found.cattleType }));
-        setSearchId(id);
+        setSearchCode(code);
         toast.success(`Farmer ${found.name} identified`);
         setIsScanning(false);
       }
@@ -207,7 +207,7 @@ export default function CollectionEntry() {
 
         scanner.render(
           (decodedText) => {
-            fetchFarmerById(decodedText);
+            fetchFarmerByCode(decodedText);
           },
           (error) => {}
         );
@@ -229,7 +229,9 @@ export default function CollectionEntry() {
     setLoading(true);
     try {
       const txnData = {
-        farmerId: farmer.id, // Use the MongoDB _id
+        farmerInternalId: farmer.id, // Use the MongoDB _id
+        farmerId: farmer.farmerId, // Use the user-assigned ID
+        farmerCode: farmer.farmerCode, // Fallback
         farmerName: farmer.name,
         date: new Date(selectedDate),
         shift: selectedShift,
@@ -256,7 +258,7 @@ export default function CollectionEntry() {
       setTimeout(() => {
         setSuccess(false);
         setFarmer(null);
-        setSearchId('');
+        setSearchCode('');
         setFormData({ quantity: '', fat: '', snf: '', clr: '', milkType: 'Cow' });
       }, 3000);
     } catch (err: any) {
@@ -318,8 +320,8 @@ export default function CollectionEntry() {
                   <input
                     type="text"
                     placeholder="Enter Member ID (e.g. 101)"
-                    value={searchId}
-                    onChange={(e) => setSearchId(e.target.value)}
+                    value={searchCode}
+                    onChange={(e) => setSearchCode(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
                   />
                 </div>
@@ -524,7 +526,7 @@ export default function CollectionEntry() {
                   </td>
                   <td className="py-4 px-6">
                     <div className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</div>
-                    <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerCode || txn.farmerId}</div>
+                    <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerId}</div>
                   </td>
                   <td className="py-4 px-6">
                     <span className={cn(
@@ -581,7 +583,7 @@ export default function CollectionEntry() {
               <div className="text-right">{selectedTxn.shift}</div>
 
               <div className="text-stone-500">Member:</div>
-              <div className="text-right font-bold">{selectedTxn.farmerName} ({selectedTxn.farmerCode || selectedTxn.farmerId})</div>
+              <div className="text-right font-bold">{selectedTxn.farmerName} ({selectedTxn.farmerId})</div>
             </div>
 
             <div className="border-y border-stone-200 py-2 space-y-1">

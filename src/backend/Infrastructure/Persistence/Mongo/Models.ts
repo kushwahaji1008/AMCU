@@ -6,6 +6,7 @@ import { MilkSale, Customer, User } from '../../../Core/Entities/Sale';
 // --- Farmer Schema ---
 export const FarmerSchema = new Schema({
   farmerId: { type: String, required: true },
+  farmerCode: { type: String },
   name: { type: String, required: true },
   mobile: { type: String, required: true },
   village: { type: String, required: true },
@@ -20,8 +21,9 @@ export const FarmerSchema = new Schema({
 
 // --- Collection Schema ---
 export const CollectionSchema = new Schema({
+  farmerInternalId: { type: String, required: true },
   farmerId: { type: String, required: true },
-  farmerCode: { type: String, required: true },
+  farmerCode: { type: String },
   farmerName: { type: String, required: true },
   date: { type: Date, required: true },
   shift: { type: String, enum: ['Morning', 'Evening'], required: true },
@@ -48,6 +50,7 @@ export const RateChartSchema = new Schema({
 
 // --- Ledger Schema ---
 export const LedgerSchema = new Schema({
+  farmerInternalId: { type: String, required: true },
   farmerId: { type: String, required: true },
   type: { type: String, enum: ['credit', 'debit'], required: true },
   amount: { type: Number, required: true },

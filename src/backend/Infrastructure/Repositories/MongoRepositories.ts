@@ -31,8 +31,16 @@ function mapDoc<T>(doc: any): T {
 export class MongoFarmerRepository implements IFarmerRepository {
   async getById(id: string): Promise<Farmer | null> {
     const model = await dbManager.getFarmerModel(getDatabaseId());
-    const doc = await model.findById(id);
-    return doc ? mapDoc<Farmer>(doc) : null;
+    
+    // Try finding by MongoDB _id first if it's a valid ObjectId
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      const doc = await model.findById(id);
+      if (doc) return mapDoc<Farmer>(doc);
+    }
+    
+    // Fallback: Try finding by user-assigned farmerId
+    const docByFarmerId = await model.findOne({ farmerId: id });
+    return docByFarmerId ? mapDoc<Farmer>(docByFarmerId) : null;
   }
 
   async getByFarmerId(farmerId: string): Promise<Farmer | null> {
@@ -55,26 +63,49 @@ export class MongoFarmerRepository implements IFarmerRepository {
 
   async update(id: string, farmer: Partial<Farmer>): Promise<Farmer> {
     const model = await dbManager.getFarmerModel(getDatabaseId());
-    const doc = await model.findByIdAndUpdate(id, farmer, { new: true });
+    
+    let doc;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      doc = await model.findByIdAndUpdate(id, farmer, { new: true });
+    }
+    
+    if (!doc) {
+      doc = await model.findOneAndUpdate({ farmerId: id }, farmer, { new: true });
+    }
+    
     if (!doc) throw new Error('Farmer not found');
     return mapDoc<Farmer>(doc);
   }
 
   async delete(id: string): Promise<void> {
     const model = await dbManager.getFarmerModel(getDatabaseId());
-    await model.findByIdAndDelete(id);
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      const deleted = await model.findByIdAndDelete(id);
+      if (deleted) return;
+    }
+    await model.findOneAndDelete({ farmerId: id });
   }
 
   /**
    * Aggregates summary data for a specific farmer.
    */
-  async getSummary(farmerId: string): Promise<FarmerSummary> {
+  async getSummary(id: string): Promise<FarmerSummary> {
     const databaseId = getDatabaseId();
+    const farmerModel = await dbManager.getFarmerModel(databaseId);
     const collectionModel = await dbManager.getCollectionModel(databaseId);
     const ledgerModel = await dbManager.getLedgerModel(databaseId);
 
-    const collections = await collectionModel.find({ farmerId });
-    const ledgers = await ledgerModel.find({ farmerId });
+    // Resolve internal ID if id is a farmerId
+    let farmerInternalId = id;
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      const farmer = await farmerModel.findOne({ farmerId: id });
+      if (farmer) {
+        farmerInternalId = farmer._id.toString();
+      }
+    }
+
+    const collections = await collectionModel.find({ farmerInternalId });
+    const ledgers = await ledgerModel.find({ farmerInternalId });
 
     const totalMilkSupplied = collections.reduce((sum, c) => sum + c.quantity, 0);
     const totalEarnings = collections.reduce((sum, c) => sum + c.amount, 0);
@@ -145,9 +176,21 @@ export class MongoCollectionRepository implements ICollectionRepository {
     return mapDoc<MilkCollection>(doc);
   }
 
-  async getByFarmerId(farmerId: string): Promise<MilkCollection[]> {
-    const model = await dbManager.getCollectionModel(getDatabaseId());
-    const docs = await model.find({ farmerId }).sort({ date: -1 });
+  async getByFarmerInternalId(id: string): Promise<MilkCollection[]> {
+    const databaseId = getDatabaseId();
+    const model = await dbManager.getCollectionModel(databaseId);
+    
+    // Resolve internal ID if id is a farmerId
+    let farmerInternalId = id;
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      const farmerModel = await dbManager.getFarmerModel(databaseId);
+      const farmer = await farmerModel.findOne({ farmerId: id });
+      if (farmer) {
+        farmerInternalId = farmer._id.toString();
+      }
+    }
+
+    const docs = await model.find({ farmerInternalId }).sort({ date: -1 });
     return docs.map(doc => mapDoc<MilkCollection>(doc));
   }
 }
@@ -198,9 +241,21 @@ export class MongoLedgerRepository implements ILedgerRepository {
     return mapDoc<LedgerEntry>(doc);
   }
 
-  async getByFarmerId(farmerId: string): Promise<LedgerEntry[]> {
-    const model = await dbManager.getLedgerModel(getDatabaseId());
-    const docs = await model.find({ farmerId });
+  async getByFarmerInternalId(id: string): Promise<LedgerEntry[]> {
+    const databaseId = getDatabaseId();
+    const model = await dbManager.getLedgerModel(databaseId);
+
+    // Resolve internal ID if id is a farmerId
+    let farmerInternalId = id;
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      const farmerModel = await dbManager.getFarmerModel(databaseId);
+      const farmer = await farmerModel.findOne({ farmerId: id });
+      if (farmer) {
+        farmerInternalId = farmer._id.toString();
+      }
+    }
+
+    const docs = await model.find({ farmerInternalId });
     return docs.map(doc => mapDoc<LedgerEntry>(doc));
   }
 

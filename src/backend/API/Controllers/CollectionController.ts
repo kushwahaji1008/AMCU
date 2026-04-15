@@ -67,7 +67,7 @@ export class CollectionController {
 
   async getByFarmerId(req: Request, res: Response) {
     try {
-      const collections = await this.collectionService.getByFarmerId(req.params.farmerId);
+      const collections = await this.collectionService.getByFarmerId(req.params.farmerInternalId);
       res.json(collections);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

@@ -40,8 +40,8 @@ export class ReportingController {
   }
 
   async getFarmerReport(req: Request, res: Response) {
-    const farmerId = req.params.farmerId;
-    const report = await this.reportingService.getFarmerWiseReport(farmerId);
+    const id = req.params.id;
+    const report = await this.reportingService.getFarmerWiseReport(id);
     res.json(report);
   }
 

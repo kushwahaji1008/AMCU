@@ -7,7 +7,7 @@ export class PaymentService {
   ) {}
 
   async recordPayment(data: {
-    farmerId: string;
+    farmerInternalId: string;
     amount: number;
     referenceId: string;
     date: Date;
@@ -18,18 +18,19 @@ export class PaymentService {
     operatorId?: string;
   }): Promise<void> {
     // 1. Verify Farmer exists
-    const farmer = await this.farmerRepo.getById(data.farmerId);
+    const farmer = await this.farmerRepo.getById(data.farmerInternalId);
     if (!farmer) {
       throw new Error('Farmer not found.');
     }
 
     // 2. Update Farmer Balance
     const newBalance = (farmer.balance || 0) - data.amount;
-    await this.farmerRepo.update(data.farmerId, { balance: newBalance });
+    await this.farmerRepo.update(data.farmerInternalId, { balance: newBalance });
 
     // 3. Update Ledger (DEBIT → payment done)
     await this.ledgerRepo.addEntry({
-      farmerId: data.farmerId,
+      farmerInternalId: data.farmerInternalId,
+      farmerId: farmer.farmerId,
       type: 'debit',
       amount: data.amount,
       referenceId: data.referenceId,
@@ -43,8 +44,8 @@ export class PaymentService {
     });
   }
 
-  async getFarmerBalance(farmerId: string): Promise<{ paid: number; pending: number }> {
-    const summary = await this.farmerRepo.getSummary(farmerId);
+  async getFarmerBalance(farmerInternalId: string): Promise<{ paid: number; pending: number }> {
+    const summary = await this.farmerRepo.getSummary(farmerInternalId);
     return {
       paid: summary.totalPaid,
       pending: summary.pendingAmount,

@@ -12,7 +12,7 @@ import { smsService } from '../services/smsService';
 export default function PaymentProcessing() {
   const { profile } = useAuth();
   const { handleError } = useErrorHandler();
-  const [searchId, setSearchId] = useState('');
+  const [searchCode, setSearchCode] = useState('');
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [payments, setPayments] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +71,7 @@ export default function PaymentProcessing() {
     setProcessing(true);
     try {
       const paymentData = {
-        farmerId: selectedFarmer.id, // Use MongoDB ID
+        farmerInternalId: selectedFarmer.id, // Use MongoDB ID
         amount: amount,
         method: paymentMethod,
         reference: reference,
@@ -104,9 +104,9 @@ export default function PaymentProcessing() {
   };
 
   const filteredFarmers = farmers.filter(f => 
-    f.name.toLowerCase().includes(searchId.toLowerCase()) || 
-    f.farmerId.includes(searchId)
-  ).filter(f => (f.balance || 0) > 0 || searchId !== '');
+    f.name.toLowerCase().includes(searchCode.toLowerCase()) || 
+    f.farmerId.includes(searchCode)
+  ).filter(f => (f.balance || 0) > 0 || searchCode !== '');
 
   return (
     <div className="space-y-8">
@@ -128,8 +128,8 @@ export default function PaymentProcessing() {
                 <input
                   type="text"
                   placeholder="Search Farmer..."
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
                 />
               </div>
@@ -313,9 +313,9 @@ export default function PaymentProcessing() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-stone-900 dark:text-white">
-                          {farmers.find(f => f.id === p.farmerId)?.name || 'Unknown Farmer'}
+                          {farmers.find(f => f.id === p.farmerInternalId)?.name || 'Unknown Farmer'}
                         </div>
-                        <div className="text-xs text-stone-400">ID: {farmers.find(f => f.id === p.farmerId)?.farmerId || p.farmerId}</div>
+                        <div className="text-xs text-stone-400">ID: {farmers.find(f => f.id === p.farmerInternalId)?.farmerId || p.farmerId}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(

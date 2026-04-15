@@ -69,7 +69,7 @@ export default function Reports() {
     const rows = transactions.map(t => [
       t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '',
       t.date ? format(new Date(t.date), 'hh:mm a') : '',
-      t.farmerCode || t.farmerId,
+      t.farmerId,
       t.farmerName,
       t.shift,
       t.milkType,
@@ -132,7 +132,7 @@ export default function Reports() {
         index + 1,
         t.date ? format(new Date(t.date), 'dd/MM/yy') : '',
         t.shift.charAt(0),
-        t.farmerName || t.farmerCode || t.farmerId,
+        t.farmerName || t.farmerId,
         t.milkType.charAt(0),
         t.quantity.toFixed(1),
         t.fat.toFixed(1),

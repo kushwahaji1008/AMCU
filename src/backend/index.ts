@@ -324,7 +324,7 @@ app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerCont
 app.post('/api/collections', authenticate, (req, res, next) => collectionController.createCollection(req, res).catch(next));
 app.put('/api/collections/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
 app.get('/api/collections/report', authenticate, (req, res, next) => collectionController.getDailyReport(req, res).catch(next));
-app.get('/api/collections/farmer/:farmerId', authenticate, (req, res, next) => collectionController.getByFarmerId(req, res).catch(next));
+app.get('/api/collections/farmer/:farmerInternalId', authenticate, (req, res, next) => collectionController.getByFarmerId(req, res).catch(next));
 app.post('/api/shifts/summary', authenticate, (req, res, next) => collectionController.createShiftSummary(req, res).catch(next));
 app.get('/api/shifts/summary', authenticate, (req, res, next) => collectionController.getShiftSummary(req, res).catch(next));
 app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionController.getRecentShiftSummaries(req, res).catch(next));
@@ -337,7 +337,7 @@ app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSa
 // Reporting & Analytics Routes
 app.get('/api/reports/dashboard', authenticate, (req, res, next) => reportingController.getDashboardStats(req, res).catch(next));
 app.get('/api/reports/daily', authenticate, (req, res, next) => reportingController.getDailyReport(req, res).catch(next));
-app.get('/api/reports/farmer/:farmerId', authenticate, (req, res, next) => reportingController.getFarmerReport(req, res).catch(next));
+app.get('/api/reports/farmer/:id', authenticate, (req, res, next) => reportingController.getFarmerReport(req, res).catch(next));
 app.get('/api/reports/bills', authenticate, (req, res, next) => reportingController.getPeriodicBills(req, res).catch(next));
 app.post('/api/reports/finalize-bills', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => reportingController.finalizePeriodicBills(req, res).catch(next));
 
@@ -392,9 +392,9 @@ app.get('/api/ledger', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.get('/api/ledger/farmer/:farmerId', authenticate, async (req, res, next) => {
+app.get('/api/ledger/farmer/:farmerInternalId', authenticate, async (req, res, next) => {
   try {
-    const entries = await ledgerRepo.getByFarmerId(req.params.farmerId);
+    const entries = await ledgerRepo.getByFarmerInternalId(req.params.farmerInternalId);
     res.json(entries);
   } catch (error) { next(error); }
 });
