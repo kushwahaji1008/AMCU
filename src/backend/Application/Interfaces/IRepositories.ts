@@ -40,7 +40,7 @@ export interface IRateChartRepository {
 }
 
 export interface ILedgerRepository {
-  addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
+  addEntry(entry: Omit<LedgerEntry, 'id'> & { id?: string }): Promise<LedgerEntry>;
   getByFarmerInternalId(farmerInternalId: string): Promise<LedgerEntry[]>;
   getAll(): Promise<LedgerEntry[]>;
   getByReferenceId(referenceId: string): Promise<LedgerEntry | null>;

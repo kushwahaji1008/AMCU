@@ -4,6 +4,14 @@ import { offlineService, db, accountsDb, initUserDatabases, isAndroidDevice } fr
 
 export default api;
 
+export function generateObjectId(): string {
+  const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');
+  const machine = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+  const pid = Math.floor(Math.random() * 65535).toString(16).padStart(4, '0');
+  const increment = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+  return (timestamp + machine + pid + increment).substring(0, 24);
+}
+
 export const authApi = {
   login: async (credentials: any) => {
     try {
@@ -140,27 +148,20 @@ export const farmerApi = {
     return api.get(`/farmers/search/${farmerId}`);
   },
   create: async (data: any) => {
-    const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    const putRes = await db.farmers.put(doc);
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
+    await db.farmers.put(doc);
     
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_FARMER', data);
+      await offlineService.queueTask('CREATE_FARMER', doc);
       return { data: doc };
     }
     try {
-      const serverRes = await api.post('/farmers', data);
-      await db.farmers.remove(doc._id, putRes.rev).catch(() => {}); // clean temp doc safely using rev
-      try {
-        const existing = await db.farmers.get(serverRes.data.id || serverRes.data._id);
-        await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id, _rev: existing._rev });
-      } catch (e) {
-        await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
-      }
+      const serverRes = await api.post('/farmers', doc);
       return serverRes;
     } catch (e) {
       // falling back to offline task
-      await offlineService.queueTask('CREATE_FARMER', data);
+      await offlineService.queueTask('CREATE_FARMER', doc);
       return { data: doc };
     }
   },
@@ -223,26 +224,19 @@ export const farmerApi = {
 
 export const collectionApi = {
   create: async (data: any) => {
-    const tempId = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    const putRes = await db.collections.put(doc);
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
+    await db.collections.put(doc);
 
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_COLLECTION', data);
+      await offlineService.queueTask('CREATE_COLLECTION', doc);
       return { data: doc };
     }
     try {
-      const res = await api.post('/collections', data);
-      await db.collections.remove(doc._id, putRes.rev).catch(() => {});
-      try {
-        const existing = await db.collections.get(res.data.id || res.data._id);
-        await db.collections.put({ ...res.data, _id: res.data.id || res.data._id, _rev: existing._rev });
-      } catch (e) {
-        await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
-      }
+      const res = await api.post('/collections', doc);
       return res;
     } catch (e) {
-      await offlineService.queueTask('CREATE_COLLECTION', data);
+      await offlineService.queueTask('CREATE_COLLECTION', doc);
       return { data: doc };
     }
   },
@@ -293,17 +287,18 @@ export const collectionApi = {
 
 export const shiftApi = {
   createSummary: async (data: any) => {
-    const doc = { ...data, _id: 'shift_' + Date.now() };
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
     await db.shifts.put(doc);
     
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_SHIFT', data);
+      await offlineService.queueTask('CREATE_SHIFT', doc);
       return { data: doc };
     }
     try {
-      return await api.post('/shifts/summary', data);
+      return await api.post('/shifts/summary', doc);
     } catch (e) {
-      await offlineService.queueTask('CREATE_SHIFT', data);
+      await offlineService.queueTask('CREATE_SHIFT', doc);
       return { data: doc };
     }
   },
@@ -332,26 +327,35 @@ export const saleApi = {
     return api.get('/customers');
   },
   createCustomer: async (data: any) => {
-    const doc = { ...data, _id: 'cust_' + Date.now() };
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
     await db.salesCustomers.put(doc);
 
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
+      await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
       return { data: doc };
     }
     try {
-      return await api.post('/customers', data);
+      return await api.post('/customers', doc);
     } catch (e) {
-      await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
+      await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
       return { data: doc };
     }
   },
   recordSale: async (data: any) => {
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
     if (isAndroidDevice() || !offlineService.isOnline) {
-      const doc = await offlineService.recordSaleOffline(data);
-      return { data: doc };
+      const savedDoc = await offlineService.recordSaleOffline(doc);
+      return { data: savedDoc };
     }
-    return api.post('/sales', data);
+    try {
+      const res = await api.post('/sales', doc);
+      return res;
+    } catch (err) {
+      const savedDoc = await offlineService.recordSaleOffline(doc);
+      return { data: savedDoc };
+    }
   },
 };
 
@@ -414,17 +418,18 @@ export const rateApi = {
     return api.get('/rates');
   },
   create: async (data: any) => {
-    const doc = { ...data, _id: 'rate_' + Date.now() };
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
     await db.rates.put(doc);
 
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_RATE', data);
+      await offlineService.queueTask('CREATE_RATE', doc);
       return { data: doc };
     }
     try {
-      return await api.post('/rates', data);
+      return await api.post('/rates', doc);
     } catch (e) {
-      await offlineService.queueTask('CREATE_RATE', data);
+      await offlineService.queueTask('CREATE_RATE', doc);
       return { data: doc };
     }
   },
@@ -503,11 +508,18 @@ export const paymentApi = {
     return api.get(`/ledger/farmer/${farmerInternalId}`);
   },
   recordPayment: async (data: any) => {
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId, date: data.date || new Date().toISOString() };
     if (isAndroidDevice() || !offlineService.isOnline) {
-      const doc = await offlineService.recordPaymentOffline(data);
-      return { data: doc };
+      const savedDoc = await offlineService.recordPaymentOffline(doc);
+      return { data: savedDoc };
     }
-    return api.post('/payments', data);
+    try {
+      return await api.post('/payments', doc);
+    } catch (e) {
+      const savedDoc = await offlineService.recordPaymentOffline(doc);
+      return { data: savedDoc };
+    }
   },
 };
 
@@ -521,17 +533,18 @@ export const userApi = {
     return api.get(`/users${role ? `?role=${role}` : ''}`);
   },
   create: async (data: any) => {
-    const doc = { ...data, _id: 'user_' + Date.now() };
+    const objectId = generateObjectId();
+    const doc = { ...data, id: objectId, _id: objectId };
     await db.users.put(doc);
 
     if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_USER', data);
+      await offlineService.queueTask('CREATE_USER', doc);
       return { data: doc };
     }
     try {
-      return await api.post('/users', data);
+      return await api.post('/users', doc);
     } catch (e) {
-      await offlineService.queueTask('CREATE_USER', data);
+      await offlineService.queueTask('CREATE_USER', doc);
       return { data: doc };
     }
   },

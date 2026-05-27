@@ -55,9 +55,11 @@ export class MongoFarmerRepository implements IFarmerRepository {
     return docs.map(doc => mapDoc<Farmer>(doc));
   }
 
-  async create(farmer: Omit<Farmer, 'id' | 'createdAt'>): Promise<Farmer> {
+  async create(farmer: any): Promise<Farmer> {
     const model = await dbManager.getFarmerModel(getDatabaseId());
-    const doc = await model.create(farmer);
+    const dataToCreate = { ...farmer };
+    if (farmer.id && !farmer._id) dataToCreate._id = farmer.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<Farmer>(doc);
   }
 
@@ -139,9 +141,11 @@ export class MongoCollectionRepository implements ICollectionRepository {
     return docs.map(doc => mapDoc<MilkCollection>(doc));
   }
 
-  async create(collection: Omit<MilkCollection, 'id' | 'createdAt'>): Promise<MilkCollection> {
+  async create(collection: any): Promise<MilkCollection> {
     const model = await dbManager.getCollectionModel(getDatabaseId());
-    const doc = await model.create(collection);
+    const dataToCreate = { ...collection };
+    if (collection.id && !collection._id) dataToCreate._id = collection.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<MilkCollection>(doc);
   }
 
@@ -214,9 +218,11 @@ export class MongoRateChartRepository implements IRateChartRepository {
     return docs.map(doc => mapDoc<RateChart>(doc));
   }
 
-  async create(rate: Omit<RateChart, 'id'>): Promise<RateChart> {
+  async create(rate: any): Promise<RateChart> {
     const model = await dbManager.getRateChartModel(getDatabaseId());
-    const doc = await model.create(rate);
+    const dataToCreate = { ...rate };
+    if (rate.id && !rate._id) dataToCreate._id = rate.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<RateChart>(doc);
   }
 
@@ -235,9 +241,11 @@ export class MongoRateChartRepository implements IRateChartRepository {
 
 // --- Ledger Repository ---
 export class MongoLedgerRepository implements ILedgerRepository {
-  async addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry> {
+  async addEntry(entry: any): Promise<LedgerEntry> {
     const model = await dbManager.getLedgerModel(getDatabaseId());
-    const doc = await model.create(entry);
+    const dataToCreate = { ...entry };
+    if (entry.id && !entry._id) dataToCreate._id = entry.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<LedgerEntry>(doc);
   }
 
@@ -274,9 +282,11 @@ export class MongoLedgerRepository implements ILedgerRepository {
 
 // --- Shift Summary Repository ---
 export class MongoShiftSummaryRepository implements IShiftSummaryRepository {
-  async create(summary: Omit<ShiftSummary, 'id'>): Promise<ShiftSummary> {
+  async create(summary: any): Promise<ShiftSummary> {
     const model = await dbManager.getShiftSummaryModel(getDatabaseId());
-    const doc = await model.create(summary);
+    const dataToCreate = { ...summary };
+    if (summary.id && !summary._id) dataToCreate._id = summary.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<ShiftSummary>(doc);
   }
 
@@ -295,9 +305,11 @@ export class MongoShiftSummaryRepository implements IShiftSummaryRepository {
 
 // --- Sale Repository ---
 export class MongoSaleRepository implements ISaleRepository {
-  async create(sale: Omit<MilkSale, 'id' | 'createdAt'>): Promise<MilkSale> {
+  async create(sale: any): Promise<MilkSale> {
     const model = await dbManager.getSaleModel(getDatabaseId());
-    const doc = await model.create(sale);
+    const dataToCreate = { ...sale };
+    if (sale.id && !sale._id) dataToCreate._id = sale.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<MilkSale>(doc);
   }
 
@@ -314,9 +326,11 @@ export class MongoSaleRepository implements ISaleRepository {
 
 // --- Customer Repository ---
 export class MongoCustomerRepository implements ICustomerRepository {
-  async create(customer: Omit<Customer, 'id' | 'createdAt'>): Promise<Customer> {
+  async create(customer: any): Promise<Customer> {
     const model = await dbManager.getCustomerModel(getDatabaseId());
-    const doc = await model.create(customer);
+    const dataToCreate = { ...customer };
+    if (customer.id && !customer._id) dataToCreate._id = customer.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<Customer>(doc);
   }
 
@@ -343,9 +357,11 @@ export class MongoUserRepository implements IUserRepository {
     return docs.map(doc => mapDoc<User>(doc));
   }
 
-  async create(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+  async create(user: any): Promise<User> {
     const model = await dbManager.getUserModel('(default)');
-    const doc = await model.create(user);
+    const dataToCreate = { ...user };
+    if (user.id && !user._id) dataToCreate._id = user.id;
+    const doc = await model.create(dataToCreate);
     return mapDoc<User>(doc);
   }
 

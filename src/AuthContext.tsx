@@ -9,7 +9,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from './services/api';
 import { db as firebaseDb } from './firebase';
 import { Firestore } from 'firebase/firestore';
-import { initUserDatabases } from './services/offlineService';
+import { initUserDatabases, offlineService } from './services/offlineService';
 
 export interface UserProfile {
   uid: string;
@@ -64,6 +64,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(p);
         if (p && p.uid) {
           initUserDatabases(p.uid);
+          if (navigator.onLine) {
+            offlineService.processSyncQueue()
+              .then(() => offlineService.syncFromServer())
+              .catch(console.error);
+          }
         }
       } catch (e) {
         console.error("Failed to parse saved profile", e);
@@ -139,6 +144,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ token });
     setProfile(p);
 
+    if (navigator.onLine) {
+      offlineService.processSyncQueue()
+        .then(() => offlineService.syncFromServer())
+        .catch(console.error);
+    }
+
     return { requiresOTP: false };
   };
 
@@ -175,6 +186,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     setUser({ token });
     setProfile(p);
+
+    if (navigator.onLine) {
+      offlineService.processSyncQueue()
+        .then(() => offlineService.syncFromServer())
+        .catch(console.error);
+    }
 
     return { requiresOTP: false };
   };

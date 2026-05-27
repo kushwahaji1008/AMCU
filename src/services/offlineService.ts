@@ -458,11 +458,11 @@ class OfflineService {
   async recordSaleOffline(payload: any) {
     const doc = {
       ...payload,
-      _id: 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      createdAt: new Date().toISOString()
+      _id: payload._id || payload.id || 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      createdAt: payload.createdAt || new Date().toISOString()
     };
     await db.salesRecords.put(doc);
-    await this.queueTask('RECORD_SALE', payload);
+    await this.queueTask('RECORD_SALE', doc);
     return doc;
   }
 
@@ -503,11 +503,11 @@ class OfflineService {
   async recordPaymentOffline(payload: any) {
     const doc = {
       ...payload,
-      _id: 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      date: new Date().toISOString()
+      _id: payload._id || payload.id || 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      date: payload.date || new Date().toISOString()
     };
     await db.ledgers.put(doc);
-    await this.queueTask('RECORD_PAYMENT', payload);
+    await this.queueTask('RECORD_PAYMENT', doc);
     return doc;
   }
 

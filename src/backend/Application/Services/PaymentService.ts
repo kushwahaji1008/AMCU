@@ -7,6 +7,7 @@ export class PaymentService {
   ) {}
 
   async recordPayment(data: {
+    id?: string;
     farmerInternalId: string;
     amount: number;
     referenceId: string;
@@ -29,6 +30,7 @@ export class PaymentService {
 
     // 3. Update Ledger (DEBIT → payment done)
     await this.ledgerRepo.addEntry({
+      id: data.id,
       farmerInternalId: data.farmerInternalId,
       farmerId: farmer.farmerId,
       type: 'debit',
