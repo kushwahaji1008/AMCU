@@ -59,7 +59,8 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     // 4. Verify Session ID (Single-Device Enforcement)
-    // Fetches the user from the global registry to check if a newer session exists.
+    // Relaxed to support concurrent logins and background offline synchronization across web and Android devices.
+    /*
     if (decoded.sid) {
       const userModel = await dbManager.getUserModel('(default)');
       const user = await userModel.findById(decoded.id);
@@ -71,6 +72,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         });
       }
     }
+    */
 
     req.user = decoded;
     

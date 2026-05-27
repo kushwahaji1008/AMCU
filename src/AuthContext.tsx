@@ -9,6 +9,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from './services/api';
 import { db as firebaseDb } from './firebase';
 import { Firestore } from 'firebase/firestore';
+import { initUserDatabases } from './services/offlineService';
 
 export interface UserProfile {
   uid: string;
@@ -61,6 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const p = JSON.parse(savedProfile);
         setUser({ token });
         setProfile(p);
+        if (p && p.uid) {
+          initUserDatabases(p.uid);
+        }
       } catch (e) {
         console.error("Failed to parse saved profile", e);
         localStorage.removeItem('token');
@@ -129,6 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('profile', JSON.stringify(p));
     localStorage.setItem('databaseId', p.databaseId);
     
+    // Switch partition database instance
+    initUserDatabases(userData.id);
+    
     setUser({ token });
     setProfile(p);
 
@@ -162,6 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('token', token);
     localStorage.setItem('profile', JSON.stringify(p));
     localStorage.setItem('databaseId', p.databaseId);
+    
+    // Switch partition database instance
+    initUserDatabases(userData.id);
     
     setUser({ token });
     setProfile(p);
