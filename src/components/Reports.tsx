@@ -45,7 +45,7 @@ export default function Reports() {
   }, [dateRange, activeTab]);
 
   const handleApprove = async (id: string) => {
-    if (profile?.role !== 'admin') return;
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') return;
     try {
       await collectionApi.update(id, {
         isApproved: true,
@@ -330,7 +330,7 @@ export default function Reports() {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm font-medium text-stone-900 dark:text-white">₹{(t.amount || 0).toFixed(2)}</span>
-                      {activeTab === 'pending' && profile?.role === 'admin' && (
+                      {activeTab === 'pending' && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
                         <button
                           onClick={() => handleApprove(t.id)}
                           className="p-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"

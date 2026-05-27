@@ -28,11 +28,19 @@ export default function UserManagement() {
     try {
       const role = activeTab === 'Admins' ? 'admin' : 'operator';
       const response = await userApi.getAll(role);
-      // Filter by dairyId on frontend if not super_admin
-      let filtered = response.data;
+      
+      // Filter by dairyId/databaseId context
+      let filtered = response.data || [];
       if (profile.role !== 'super_admin') {
         filtered = filtered.filter((u: any) => u.dairyId === profile.dairyId);
+      } else {
+        // Super Admin viewing users:
+        // If a specific dairy database is active, show only users belonging to that database
+        if (profile.databaseId !== 'dugdhaset.superadmin') {
+          filtered = filtered.filter((u: any) => u.databaseId === profile.databaseId);
+        }
       }
+
       setUsers(filtered.map((u: any) => ({
         uid: u.id,
         email: u.username,
@@ -67,13 +75,43 @@ export default function UserManagement() {
 
     setLoading(true);
     try {
+      let userRole: 'admin' | 'operator' = 'operator';
+      if (profile.role === 'super_admin') {
+        userRole = activeTab === 'Admins' ? 'admin' : 'operator';
+      } else if (profile.role === 'admin') {
+        userRole = 'operator';
+      }
+
+      let userDatabaseId = '(default)';
+      let userDairyId = '';
+
+      if (profile.role === 'super_admin') {
+        if (activeTab === 'Admins') {
+          userDatabaseId = newUser.databaseId || profile.databaseId || '(default)';
+          userDairyId = userDatabaseId;
+        } else {
+          // Creating operator under active dairy database
+          if (profile.databaseId === 'dugdhaset.superadmin') {
+            toast.error('Please select a specific dairy database from the sidebar before adding an operator.');
+            setLoading(false);
+            return;
+          }
+          userDatabaseId = profile.databaseId;
+          userDairyId = profile.databaseId;
+        }
+      } else {
+        // Standard Admin
+        userDatabaseId = profile.databaseId || '(default)';
+        userDairyId = profile.dairyId || '';
+      }
+
       const userData = {
         username: newUser.username,
         email: newUser.username,
         password: newUser.password || 'User@123', // Default password
-        role: profile.role === 'super_admin' && activeTab === 'Admins' ? 'admin' : 'operator',
-        dairyId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '') : profile.dairyId,
-        databaseId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '(default)') : profile.databaseId,
+        role: userRole,
+        dairyId: userDairyId,
+        databaseId: userDatabaseId,
       };
 
       await userApi.create(userData);

@@ -142,7 +142,7 @@ export const farmerApi = {
   create: async (data: any) => {
     const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
-    await db.farmers.put(doc);
+    const putRes = await db.farmers.put(doc);
     
     if (isAndroidDevice() || !offlineService.isOnline) {
       await offlineService.queueTask('CREATE_FARMER', data);
@@ -150,8 +150,13 @@ export const farmerApi = {
     }
     try {
       const serverRes = await api.post('/farmers', data);
-      await db.farmers.remove(doc); // clean temp doc
-      await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
+      await db.farmers.remove(doc._id, putRes.rev).catch(() => {}); // clean temp doc safely using rev
+      try {
+        const existing = await db.farmers.get(serverRes.data.id || serverRes.data._id);
+        await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id, _rev: existing._rev });
+      } catch (e) {
+        await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
+      }
       return serverRes;
     } catch (e) {
       // falling back to offline task
@@ -220,7 +225,7 @@ export const collectionApi = {
   create: async (data: any) => {
     const tempId = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
-    await db.collections.put(doc);
+    const putRes = await db.collections.put(doc);
 
     if (isAndroidDevice() || !offlineService.isOnline) {
       await offlineService.queueTask('CREATE_COLLECTION', data);
@@ -228,8 +233,13 @@ export const collectionApi = {
     }
     try {
       const res = await api.post('/collections', data);
-      await db.collections.remove(doc);
-      await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
+      await db.collections.remove(doc._id, putRes.rev).catch(() => {});
+      try {
+        const existing = await db.collections.get(res.data.id || res.data._id);
+        await db.collections.put({ ...res.data, _id: res.data.id || res.data._id, _rev: existing._rev });
+      } catch (e) {
+        await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
+      }
       return res;
     } catch (e) {
       await offlineService.queueTask('CREATE_COLLECTION', data);

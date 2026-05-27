@@ -6,6 +6,17 @@ PouchDB.plugin(pouchdbFind);
 
 // Helper to check if running on Android/device
 export function isAndroidDevice(): boolean {
+  // If online and super admin, we bypass offline-first behavior to let super admin manage everything on the server
+  try {
+    const savedProfile = localStorage.getItem('profile');
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile);
+      if (profile?.role === 'super_admin' && navigator.onLine) {
+        return false;
+      }
+    }
+  } catch (e) {}
+
   const ua = navigator.userAgent.toLowerCase();
   return /android/i.test(ua) || !!(window as any).isAndroid || !!(window as any).Capacitor || !!(window as any).cordova;
 }
@@ -19,10 +30,15 @@ const getInitialUserId = (): string => {
     const savedProfile = localStorage.getItem('profile');
     if (savedProfile) {
       const profile = JSON.parse(savedProfile);
-      if (profile && profile.uid) return profile.uid;
+      if (profile && profile.uid) {
+        const dbId = localStorage.getItem('databaseId') || profile.databaseId || '(default)';
+        return `${profile.uid}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
     }
   } catch (e) {}
-  return localStorage.getItem('last_active_userId') || 'default';
+  const dbId = localStorage.getItem('databaseId') || '(default)';
+  const lastUser = localStorage.getItem('last_active_userId') || 'default';
+  return `${lastUser}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
 };
 
 let activeUserId = getInitialUserId();
@@ -59,42 +75,45 @@ createIndexes(db);
 
 export function initUserDatabases(userId: string) {
   if (!userId) userId = 'default';
-  if (activeUserId === userId) return;
+  const dbId = localStorage.getItem('databaseId') || '(default)';
+  const partitionedUserId = `${userId}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
   
-  activeUserId = userId;
+  if (activeUserId === partitionedUserId) return;
+  
+  activeUserId = partitionedUserId;
   localStorage.setItem('last_active_userId', userId);
   
   // Close old PouchDB connections
   try {
-    db.farmers.close();
-    db.collections.close();
-    db.shifts.close();
-    db.salesCustomers.close();
-    db.salesRecords.close();
-    db.rates.close();
-    db.rateSettings.close();
-    db.payments.close();
-    db.ledgers.close();
-    db.users.close();
-    db.dairies.close();
-    db.syncQueue.close();
+    db.farmers.close().catch(() => {});
+    db.collections.close().catch(() => {});
+    db.shifts.close().catch(() => {});
+    db.salesCustomers.close().catch(() => {});
+    db.salesRecords.close().catch(() => {});
+    db.rates.close().catch(() => {});
+    db.rateSettings.close().catch(() => {});
+    db.payments.close().catch(() => {});
+    db.ledgers.close().catch(() => {});
+    db.users.close().catch(() => {});
+    db.dairies.close().catch(() => {});
+    db.syncQueue.close().catch(() => {});
   } catch (e) {
     console.error("Error closing PouchDB connections", e);
   }
 
   // Re-initialize for the new user ID
-  db.farmers = new PouchDB(`farmers_${userId}`);
-  db.collections = new PouchDB(`collections_${userId}`);
-  db.shifts = new PouchDB(`shifts_${userId}`);
-  db.salesCustomers = new PouchDB(`sales_customers_${userId}`);
-  db.salesRecords = new PouchDB(`sales_records_${userId}`);
-  db.rates = new PouchDB(`rates_${userId}`);
-  db.rateSettings = new PouchDB(`rate_settings_${userId}`);
-  db.payments = new PouchDB(`payments_${userId}`);
-  db.ledgers = new PouchDB(`ledgers_${userId}`);
-  db.users = new PouchDB(`users_${userId}`);
-  db.dairies = new PouchDB(`dairies_${userId}`);
-  db.syncQueue = new PouchDB(`sync_queue_${userId}`);
+  db.farmers = new PouchDB(`farmers_${partitionedUserId}`);
+  db.collections = new PouchDB(`collections_${partitionedUserId}`);
+  db.shifts = new PouchDB(`shifts_${partitionedUserId}`);
+  db.salesCustomers = new PouchDB(`sales_customers_${partitionedUserId}`);
+  db.salesRecords = new PouchDB(`sales_records_${partitionedUserId}`);
+  db.rates = new PouchDB(`rates_${partitionedUserId}`);
+  db.rateSettings = new PouchDB(`rate_settings_${partitionedUserId}`);
+  db.payments = new PouchDB(`payments_${partitionedUserId}`);
+  db.ledgers = new PouchDB(`ledgers_${partitionedUserId}`);
+  db.users = new PouchDB(`users_${partitionedUserId}`);
+  db.dairies = new PouchDB(`dairies_${partitionedUserId}`);
+  db.syncQueue = new PouchDB(`sync_queue_${partitionedUserId}`);
 
   // Create indexes for new connections
   createIndexes(db);
