@@ -131,6 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dairyId: userData.dairyId,
       databaseId: userData.databaseId,
       createdAt: userData.createdAt,
+      dairyName: userData.dairyName,
+      address: userData.address,
+      phone: userData.phone,
     };
 
     // Persist session
@@ -141,14 +144,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Switch partition database instance
     initUserDatabases(userData.id);
     
+    if (navigator.onLine) {
+      try {
+        await offlineService.processSyncQueue();
+        await offlineService.syncFromServer();
+      } catch (syncErr) {
+        console.error("Initial sync on login failed:", syncErr);
+      }
+    }
+
     setUser({ token });
     setProfile(p);
-
-    if (navigator.onLine) {
-      offlineService.processSyncQueue()
-        .then(() => offlineService.syncFromServer())
-        .catch(console.error);
-    }
 
     return { requiresOTP: false };
   };
@@ -175,6 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dairyId: userData.dairyId,
       databaseId: userData.databaseId,
       createdAt: userData.createdAt,
+      dairyName: userData.dairyName,
+      address: userData.address,
+      phone: userData.phone,
     };
 
     localStorage.setItem('token', token);
@@ -184,14 +193,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Switch partition database instance
     initUserDatabases(userData.id);
     
+    if (navigator.onLine) {
+      try {
+        await offlineService.processSyncQueue();
+        await offlineService.syncFromServer();
+      } catch (syncErr) {
+        console.error("Initial sync on login failed:", syncErr);
+      }
+    }
+
     setUser({ token });
     setProfile(p);
-
-    if (navigator.onLine) {
-      offlineService.processSyncQueue()
-        .then(() => offlineService.syncFromServer())
-        .catch(console.error);
-    }
 
     return { requiresOTP: false };
   };

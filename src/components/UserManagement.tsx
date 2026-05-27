@@ -32,7 +32,8 @@ export default function UserManagement() {
       // Filter by dairyId/databaseId context
       let filtered = response.data || [];
       if (profile.role !== 'super_admin') {
-        filtered = filtered.filter((u: any) => u.dairyId === profile.dairyId);
+        const activeDairyId = profile.dairyId || profile.databaseId;
+        filtered = filtered.filter((u: any) => (u.dairyId === activeDairyId || u.databaseId === activeDairyId));
       } else {
         // Super Admin viewing users:
         // If a specific dairy database is active, show only users belonging to that database
@@ -102,7 +103,7 @@ export default function UserManagement() {
       } else {
         // Standard Admin
         userDatabaseId = profile.databaseId || '(default)';
-        userDairyId = profile.dairyId || '';
+        userDairyId = profile.dairyId || profile.databaseId || '';
       }
 
       const userData = {

@@ -257,7 +257,7 @@ export default function CollectionEntry() {
         clr: parseFloat(formData.clr) || 0,
         rate: calculated.rate,
         operatorId: profile?.uid || 'unknown',
-        dairyId: profile?.dairyId || '',
+        dairyId: profile?.dairyId || profile?.databaseId || '',
       };
 
       await collectionApi.create(txnData);

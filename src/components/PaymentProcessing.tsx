@@ -78,7 +78,7 @@ export default function PaymentProcessing() {
         date: new Date(),
         description: `Payment: ${paymentMethod}${reference ? ` (${reference})` : ''}`,
         referenceId: `PAY-${Date.now()}`,
-        dairyId: profile?.dairyId || '',
+        dairyId: profile?.dairyId || profile?.databaseId || '',
         operatorId: profile?.uid || 'system'
       };
 

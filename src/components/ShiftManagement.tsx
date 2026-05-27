@@ -103,7 +103,7 @@ export default function ShiftManagement() {
         amount: shiftStats.amount,
         closedAt: new Date(),
         closedBy: profile?.name || 'Unknown',
-        dairyId: profile?.dairyId || 'global'
+        dairyId: profile?.dairyId || profile?.databaseId || 'global'
       };
 
       await shiftApi.createSummary(summary);

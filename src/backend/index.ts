@@ -184,8 +184,8 @@ const reportingController = new ReportingController(reportingService);
 // Authentication Routes
 app.post('/api/auth/register', validateRegistration, async (req, res, next) => {
   try {
-    const { username, email, password, role, dairyData, dairyId, databaseId } = req.body;
-    const user = await authService.register(username, email, password, role, dairyData, dairyId, databaseId);
+    const { username, email, password, role, dairyData, dairyId, databaseId, id, _id } = req.body;
+    const user = await authService.register(username, email, password, role, dairyData, dairyId, databaseId, id || _id);
     res.status(201).json(user);
   } catch (error) { next(error); }
 });
@@ -263,6 +263,65 @@ app.get('/api/dairies', authenticate, authorize(['super_admin']), async (req, re
   try {
     const dairies = await dairyRepo.getAll();
     res.json(dairies);
+  } catch (error) { next(error); }
+});
+
+// PUT update dairy details (Admins and Super Admins)
+app.put('/api/dairies/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const model = await dbManager.getDairyModel('(default)');
+    let dairyDoc = await model.findById(id).catch(() => null);
+    if (!dairyDoc) {
+      dairyDoc = await model.findOne({ databaseId: id });
+    }
+    
+    if (!dairyDoc) {
+      return res.status(404).json({ message: 'Dairy not found' });
+    }
+    
+    // Check ownership if they are NOT super_admin
+    if (req.user?.role !== 'super_admin' && dairyDoc.ownerId !== req.user?.id && dairyDoc.databaseId !== req.user?.databaseId) {
+      return res.status(403).json({ message: 'Access denied: You do not own this dairy' });
+    }
+    
+    Object.assign(dairyDoc, req.body);
+    await dairyDoc.save();
+    
+    const mapped = dairyDoc.toObject();
+    mapped.id = dairyDoc._id.toString();
+    delete mapped._id;
+    delete mapped.__v;
+    
+    res.json(mapped);
+  } catch (error) { next(error); }
+});
+
+// GET query specific dairy details (Admins and Super Admins)
+app.get('/api/dairies/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const model = await dbManager.getDairyModel('(default)');
+    let dairyDoc = await model.findById(id).catch(() => null);
+    if (!dairyDoc) {
+      dairyDoc = await model.findOne({ databaseId: id });
+    }
+    
+    if (!dairyDoc) {
+      return res.status(404).json({ message: 'Dairy not found' });
+    }
+    
+    // Check ownership if they are NOT super_admin
+    if (req.user?.role !== 'super_admin' && dairyDoc.ownerId !== req.user?.id && dairyDoc.databaseId !== req.user?.databaseId) {
+      return res.status(403).json({ message: 'Access denied: You do not own this dairy' });
+    }
+    
+    const mapped = dairyDoc.toObject();
+    mapped.id = dairyDoc._id.toString();
+    delete mapped._id;
+    delete mapped.__v;
+
+    res.json(mapped);
   } catch (error) { next(error); }
 });
 
@@ -407,24 +466,59 @@ app.post('/api/payments', authenticate, authorize(['admin', 'super_admin']), asy
 });
 
 // User Management (Admin only)
-app.get('/api/users', authenticate, async (req, res, next) => {
+app.get('/api/users', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
     const role = req.query.role as string;
-    const users = await userRepo.getAll(role);
+    let users = await userRepo.getAll(role);
+    
+    if (req.user?.role !== 'super_admin') {
+      const dbId = req.user?.databaseId;
+      users = users.filter(u => u.databaseId === dbId || u.dairyId === dbId || u.id === req.user?.id);
+    }
+    
     res.json(users);
   } catch (error) { next(error); }
 });
 
 app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
-    const { username, password, role, dairyData, dairyId, databaseId } = req.body;
-    const user = await authService.register(username, password, role, dairyData, dairyId, databaseId);
+    const { username, email, password, role, dairyData, dairyId, databaseId, id, _id } = req.body;
+    
+    // Ensure admin cannot create users in other databases
+    if (req.user?.role !== 'super_admin') {
+      if ((databaseId && databaseId !== req.user?.databaseId) || (dairyId && dairyId !== req.user?.databaseId)) {
+         return res.status(403).json({ message: 'Access denied: Cannot create user for another database' });
+      }
+    }
+    
+    const user = await authService.register(
+      username, 
+      email || username, 
+      password, 
+      role, 
+      dairyData, 
+      dairyId, 
+      databaseId, 
+      id || _id
+    );
     res.status(201).json(user);
   } catch (error) { next(error); }
 });
 
 app.put('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
+    // Check if the user belongs to the same database if not super_admin
+    if (req.user?.role !== 'super_admin') {
+      const existingUsers = await userRepo.getAll();
+      const existingUser = existingUsers.find(u => u.id === req.params.id);
+      if (!existingUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      if (existingUser.databaseId !== req.user?.databaseId && existingUser.dairyId !== req.user?.databaseId && existingUser.id !== req.user?.id) {
+         return res.status(403).json({ message: 'Access denied: Cannot update user in another database' });
+      }
+    }
+    
     const user = await userRepo.update(req.params.id, req.body);
     res.json(user);
   } catch (error) { next(error); }
@@ -432,6 +526,18 @@ app.put('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), asy
 
 app.delete('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
+    // Check if the user belongs to the same database if not super_admin
+    if (req.user?.role !== 'super_admin') {
+      const existingUsers = await userRepo.getAll();
+      const existingUser = existingUsers.find(u => u.id === req.params.id);
+      if (!existingUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      if (existingUser.databaseId !== req.user?.databaseId && existingUser.dairyId !== req.user?.databaseId && existingUser.id !== req.user?.id) {
+         return res.status(403).json({ message: 'Access denied: Cannot delete user in another database' });
+      }
+    }
+    
     await userRepo.delete(req.params.id);
     res.json({ success: true });
   } catch (error) { next(error); }

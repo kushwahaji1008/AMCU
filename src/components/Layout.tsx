@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
 import ErrorBoundary from './ErrorBoundary';
 import { offlineService } from '../services/offlineService';
+import { toast } from 'sonner';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, logout, switchDatabase, isAuthReady } = useAuth();
@@ -120,6 +121,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <WifiOff size={16} />
               <span className="text-xs font-medium">Offline Mode</span>
             </div>
+          )}
+
+          {isOnline && (
+            <button
+              onClick={async () => {
+                const toastId = toast.loading('Syncing and backing up data...');
+                try {
+                  await offlineService.processSyncQueue();
+                  await offlineService.syncFromServer();
+                  toast.success('Synchronization & backup successful!', { id: toastId });
+                } catch (e: any) {
+                  toast.error(`Sync failed: ${e.message || e}`, { id: toastId });
+                }
+              }}
+              style={{ contentVisibility: 'auto' }}
+              className="mx-6 mb-4 px-3 py-2 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl flex items-center justify-center gap-2 text-stone-700 dark:text-stone-300 transition-all cursor-pointer text-xs font-medium"
+            >
+              <RefreshCw size={14} className="animate-spin-slow text-stone-500" />
+              <span>Sync with Server</span>
+            </button>
           )}
 
           {/* Quick Actions / Toggles */}

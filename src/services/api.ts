@@ -15,8 +15,8 @@ export function generateObjectId(): string {
 export const authApi = {
   login: async (credentials: any) => {
     try {
-      // Offline mode login or Android offline first login check
-      if (!offlineService.isOnline || isAndroidDevice()) {
+      // Offline mode login when network is disconnected
+      if (!offlineService.isOnline) {
         try {
           const accountsResult = await accountsDb.allDocs({ include_docs: true });
           const accounts = accountsResult.rows.map(r => r.doc as any);
