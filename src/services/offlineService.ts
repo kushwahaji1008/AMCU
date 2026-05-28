@@ -1,21 +1,13 @@
 import PouchDB from 'pouchdb-browser';
 import pouchdbFind from 'pouchdb-find';
-import idbAdapter from 'pouchdb-adapter-idb';
-import cordovaSqlitePlugin from 'pouchdb-adapter-cordova-sqlite';
 import { Capacitor } from '@capacitor/core';
 import api from './axiosInstance';
 
 PouchDB.plugin(pouchdbFind);
-PouchDB.plugin(idbAdapter);
-PouchDB.plugin(cordovaSqlitePlugin);
 
-// Local databases using SQLite adapter for Android/iOS natively, fallback to IndexedDB for web
+// Local databases using IndexedDB adapter explicitly (Works flawlessly on PWA and Android Capacitor)
 const isNative = Capacitor.isNativePlatform();
-const dbOptions: any = isNative ? {
-  adapter: 'cordova-sqlite',
-  iosDatabaseLocation: 'Library',
-  androidDatabaseProvider: 'system' 
-} : {
+const dbOptions: any = {
   adapter: 'idb'
 };
 
