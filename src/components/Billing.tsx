@@ -78,7 +78,7 @@ export default function Billing() {
         year,
         month,
         period,
-        dairyId: profile?.dairyId || profile?.databaseId || ''
+        dairyId: profile?.dairyId || ''
       });
       
       const { count, totalBills } = response.data;
@@ -401,7 +401,7 @@ export default function Billing() {
     
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Society: ${profile?.dairyId || profile?.databaseId || '63006'}    ${profile?.dairyName || 'EKDANGA'}`, 14, 25);
+    doc.text(`Society: ${profile?.dairyId || '63006'}    ${profile?.dairyName || 'EKDANGA'}`, 14, 25);
     doc.text(`Route: 313 R31 KHAIRATIYA BMC`, 120, 25);
     doc.text(`Bill No.  ${Math.floor(Math.random() * 1000)}`, 180, 25);
     

@@ -46,8 +46,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const dairyIdKey = profile?.dairyId || profile?.databaseId;
-    if (!dairyIdKey) return;
+    if (!profile?.dairyId) return;
 
     const fetchStats = async () => {
       try {
@@ -89,7 +88,7 @@ export default function Dashboard() {
     };
 
     fetchStats();
-  }, [profile?.dairyId, profile?.databaseId, timeRange]);
+  }, [profile?.dairyId, timeRange]);
 
   const processedChartData = useMemo(() => {
     const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number; cow: number; buffalo: number }>();

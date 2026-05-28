@@ -33,11 +33,10 @@ export default function Settings() {
   }, [profile]);
 
   const handleSaveDairyInfo = async () => {
-    const dairyIdKey = profile?.dairyId || profile?.databaseId;
-    if (!dairyIdKey) return;
+    if (!profile?.dairyId) return;
     setLoading(true);
     try {
-      await dairyApi.update(dairyIdKey, dairyInfo);
+      await dairyApi.update(profile.dairyId, dairyInfo);
       updateProfile({
         dairyName: dairyInfo.name,
         address: dairyInfo.address,

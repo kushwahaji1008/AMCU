@@ -4,120 +4,31 @@ import api from './axiosInstance';
 
 PouchDB.plugin(pouchdbFind);
 
-// Helper to check if running on Android/device
-export function isAndroidDevice(): boolean {
-  // If online and super admin, we bypass offline-first behavior to let super admin manage everything on the server
-  try {
-    const savedProfile = localStorage.getItem('profile');
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      if (profile?.role === 'super_admin' && navigator.onLine) {
-        return false;
-      }
-    }
-  } catch (e) {}
-
-  const ua = navigator.userAgent.toLowerCase();
-  return /android/i.test(ua) || !!(window as any).isAndroid || !!(window as any).Capacitor || !!(window as any).cordova;
-}
-
-// Shared non-partitioned database for caching logged in user accounts
-export const accountsDb = new PouchDB('cached_user_accounts');
-
-// Determine initial database suffix/partition
-const getInitialUserId = (): string => {
-  try {
-    const savedProfile = localStorage.getItem('profile');
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      if (profile && profile.uid) {
-        const dbId = localStorage.getItem('databaseId') || profile.databaseId || '(default)';
-        return `${profile.uid}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      }
-    }
-  } catch (e) {}
-  const dbId = localStorage.getItem('databaseId') || '(default)';
-  const lastUser = localStorage.getItem('last_active_userId') || 'default';
-  return `${lastUser}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+// Local databases
+export const db = {
+  farmers: new PouchDB('farmers'),
+  collections: new PouchDB('collections'),
+  shifts: new PouchDB('shifts'),
+  salesCustomers: new PouchDB('sales_customers'),
+  salesRecords: new PouchDB('sales_records'),
+  rates: new PouchDB('rates'),
+  rateSettings: new PouchDB('rate_settings'),
+  payments: new PouchDB('payments'),
+  ledgers: new PouchDB('ledgers'),
+  users: new PouchDB('users'),
+  dairies: new PouchDB('dairies'),
+  syncQueue: new PouchDB('sync_queue')
 };
 
-let activeUserId = getInitialUserId();
-
-// Local databases dynamically mapped
-export const db: { [key: string]: any } = {
-  farmers: new PouchDB(`farmers_${activeUserId}`),
-  collections: new PouchDB(`collections_${activeUserId}`),
-  shifts: new PouchDB(`shifts_${activeUserId}`),
-  salesCustomers: new PouchDB(`sales_customers_${activeUserId}`),
-  salesRecords: new PouchDB(`sales_records_${activeUserId}`),
-  rates: new PouchDB(`rates_${activeUserId}`),
-  rateSettings: new PouchDB(`rate_settings_${activeUserId}`),
-  payments: new PouchDB(`payments_${activeUserId}`),
-  ledgers: new PouchDB(`ledgers_${activeUserId}`),
-  users: new PouchDB(`users_${activeUserId}`),
-  dairies: new PouchDB(`dairies_${activeUserId}`),
-  syncQueue: new PouchDB(`sync_queue_${activeUserId}`)
-};
-
-// Initialize index creator helper
-const createIndexes = (databaseObj: typeof db) => {
-  databaseObj.farmers.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
-  databaseObj.collections.createIndex({ index: { fields: ['date', 'shift'] } }).catch(() => {});
-  databaseObj.shifts.createIndex({ index: { fields: ['date'] } }).catch(() => {});
-  databaseObj.salesCustomers.createIndex({ index: { fields: ['id'] } }).catch(() => {});
-  databaseObj.salesRecords.createIndex({ index: { fields: ['date'] } }).catch(() => {});
-  databaseObj.rates.createIndex({ index: { fields: ['id'] } }).catch(() => {});
-  databaseObj.ledgers.createIndex({ index: { fields: ['farmerId', 'date'] } }).catch(() => {});
-  databaseObj.payments.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
-};
-
-createIndexes(db);
-
-export function initUserDatabases(userId: string) {
-  if (!userId) userId = 'default';
-  const dbId = localStorage.getItem('databaseId') || '(default)';
-  const partitionedUserId = `${userId}_${dbId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-  
-  if (activeUserId === partitionedUserId) return;
-  
-  activeUserId = partitionedUserId;
-  localStorage.setItem('last_active_userId', userId);
-  
-  // Close old PouchDB connections
-  try {
-    db.farmers.close().catch(() => {});
-    db.collections.close().catch(() => {});
-    db.shifts.close().catch(() => {});
-    db.salesCustomers.close().catch(() => {});
-    db.salesRecords.close().catch(() => {});
-    db.rates.close().catch(() => {});
-    db.rateSettings.close().catch(() => {});
-    db.payments.close().catch(() => {});
-    db.ledgers.close().catch(() => {});
-    db.users.close().catch(() => {});
-    db.dairies.close().catch(() => {});
-    db.syncQueue.close().catch(() => {});
-  } catch (e) {
-    console.error("Error closing PouchDB connections", e);
-  }
-
-  // Re-initialize for the new user ID
-  db.farmers = new PouchDB(`farmers_${partitionedUserId}`);
-  db.collections = new PouchDB(`collections_${partitionedUserId}`);
-  db.shifts = new PouchDB(`shifts_${partitionedUserId}`);
-  db.salesCustomers = new PouchDB(`sales_customers_${partitionedUserId}`);
-  db.salesRecords = new PouchDB(`sales_records_${partitionedUserId}`);
-  db.rates = new PouchDB(`rates_${partitionedUserId}`);
-  db.rateSettings = new PouchDB(`rate_settings_${partitionedUserId}`);
-  db.payments = new PouchDB(`payments_${partitionedUserId}`);
-  db.ledgers = new PouchDB(`ledgers_${partitionedUserId}`);
-  db.users = new PouchDB(`users_${partitionedUserId}`);
-  db.dairies = new PouchDB(`dairies_${partitionedUserId}`);
-  db.syncQueue = new PouchDB(`sync_queue_${partitionedUserId}`);
-
-  // Create indexes for new connections
-  createIndexes(db);
-}
+// Create indexes safely
+db.farmers.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
+db.collections.createIndex({ index: { fields: ['date', 'shift'] } }).catch(() => {});
+db.shifts.createIndex({ index: { fields: ['date'] } }).catch(() => {});
+db.salesCustomers.createIndex({ index: { fields: ['id'] } }).catch(() => {});
+db.salesRecords.createIndex({ index: { fields: ['date'] } }).catch(() => {});
+db.rates.createIndex({ index: { fields: ['id'] } }).catch(() => {});
+db.ledgers.createIndex({ index: { fields: ['farmerId', 'date'] } }).catch(() => {});
+db.payments.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
 
 export interface SyncTask {
   _id: string;
@@ -136,7 +47,6 @@ export interface SyncTask {
 class OfflineService {
   public isOnline: boolean = navigator.onLine;
   private syncInProgress: boolean = false;
-  private syncFromServerInProgress: boolean = false;
 
   constructor() {
     window.addEventListener('online', () => {
@@ -244,79 +154,90 @@ class OfflineService {
     }
   }
 
+  private async safeGetList(endpoint: string): Promise<any[]> {
+    try {
+      const res = await api.get(endpoint);
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+    } catch (e: any) {
+      if (e.status === 403 || e.status === 401) {
+        console.warn(`Access denied for ${endpoint}, skipping sync.`);
+        return [];
+      }
+      console.error(`Sync failed for ${endpoint}:`, e.message || e);
+      return [];
+    }
+  }
+
+  private async syncCollection(dbInstance: any, endpoint: string) {
+    const data = await this.safeGetList(endpoint);
+    await this.syncDataToLocal(dbInstance, data);
+  }
+
+  private async syncDataToLocal(dbInstance: any, data: any[]) {
+    const existing = await dbInstance.allDocs();
+    const existingMap = new Map(existing.rows.map((r: any) => [r.id, r.value.rev]));
+    
+    // Deduplicate data by ID to prevent intra-bulk conflicts
+    const uniqueDataMap = new Map();
+    data.forEach(item => {
+      const id = item.id || item._id;
+      if (id) {
+        uniqueDataMap.set(id, item);
+      }
+    });
+
+    const bulkData = Array.from(uniqueDataMap.values()).map((item: any) => {
+      const id = item.id || item._id;
+      const doc = { ...item, _id: id };
+      if (existingMap.has(id)) {
+        doc._rev = existingMap.get(id);
+        existingMap.delete(id);
+      }
+      return doc;
+    });
+
+    for (const [id, rev] of existingMap.entries()) {
+      // Don't delete design docs
+      if (typeof id === 'string' && !id.startsWith('_design/')) {
+        bulkData.push({ _id: id, _rev: rev, _deleted: true });
+      }
+    }
+
+    if (bulkData.length > 0) {
+      try {
+        await dbInstance.bulkDocs(bulkData);
+      } catch (e) {
+        console.error('bulkDocs conflict or error:', e);
+      }
+    }
+  }
+
   // Initial sync from server to local PouchDB databases
   async syncFromServer() {
     if (!this.isOnline) return;
-    if (this.syncFromServerInProgress) return;
-    this.syncFromServerInProgress = true;
     try {
       // 1. Sync Farmers
-      try {
-        const farmersRes = await api.get('/farmers');
-        const farmers = farmersRes.data || [];
-        const bulkFarmers = farmers.map((f: any) => ({ ...f, _id: f.id || f._id }));
-        const existingFarmers = await db.farmers.allDocs();
-        await Promise.all(existingFarmers.rows.map(row => db.farmers.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkFarmers.length > 0) await db.farmers.bulkDocs(bulkFarmers);
-      } catch (e) {
-        console.error("Farmer sync failed", e);
-      }
+      await this.syncCollection(db.farmers, '/farmers');
       
       // 2. Sync Collections (last 30 days)
-      try {
-        const date = new Date();
-        date.setDate(date.getDate() - 30);
-        const collectionsRes = await api.get(`/collections/report?date=${date.toISOString()}`);
-        const collections = collectionsRes.data || [];
-        const bulkCollections = collections.map((c: any) => ({ ...c, _id: c.id || c._id }));
-        const existingCollections = await db.collections.allDocs();
-        await Promise.all(existingCollections.rows.map(row => db.collections.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkCollections.length > 0) await db.collections.bulkDocs(bulkCollections);
-      } catch (e) {
-        console.error("Collections sync failed", e);
-      }
+      const date = new Date();
+      date.setDate(date.getDate() - 30);
+      await this.syncCollection(db.collections, `/collections/report?date=${date.toISOString()}`);
 
       // 3. Sync Shifts
-      try {
-        const shiftsRes = await api.get('/shifts/recent?limit=30');
-        const shifts = shiftsRes.data || [];
-        const bulkShifts = shifts.map((s: any) => ({ ...s, _id: s.id || s._id }));
-        const existingShifts = await db.shifts.allDocs();
-        await Promise.all(existingShifts.rows.map(row => db.shifts.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkShifts.length > 0) await db.shifts.bulkDocs(bulkShifts);
-      } catch (e) {
-        console.error("Shift sync failed", e);
-      }
+      await this.syncCollection(db.shifts, '/shifts/recent?limit=30');
 
       // 4. Sync Sales Customers
-      try {
-        const salesCustomersRes = await api.get('/customers');
-        const salesCustomers = Array.isArray(salesCustomersRes.data) ? salesCustomersRes.data : [];
-        const bulkSalesCust = salesCustomers.map((sc: any) => ({ ...sc, _id: sc.id || sc._id }));
-        const existingSalesCust = await db.salesCustomers.allDocs();
-        await Promise.all(existingSalesCust.rows.map(row => db.salesCustomers.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkSalesCust.length > 0) await db.salesCustomers.bulkDocs(bulkSalesCust);
-      } catch (e) {
-        console.error("Sales customers sync failed", e);
-      }
+      await this.syncCollection(db.salesCustomers, '/sales/customers');
 
       // 5. Sync Rates
-      try {
-        const ratesRes = await api.get('/rates');
-        const rates = ratesRes.data || [];
-        const bulkRates = rates.map((r: any) => ({ ...r, _id: r.id || r._id }));
-        const existingRates = await db.rates.allDocs();
-        await Promise.all(existingRates.rows.map(row => db.rates.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkRates.length > 0) await db.rates.bulkDocs(bulkRates);
-      } catch (e) {
-        console.error("Rates sync failed", e);
-      }
+      await this.syncCollection(db.rates, '/rates');
 
       // 6. Sync Rate Settings
       try {
         const rateSettingsRes = await api.get('/rates/settings');
         const rateSettings = rateSettingsRes.data;
-        if (rateSettings) {
+        if (rateSettings && !Array.isArray(rateSettings)) {
           try {
             const existing = await db.rateSettings.get('current');
             await db.rateSettings.put({ ...rateSettings, _id: 'current', _rev: existing._rev });
@@ -324,61 +245,23 @@ class OfflineService {
             await db.rateSettings.put({ ...rateSettings, _id: 'current' });
           }
         }
-      } catch (e) {
-        console.error("Rate settings sync failed", e);
+      } catch (e: any) {
+        if (e.status !== 403 && e.status !== 401) {
+          console.error("Rate settings sync failed", e.message || e);
+        }
       }
 
       // 7. Sync Ledger
-      try {
-        const ledgerRes = await api.get('/ledger');
-        const ledger = ledgerRes.data || [];
-        const bulkLedger = ledger.map((l: any) => ({ ...l, _id: l.id || l._id }));
-        const existingLedger = await db.ledgers.allDocs();
-        await Promise.all(existingLedger.rows.map(row => db.ledgers.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkLedger.length > 0) await db.ledgers.bulkDocs(bulkLedger);
-      } catch (e) {
-        console.error("Ledger sync failed", e);
-      }
+      await this.syncCollection(db.ledgers, '/ledger');
 
       // 8. Sync Users
-      try {
-        const usersRes = await api.get('/users');
-        const users = usersRes.data || [];
-        const bulkUsers = users.map((u: any) => ({ ...u, _id: u.id || u._id }));
-        const existingUsers = await db.users.allDocs();
-        await Promise.all(existingUsers.rows.map(row => db.users.remove(row.id, row.value.rev).catch(() => {})));
-        if (bulkUsers.length > 0) await db.users.bulkDocs(bulkUsers);
-      } catch (e) {
-        console.error("Users sync failed", e);
-      }
+      await this.syncCollection(db.users, '/users');
 
       // 9. Sync Dairies
-      try {
-        let isSuperAdmin = false;
-        try {
-          const profileStr = localStorage.getItem('profile');
-          if (profileStr) {
-            const profileVal = JSON.parse(profileStr);
-            isSuperAdmin = profileVal?.role === 'super_admin';
-          }
-        } catch (e) {}
-
-        if (isSuperAdmin) {
-          const dairiesRes = await api.get('/dairies');
-          const dairies = dairiesRes.data || [];
-          const bulkDairies = dairies.map((d: any) => ({ ...d, _id: d.id || d._id }));
-          const existingDairies = await db.dairies.allDocs();
-          await Promise.all(existingDairies.rows.map(row => db.dairies.remove(row.id, row.value.rev).catch(() => {})));
-          if (bulkDairies.length > 0) await db.dairies.bulkDocs(bulkDairies);
-        }
-      } catch (e) {
-        console.error("Dairies sync failed", e);
-      }
+      await this.syncCollection(db.dairies, '/dairies');
 
     } catch (error) {
       console.error('Failed to sync from server:', error);
-    } finally {
-      this.syncFromServerInProgress = false;
     }
   }
 
@@ -458,11 +341,11 @@ class OfflineService {
   async recordSaleOffline(payload: any) {
     const doc = {
       ...payload,
-      _id: payload._id || payload.id || 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      createdAt: payload.createdAt || new Date().toISOString()
+      _id: 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      createdAt: new Date().toISOString()
     };
     await db.salesRecords.put(doc);
-    await this.queueTask('RECORD_SALE', doc);
+    await this.queueTask('RECORD_SALE', payload);
     return doc;
   }
 
@@ -503,11 +386,11 @@ class OfflineService {
   async recordPaymentOffline(payload: any) {
     const doc = {
       ...payload,
-      _id: payload._id || payload.id || 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      date: payload.date || new Date().toISOString()
+      _id: 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      date: new Date().toISOString()
     };
     await db.ledgers.put(doc);
-    await this.queueTask('RECORD_PAYMENT', doc);
+    await this.queueTask('RECORD_PAYMENT', payload);
     return doc;
   }
 

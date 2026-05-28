@@ -40,7 +40,7 @@ export interface IRateChartRepository {
 }
 
 export interface ILedgerRepository {
-  addEntry(entry: Omit<LedgerEntry, 'id'> & { id?: string }): Promise<LedgerEntry>;
+  addEntry(entry: Omit<LedgerEntry, 'id'>): Promise<LedgerEntry>;
   getByFarmerInternalId(farmerInternalId: string): Promise<LedgerEntry[]>;
   getAll(): Promise<LedgerEntry[]>;
   getByReferenceId(referenceId: string): Promise<LedgerEntry | null>;
@@ -65,7 +65,7 @@ export interface ICustomerRepository {
 export interface IUserRepository {
   getByUsername(username: string): Promise<User | null>;
   getAll(role?: string): Promise<User[]>;
-  create(user: Omit<User, 'id' | 'createdAt'> & { id?: string }): Promise<User>;
+  create(user: Omit<User, 'id' | 'createdAt'>): Promise<User>;
   update(id: string, user: Partial<User>): Promise<User>;
   delete(id: string): Promise<void>;
 }

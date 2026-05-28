@@ -9,7 +9,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from './services/api';
 import { db as firebaseDb } from './firebase';
 import { Firestore } from 'firebase/firestore';
-import { initUserDatabases, offlineService } from './services/offlineService';
 
 export interface UserProfile {
   uid: string;
@@ -62,14 +61,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const p = JSON.parse(savedProfile);
         setUser({ token });
         setProfile(p);
-        if (p && p.uid) {
-          initUserDatabases(p.uid);
-          if (navigator.onLine) {
-            offlineService.processSyncQueue()
-              .then(() => offlineService.syncFromServer())
-              .catch(console.error);
-          }
-        }
       } catch (e) {
         console.error("Failed to parse saved profile", e);
         localStorage.removeItem('token');
@@ -131,9 +122,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dairyId: userData.dairyId,
       databaseId: userData.databaseId,
       createdAt: userData.createdAt,
-      dairyName: userData.dairyName,
-      address: userData.address,
-      phone: userData.phone,
     };
 
     // Persist session
@@ -141,18 +129,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('profile', JSON.stringify(p));
     localStorage.setItem('databaseId', p.databaseId);
     
-    // Switch partition database instance
-    initUserDatabases(userData.id);
-    
-    if (navigator.onLine) {
-      try {
-        await offlineService.processSyncQueue();
-        await offlineService.syncFromServer();
-      } catch (syncErr) {
-        console.error("Initial sync on login failed:", syncErr);
-      }
-    }
-
     setUser({ token });
     setProfile(p);
 
@@ -181,27 +157,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dairyId: userData.dairyId,
       databaseId: userData.databaseId,
       createdAt: userData.createdAt,
-      dairyName: userData.dairyName,
-      address: userData.address,
-      phone: userData.phone,
     };
 
     localStorage.setItem('token', token);
     localStorage.setItem('profile', JSON.stringify(p));
     localStorage.setItem('databaseId', p.databaseId);
     
-    // Switch partition database instance
-    initUserDatabases(userData.id);
-    
-    if (navigator.onLine) {
-      try {
-        await offlineService.processSyncQueue();
-        await offlineService.syncFromServer();
-      } catch (syncErr) {
-        console.error("Initial sync on login failed:", syncErr);
-      }
-    }
-
     setUser({ token });
     setProfile(p);
 

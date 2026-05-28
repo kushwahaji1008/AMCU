@@ -124,40 +124,7 @@ export class AuthService {
     }
 
     const { passwordHash, ...userWithoutPassword } = user;
-
-    // Fetch associated dairy details if relevant
-    let dairyName = '';
-    let address = '';
-    let phone = '';
-
-    if (user.role === 'admin') {
-      const dairy = await this.dairyRepo.getByOwnerId(user.id);
-      if (dairy) {
-        dairyName = dairy.name;
-        address = dairy.address;
-        phone = dairy.contact;
-      }
-    } else if (user.role === 'operator' && user.dairyId) {
-      const dairies = await this.dairyRepo.getAll();
-      const dairy = dairies.find(d => d.databaseId === user.dairyId);
-      if (dairy) {
-        dairyName = dairy.name;
-        address = dairy.address;
-        phone = dairy.contact;
-      }
-    }
-
-    return { 
-      token, 
-      user: { 
-        ...userWithoutPassword, 
-        currentSessionId: sessionId,
-        dairyName,
-        address,
-        phone
-      }, 
-      requiresOTP: false 
-    };
+    return { token, user: { ...userWithoutPassword, currentSessionId: sessionId }, requiresOTP: false };
   }
 
   /**
@@ -170,8 +137,7 @@ export class AuthService {
     role: 'admin' | 'operator' | 'super_admin',
     dairyData?: { name: string; address: string; contact: string; databaseId?: string },
     existingDairyId?: string,
-    existingDatabaseId?: string,
-    id?: string
+    existingDatabaseId?: string
   ): Promise<Omit<User, 'passwordHash'>> {
     const normalizedUsername = username.toLowerCase();
     
@@ -198,7 +164,6 @@ export class AuthService {
 
     // 4. Create User Record
     const user = await this.userRepo.create({
-      id: id || undefined,
       username: normalizedUsername,
       email: email.toLowerCase(),
       passwordHash,

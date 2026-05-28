@@ -144,7 +144,7 @@ export default function FarmerManagement() {
           ...newFarmer,
           status: 'Active',
           balance: 0,
-          dairyId: profile?.dairyId || profile?.databaseId || '',
+          dairyId: profile?.dairyId || '',
         };
         await farmerApi.create(farmerData);
         

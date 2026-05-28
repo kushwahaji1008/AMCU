@@ -1,93 +1,64 @@
 /// <reference types="vite/client" />
 import api from './axiosInstance';
-import { offlineService, db, accountsDb, initUserDatabases, isAndroidDevice } from './offlineService';
+import { offlineService, db } from './offlineService';
 
 export default api;
-
-export function generateObjectId(): string {
-  const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');
-  const machine = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-  const pid = Math.floor(Math.random() * 65535).toString(16).padStart(4, '0');
-  const increment = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-  return (timestamp + machine + pid + increment).substring(0, 24);
-}
 
 export const authApi = {
   login: async (credentials: any) => {
     try {
-      // Offline mode login when network is disconnected
       if (!offlineService.isOnline) {
-        try {
-          const accountsResult = await accountsDb.allDocs({ include_docs: true });
-          const accounts = accountsResult.rows.map(r => r.doc as any);
-          const account = accounts.find(a => 
-            (a.username === credentials.username || a.profile?.email === credentials.username) && 
-            a.password === credentials.password
-          );
-          
-          if (account) {
-            // Successfully verified locally
-            initUserDatabases(account.uid);
-            return {
-              data: {
-                token: account.token || 'offline_token_' + account.uid,
-                user: account.profile,
-                requiresOTP: false
-              }
-            };
-          }
-        } catch (dbErr) {
-          console.error("Local account verification failed", dbErr);
-        }
-      }
-
-      // If online (or if not matched locally on Android), hit the server
-      if (offlineService.isOnline) {
-        const res = await api.post('/auth/login', credentials);
-        if (res && res.data) {
-          const { user: userData, token } = res.data;
-          if (userData && userData.id) {
-            try {
-              // Automatically switch local database partition to this user
-              initUserDatabases(userData.id);
-
-              // Cache user account and credentials for subsequent offline logins
-              let existing: any = null;
-              try {
-                existing = await accountsDb.get(userData.id);
-              } catch (e) {}
-
-              const accountDoc = {
-                _id: userData.id,
-                uid: userData.id,
-                username: credentials.username,
-                password: credentials.password, // stored locally on device for offline authorization
-                token: token,
-                profile: {
-                  id: userData.id,
-                  username: userData.username,
-                  email: userData.email,
-                  role: userData.role,
-                  status: userData.status || 'active',
-                  dairyId: userData.dairyId,
-                  databaseId: userData.databaseId || '(default)',
-                  createdAt: userData.createdAt
-                },
-                _rev: existing ? existing._rev : undefined
-              };
-              await accountsDb.put(accountDoc);
-            } catch (cacheErr) {
-              console.error("Failed to cache account locally", cacheErr);
+        // Support offline session recovery / offline mode login for cached users
+        const usersResult = await db.users.allDocs({ include_docs: true });
+        const users = usersResult.rows.map(r => r.doc as any);
+        const user = users.find(u => u.username === credentials.username || u.email === credentials.username);
+        
+        if (user) {
+          // Simulate successful offline login with cached user
+          return {
+            data: {
+              token: 'offline_token_' + user._id,
+              user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                status: user.status || 'active',
+                dairyId: user.dairyId,
+                databaseId: user.databaseId || '(default)',
+                createdAt: user.createdAt
+              },
+              requiresOTP: false
             }
-          }
+          };
         }
-        return res;
+        
+        // Simple fallback operator if users are empty or match operator defaults
+        if (credentials.username === 'operator' || credentials.username === 'admin') {
+          return {
+            data: {
+              token: 'offline_token_default',
+              user: {
+                id: 'offline_default',
+                username: credentials.username,
+                email: credentials.username + '@dairy.internal',
+                role: credentials.username === 'admin' ? 'admin' : 'operator',
+                status: 'active',
+                dairyId: 'offline_dairy',
+                databaseId: '(default)',
+                createdAt: new Date().toISOString()
+              },
+              requiresOTP: false
+            }
+          };
+        }
+        
+        throw new Error("No internet connection and credentials are not cached locally.");
       }
-      
-      throw new Error("No internet connection and credentials are not cached locally on this device.");
+      return api.post('/auth/login', credentials);
     } catch (e: any) {
-      // Fallback fallback if completely empty
       if (!offlineService.isOnline) {
+        // Fallback default
         return {
           data: {
             token: 'offline_token_fallback',
@@ -122,11 +93,8 @@ export const adminApi = {
 
 export const farmerApi = {
   getAll: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getFarmers();
-      if (offlineService.isOnline) {
-        offlineService.syncFromServer().catch(console.error);
-      }
       return { data: docs };
     }
     const res = await api.get('/farmers');
@@ -134,34 +102,36 @@ export const farmerApi = {
     return res;
   },
   getById: async (id: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const doc = await offlineService.getFarmerById(id);
       return { data: doc };
     }
     return api.get(`/farmers/${id}`);
   },
   search: async (farmerId: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const doc = await offlineService.searchFarmer(farmerId);
       return { data: doc };
     }
     return api.get(`/farmers/search/${farmerId}`);
   },
   create: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const doc = { ...data, id: tempId, _id: tempId };
     await db.farmers.put(doc);
     
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_FARMER', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_FARMER', data);
       return { data: doc };
     }
     try {
-      const serverRes = await api.post('/farmers', doc);
+      const serverRes = await api.post('/farmers', data);
+      await db.farmers.remove(doc); // clean temp doc
+      await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
       return serverRes;
     } catch (e) {
       // falling back to offline task
-      await offlineService.queueTask('CREATE_FARMER', doc);
+      await offlineService.queueTask('CREATE_FARMER', data);
       return { data: doc };
     }
   },
@@ -173,7 +143,7 @@ export const farmerApi = {
       await db.farmers.put({ ...data, _id: id });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('UPDATE_FARMER', { id, data });
       return { data: { ...data, id } };
     }
@@ -191,14 +161,14 @@ export const farmerApi = {
       await db.farmers.remove(existing);
     } catch (e) {}
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('DELETE_FARMER', id);
       return { data: { success: true } };
     }
     return api.delete(`/farmers/${id}`);
   },
   getSummary: async (id: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const collections = await db.collections.allDocs({ include_docs: true });
       const fCollections = collections.rows
         .map(r => r.doc as any)
@@ -224,19 +194,21 @@ export const farmerApi = {
 
 export const collectionApi = {
   create: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const tempId = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const doc = { ...data, id: tempId, _id: tempId };
     await db.collections.put(doc);
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_COLLECTION', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_COLLECTION', data);
       return { data: doc };
     }
     try {
-      const res = await api.post('/collections', doc);
+      const res = await api.post('/collections', data);
+      await db.collections.remove(doc);
+      await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
       return res;
     } catch (e) {
-      await offlineService.queueTask('CREATE_COLLECTION', doc);
+      await offlineService.queueTask('CREATE_COLLECTION', data);
       return { data: doc };
     }
   },
@@ -248,7 +220,7 @@ export const collectionApi = {
       await db.collections.put({ ...data, _id: id });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('UPDATE_COLLECTION', { id, data });
       return { data: { ...data, id } };
     }
@@ -260,21 +232,21 @@ export const collectionApi = {
     }
   },
   getDailyReport: async (date: string, endDate?: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getCollectionsByDate(date, endDate);
       return { data: docs };
     }
     return api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`);
   },
   getReport: async (date: string, endDate?: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getCollectionsByDate(date, endDate);
       return { data: docs };
     }
     return api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`);
   },
   getByFarmerId: async (farmerInternalId: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const result = await db.collections.allDocs({ include_docs: true });
       const docs = result.rows
         .map(r => r.doc as any)
@@ -287,30 +259,29 @@ export const collectionApi = {
 
 export const shiftApi = {
   createSummary: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const doc = { ...data, _id: 'shift_' + Date.now() };
     await db.shifts.put(doc);
     
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_SHIFT', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_SHIFT', data);
       return { data: doc };
     }
     try {
-      return await api.post('/shifts/summary', doc);
+      return await api.post('/shifts/summary', data);
     } catch (e) {
-      await offlineService.queueTask('CREATE_SHIFT', doc);
+      await offlineService.queueTask('CREATE_SHIFT', data);
       return { data: doc };
     }
   },
   getSummary: async (date: string, shift: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const summary = await offlineService.getShiftSummaryOffline(date, shift);
       return { data: summary };
     }
     return api.get(`/shifts/summary?date=${date}&shift=${shift}`);
   },
   getRecent: async (limit: number = 10) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getRecentShifts(limit);
       return { data: docs };
     }
@@ -320,55 +291,46 @@ export const shiftApi = {
 
 export const saleApi = {
   getCustomers: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getSalesCustomers();
       return { data: docs };
     }
-    return api.get('/customers');
+    return api.get('/sales/customers');
   },
   createCustomer: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const doc = { ...data, _id: 'cust_' + Date.now() };
     await db.salesCustomers.put(doc);
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
       return { data: doc };
     }
     try {
-      return await api.post('/customers', doc);
+      return await api.post('/sales/customers', data);
     } catch (e) {
-      await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
+      await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
       return { data: doc };
     }
   },
   recordSale: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      const savedDoc = await offlineService.recordSaleOffline(doc);
-      return { data: savedDoc };
+    if (!offlineService.isOnline) {
+      const doc = await offlineService.recordSaleOffline(data);
+      return { data: doc };
     }
-    try {
-      const res = await api.post('/sales', doc);
-      return res;
-    } catch (err) {
-      const savedDoc = await offlineService.recordSaleOffline(doc);
-      return { data: savedDoc };
-    }
+    return api.post('/sales', data);
   },
 };
 
 export const reportApi = {
   getDashboard: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const data = await offlineService.getDashboardOffline();
       return { data };
     }
     return api.get('/reports/dashboard');
   },
   getDaily: async (date: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const collections = await offlineService.getCollectionsByDate(date);
       const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
       const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
@@ -384,7 +346,7 @@ export const reportApi = {
     return api.get(`/reports/daily?date=${date}`);
   },
   getFarmer: async (id: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const collections = await db.collections.allDocs({ include_docs: true });
       const fCollections = collections.rows
         .map(r => r.doc as any)
@@ -394,14 +356,14 @@ export const reportApi = {
     return api.get(`/reports/farmer/${id}`);
   },
   getBills: async (year: number, month: number, period: number, farmerId?: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const bills = await offlineService.getBillsOffline(year, month, period, farmerId);
       return { data: bills };
     }
     return api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`);
   },
   finalizeBills: async (data: { year: number, month: number, period: number, dairyId: string }) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('FINALIZE_BILLS', data);
       return { data: { count: 1, totalBills: 1 } };
     }
@@ -411,25 +373,24 @@ export const reportApi = {
 
 export const rateApi = {
   getAll: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getRates();
       return { data: docs };
     }
     return api.get('/rates');
   },
   create: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const doc = { ...data, _id: 'rate_' + Date.now() };
     await db.rates.put(doc);
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_RATE', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_RATE', data);
       return { data: doc };
     }
     try {
-      return await api.post('/rates', doc);
+      return await api.post('/rates', data);
     } catch (e) {
-      await offlineService.queueTask('CREATE_RATE', doc);
+      await offlineService.queueTask('CREATE_RATE', data);
       return { data: doc };
     }
   },
@@ -441,7 +402,7 @@ export const rateApi = {
       await db.rates.put({ ...data, _id: id });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('UPDATE_RATE', { id, data });
       return { data: { ...data, id } };
     }
@@ -458,14 +419,14 @@ export const rateApi = {
       await db.rates.remove(existing);
     } catch (e) {}
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('DELETE_RATE', id);
       return { data: { success: true } };
     }
     return api.delete(`/rates/${id}`);
   },
   getSettings: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const settings = await offlineService.getRateSettings();
       return { data: settings };
     }
@@ -479,7 +440,7 @@ export const rateApi = {
       await db.rateSettings.put({ ...data, _id: 'current' });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('SAVE_RATE_SETTINGS', data);
       return { data };
     }
@@ -494,38 +455,31 @@ export const rateApi = {
 
 export const paymentApi = {
   getLedger: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getLedger();
       return { data: docs };
     }
     return api.get('/ledger');
   },
   getLedgerByFarmerId: async (farmerInternalId: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getLedgerByFarmerId(farmerInternalId);
       return { data: docs };
     }
     return api.get(`/ledger/farmer/${farmerInternalId}`);
   },
   recordPayment: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId, date: data.date || new Date().toISOString() };
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      const savedDoc = await offlineService.recordPaymentOffline(doc);
-      return { data: savedDoc };
+    if (!offlineService.isOnline) {
+      const doc = await offlineService.recordPaymentOffline(data);
+      return { data: doc };
     }
-    try {
-      return await api.post('/payments', doc);
-    } catch (e) {
-      const savedDoc = await offlineService.recordPaymentOffline(doc);
-      return { data: savedDoc };
-    }
+    return api.post('/payments', data);
   },
 };
 
 export const userApi = {
   getAll: async (role?: string) => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getUsers();
       const filtered = role ? docs.filter((u: any) => u.role === role) : docs;
       return { data: filtered };
@@ -533,18 +487,17 @@ export const userApi = {
     return api.get(`/users${role ? `?role=${role}` : ''}`);
   },
   create: async (data: any) => {
-    const objectId = generateObjectId();
-    const doc = { ...data, id: objectId, _id: objectId };
+    const doc = { ...data, _id: 'user_' + Date.now() };
     await db.users.put(doc);
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
-      await offlineService.queueTask('CREATE_USER', doc);
+    if (!offlineService.isOnline) {
+      await offlineService.queueTask('CREATE_USER', data);
       return { data: doc };
     }
     try {
-      return await api.post('/users', doc);
+      return await api.post('/users', data);
     } catch (e) {
-      await offlineService.queueTask('CREATE_USER', doc);
+      await offlineService.queueTask('CREATE_USER', data);
       return { data: doc };
     }
   },
@@ -556,7 +509,7 @@ export const userApi = {
       await db.users.put({ ...data, _id: id });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('UPDATE_USER', { id, data });
       return { data: { ...data, id } };
     }
@@ -573,7 +526,7 @@ export const userApi = {
       await db.users.remove(existing);
     } catch (e) {}
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('DELETE_USER', id);
       return { data: { success: true } };
     }
@@ -583,7 +536,7 @@ export const userApi = {
 
 export const dairyApi = {
   getAll: async () => {
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       const docs = await offlineService.getDairies();
       return { data: docs };
     }
@@ -597,7 +550,7 @@ export const dairyApi = {
       await db.dairies.put({ ...data, _id: id });
     }
 
-    if (isAndroidDevice() || !offlineService.isOnline) {
+    if (!offlineService.isOnline) {
       await offlineService.queueTask('UPDATE_DAIRY', { id, data });
       return { data: { ...data, id } };
     }

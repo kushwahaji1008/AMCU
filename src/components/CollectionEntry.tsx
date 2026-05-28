@@ -226,21 +226,6 @@ export default function CollectionEntry() {
     e.preventDefault();
     if (!farmer || !calculated.amount) return;
 
-    const fat = parseFloat(formData.fat);
-    const snf = parseFloat(formData.snf);
-
-    if (isNaN(fat) || fat < 3.0 || fat > 10.0) {
-      setError('FAT must be between 3.0 and 10.0');
-      toast.error('FAT must be between 3.0 and 10.0');
-      return;
-    }
-
-    if (isNaN(snf) || snf < 8.0 || snf > 9.0) {
-      setError('SNF must be between 8.0 and 9.0');
-      toast.error('SNF must be between 8.0 and 9.0');
-      return;
-    }
-
     setLoading(true);
     try {
       const txnData = {
@@ -257,7 +242,7 @@ export default function CollectionEntry() {
         clr: parseFloat(formData.clr) || 0,
         rate: calculated.rate,
         operatorId: profile?.uid || 'unknown',
-        dairyId: profile?.dairyId || profile?.databaseId || '',
+        dairyId: profile?.dairyId || '',
       };
 
       await collectionApi.create(txnData);
