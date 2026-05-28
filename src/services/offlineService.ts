@@ -332,8 +332,7 @@ class OfflineService {
 
   async getShiftSummaryOffline(dateStr: string, shift: string) {
     const collections = await this.getCollectionsByDate(dateStr);
-    const shiftCollections = collections.filter(c => c.shift && c.shift.toLowerCase() === shift.toLowerCase());
-
+    const shiftCollections = collections.filter(c => String(c?.shift || '').toLowerCase() === String(shift || '').toLowerCase());
     const totalQty = shiftCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const totalAmt = shiftCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
     const avgFat = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / totalQty : 0;
