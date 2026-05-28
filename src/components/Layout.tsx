@@ -226,12 +226,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <span className="font-serif font-medium text-stone-900 dark:text-white">DugdhaSetu</span>
         </div>
-        <button
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="p-2 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg"
-        >
-          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center gap-1">
+          {!isOnline && (
+            <div className="p-2 text-amber-500" title="Offline Mode">
+              <WifiOff size={20} />
+            </div>
+          )}
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="p-2 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg"
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}
