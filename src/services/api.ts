@@ -1,13 +1,16 @@
 /// <reference types="vite/client" />
 import api from './axiosInstance';
 import { offlineService, db } from './offlineService';
+import { Capacitor } from '@capacitor/core';
+
+const isNative = Capacitor.isNativePlatform();
 
 export default api;
 
 export const authApi = {
   login: async (credentials: any) => {
     try {
-      if (!offlineService.isOnline) {
+      if (isNative && !offlineService.isOnline) {
         // Support offline session recovery / offline mode login for cached users
         const usersResult = await db.users.allDocs({ include_docs: true });
         const users = usersResult.rows.map(r => r.doc as any);
@@ -57,7 +60,7 @@ export const authApi = {
       }
       return api.post('/auth/login', credentials);
     } catch (e: any) {
-      if (!offlineService.isOnline) {
+      if (isNative && !offlineService.isOnline) {
         // Fallback default
         return {
           data: {
@@ -93,7 +96,7 @@ export const adminApi = {
 
 export const farmerApi = {
   getAll: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getFarmers();
       return { data: docs };
     }
@@ -102,14 +105,14 @@ export const farmerApi = {
     return res;
   },
   getById: async (id: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const doc = await offlineService.getFarmerById(id);
       return { data: doc };
     }
     return api.get(`/farmers/${id}`);
   },
   search: async (farmerId: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const doc = await offlineService.searchFarmer(farmerId);
       return { data: doc };
     }
@@ -120,7 +123,7 @@ export const farmerApi = {
     const doc = { ...data, id: tempId, _id: tempId };
     await db.farmers.put(doc);
     
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_FARMER', data);
       return { data: doc };
     }
@@ -129,8 +132,8 @@ export const farmerApi = {
       await db.farmers.remove(doc); // clean temp doc
       await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
       return serverRes;
-    } catch (e) {
-      // falling back to offline task
+    } catch (e: any) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_FARMER', data);
       return { data: doc };
     }
@@ -143,7 +146,7 @@ export const farmerApi = {
       await db.farmers.put({ ...data, _id: id });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('UPDATE_FARMER', { id, data });
       return { data: { ...data, id } };
     }
@@ -151,6 +154,7 @@ export const farmerApi = {
       const res = await api.put(`/farmers/${id}`, data);
       return res;
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('UPDATE_FARMER', { id, data });
       return { data: { ...data, id } };
     }
@@ -161,14 +165,14 @@ export const farmerApi = {
       await db.farmers.remove(existing);
     } catch (e) {}
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('DELETE_FARMER', id);
       return { data: { success: true } };
     }
     return api.delete(`/farmers/${id}`);
   },
   getSummary: async (id: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const collections = await db.collections.allDocs({ include_docs: true });
       const fCollections = collections.rows
         .map(r => r.doc as any)
@@ -198,7 +202,7 @@ export const collectionApi = {
     const doc = { ...data, id: tempId, _id: tempId };
     await db.collections.put(doc);
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_COLLECTION', data);
       return { data: doc };
     }
@@ -208,6 +212,7 @@ export const collectionApi = {
       await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
       return res;
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_COLLECTION', data);
       return { data: doc };
     }
@@ -220,33 +225,34 @@ export const collectionApi = {
       await db.collections.put({ ...data, _id: id });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('UPDATE_COLLECTION', { id, data });
       return { data: { ...data, id } };
     }
     try {
       return await api.put(`/collections/${id}`, data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('UPDATE_COLLECTION', { id, data });
       return { data: { ...data, id } };
     }
   },
   getDailyReport: async (date: string, endDate?: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getCollectionsByDate(date, endDate);
       return { data: docs };
     }
     return api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`);
   },
   getReport: async (date: string, endDate?: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getCollectionsByDate(date, endDate);
       return { data: docs };
     }
     return api.get(`/collections/report?date=${date}${endDate ? `&endDate=${endDate}` : ''}`);
   },
   getByFarmerId: async (farmerInternalId: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const result = await db.collections.allDocs({ include_docs: true });
       const docs = result.rows
         .map(r => r.doc as any)
@@ -262,26 +268,27 @@ export const shiftApi = {
     const doc = { ...data, _id: 'shift_' + Date.now() };
     await db.shifts.put(doc);
     
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_SHIFT', data);
       return { data: doc };
     }
     try {
       return await api.post('/shifts/summary', data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_SHIFT', data);
       return { data: doc };
     }
   },
   getSummary: async (date: string, shift: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const summary = await offlineService.getShiftSummaryOffline(date, shift);
       return { data: summary };
     }
     return api.get(`/shifts/summary?date=${date}&shift=${shift}`);
   },
   getRecent: async (limit: number = 10) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getRecentShifts(limit);
       return { data: docs };
     }
@@ -291,7 +298,7 @@ export const shiftApi = {
 
 export const saleApi = {
   getCustomers: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getSalesCustomers();
       return { data: docs };
     }
@@ -301,19 +308,20 @@ export const saleApi = {
     const doc = { ...data, _id: 'cust_' + Date.now() };
     await db.salesCustomers.put(doc);
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
       return { data: doc };
     }
     try {
       return await api.post('/sales/customers', data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
       return { data: doc };
     }
   },
   recordSale: async (data: any) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const doc = await offlineService.recordSaleOffline(data);
       return { data: doc };
     }
@@ -323,14 +331,14 @@ export const saleApi = {
 
 export const reportApi = {
   getDashboard: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const data = await offlineService.getDashboardOffline();
       return { data };
     }
     return api.get('/reports/dashboard');
   },
   getDaily: async (date: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const collections = await offlineService.getCollectionsByDate(date);
       const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
       const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
@@ -346,7 +354,7 @@ export const reportApi = {
     return api.get(`/reports/daily?date=${date}`);
   },
   getFarmer: async (id: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const collections = await db.collections.allDocs({ include_docs: true });
       const fCollections = collections.rows
         .map(r => r.doc as any)
@@ -356,14 +364,14 @@ export const reportApi = {
     return api.get(`/reports/farmer/${id}`);
   },
   getBills: async (year: number, month: number, period: number, farmerId?: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const bills = await offlineService.getBillsOffline(year, month, period, farmerId);
       return { data: bills };
     }
     return api.get(`/reports/bills?year=${year}&month=${month}&period=${period}${farmerId ? `&farmerId=${farmerId}` : ''}`);
   },
   finalizeBills: async (data: { year: number, month: number, period: number, dairyId: string }) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('FINALIZE_BILLS', data);
       return { data: { count: 1, totalBills: 1 } };
     }
@@ -373,7 +381,7 @@ export const reportApi = {
 
 export const rateApi = {
   getAll: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getRates();
       return { data: docs };
     }
@@ -383,13 +391,14 @@ export const rateApi = {
     const doc = { ...data, _id: 'rate_' + Date.now() };
     await db.rates.put(doc);
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_RATE', data);
       return { data: doc };
     }
     try {
       return await api.post('/rates', data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_RATE', data);
       return { data: doc };
     }
@@ -402,13 +411,14 @@ export const rateApi = {
       await db.rates.put({ ...data, _id: id });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('UPDATE_RATE', { id, data });
       return { data: { ...data, id } };
     }
     try {
       return await api.put(`/rates/${id}`, data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('UPDATE_RATE', { id, data });
       return { data: { ...data, id } };
     }
@@ -419,14 +429,14 @@ export const rateApi = {
       await db.rates.remove(existing);
     } catch (e) {}
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('DELETE_RATE', id);
       return { data: { success: true } };
     }
     return api.delete(`/rates/${id}`);
   },
   getSettings: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const settings = await offlineService.getRateSettings();
       return { data: settings };
     }
@@ -440,13 +450,14 @@ export const rateApi = {
       await db.rateSettings.put({ ...data, _id: 'current' });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('SAVE_RATE_SETTINGS', data);
       return { data };
     }
     try {
       return await api.post('/rates/settings', data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('SAVE_RATE_SETTINGS', data);
       return { data };
     }
@@ -455,21 +466,21 @@ export const rateApi = {
 
 export const paymentApi = {
   getLedger: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getLedger();
       return { data: docs };
     }
     return api.get('/ledger');
   },
   getLedgerByFarmerId: async (farmerInternalId: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getLedgerByFarmerId(farmerInternalId);
       return { data: docs };
     }
     return api.get(`/ledger/farmer/${farmerInternalId}`);
   },
   recordPayment: async (data: any) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const doc = await offlineService.recordPaymentOffline(data);
       return { data: doc };
     }
@@ -479,7 +490,7 @@ export const paymentApi = {
 
 export const userApi = {
   getAll: async (role?: string) => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getUsers();
       const filtered = role ? docs.filter((u: any) => u.role === role) : docs;
       return { data: filtered };
@@ -490,13 +501,14 @@ export const userApi = {
     const doc = { ...data, _id: 'user_' + Date.now() };
     await db.users.put(doc);
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('CREATE_USER', data);
       return { data: doc };
     }
     try {
       return await api.post('/users', data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('CREATE_USER', data);
       return { data: doc };
     }
@@ -509,13 +521,14 @@ export const userApi = {
       await db.users.put({ ...data, _id: id });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('UPDATE_USER', { id, data });
       return { data: { ...data, id } };
     }
     try {
       return await api.put(`/users/${id}`, data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('UPDATE_USER', { id, data });
       return { data: { ...data, id } };
     }
@@ -526,7 +539,7 @@ export const userApi = {
       await db.users.remove(existing);
     } catch (e) {}
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('DELETE_USER', id);
       return { data: { success: true } };
     }
@@ -536,7 +549,7 @@ export const userApi = {
 
 export const dairyApi = {
   getAll: async () => {
-    if (!offlineService.isOnline) {
+    if (isNative) {
       const docs = await offlineService.getDairies();
       return { data: docs };
     }
@@ -550,13 +563,14 @@ export const dairyApi = {
       await db.dairies.put({ ...data, _id: id });
     }
 
-    if (!offlineService.isOnline) {
+    if (isNative) {
       await offlineService.queueTask('UPDATE_DAIRY', { id, data });
       return { data: { ...data, id } };
     }
     try {
       return await api.put(`/dairies/${id}`, data);
     } catch (e) {
+      if (!isNative) throw e;
       await offlineService.queueTask('UPDATE_DAIRY', { id, data });
       return { data: { ...data, id } };
     }

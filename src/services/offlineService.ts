@@ -1,23 +1,37 @@
 import PouchDB from 'pouchdb-browser';
 import pouchdbFind from 'pouchdb-find';
+import idbAdapter from 'pouchdb-adapter-idb';
+import cordovaSqlitePlugin from 'pouchdb-adapter-cordova-sqlite';
+import { Capacitor } from '@capacitor/core';
 import api from './axiosInstance';
 
 PouchDB.plugin(pouchdbFind);
+PouchDB.plugin(idbAdapter);
+PouchDB.plugin(cordovaSqlitePlugin);
 
-// Local databases
+// Local databases using SQLite adapter for Android/iOS natively, fallback to IndexedDB for web
+const isNative = Capacitor.isNativePlatform();
+const dbOptions: any = isNative ? {
+  adapter: 'cordova-sqlite',
+  iosDatabaseLocation: 'Library',
+  androidDatabaseProvider: 'system' 
+} : {
+  adapter: 'idb'
+};
+
 export const db = {
-  farmers: new PouchDB('farmers'),
-  collections: new PouchDB('collections'),
-  shifts: new PouchDB('shifts'),
-  salesCustomers: new PouchDB('sales_customers'),
-  salesRecords: new PouchDB('sales_records'),
-  rates: new PouchDB('rates'),
-  rateSettings: new PouchDB('rate_settings'),
-  payments: new PouchDB('payments'),
-  ledgers: new PouchDB('ledgers'),
-  users: new PouchDB('users'),
-  dairies: new PouchDB('dairies'),
-  syncQueue: new PouchDB('sync_queue')
+  farmers: new PouchDB('farmers', dbOptions),
+  collections: new PouchDB('collections', dbOptions),
+  shifts: new PouchDB('shifts', dbOptions),
+  salesCustomers: new PouchDB('sales_customers', dbOptions),
+  salesRecords: new PouchDB('sales_records', dbOptions),
+  rates: new PouchDB('rates', dbOptions),
+  rateSettings: new PouchDB('rate_settings', dbOptions),
+  payments: new PouchDB('payments', dbOptions),
+  ledgers: new PouchDB('ledgers', dbOptions),
+  users: new PouchDB('users', dbOptions),
+  dairies: new PouchDB('dairies', dbOptions),
+  syncQueue: new PouchDB('sync_queue', dbOptions)
 };
 
 // Create indexes safely
@@ -74,6 +88,7 @@ class OfflineService {
   }
 
   async processSyncQueue() {
+    if (!Capacitor.isNativePlatform()) return;
     if (this.syncInProgress || !this.isOnline) return;
     this.syncInProgress = true;
 
@@ -214,8 +229,8 @@ class OfflineService {
     }
   }
 
-  // Initial sync from server to local PouchDB databases
   async syncFromServer() {
+    if (!Capacitor.isNativePlatform()) return;
     if (!this.isOnline) return;
     try {
       // 1. Sync Farmers
