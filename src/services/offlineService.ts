@@ -157,13 +157,15 @@ class OfflineService {
   private async safeGetList(endpoint: string): Promise<any[]> {
     try {
       const res = await api.get(endpoint);
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      if (Array.isArray(res.data)) return res.data;
+      if (res.data && Array.isArray(res.data.data)) return res.data.data;
+      return [];
     } catch (e: any) {
-      if (e.status === 403 || e.status === 401) {
+      if (e?.response?.status === 403 || e?.response?.status === 401) {
         console.warn(`Access denied for ${endpoint}, skipping sync.`);
         return [];
       }
-      console.error(`Sync failed for ${endpoint}:`, e.message || e);
+      console.error(`Sync failed for ${endpoint}:`, e?.message || e);
       return [];
     }
   }
@@ -246,8 +248,8 @@ class OfflineService {
           }
         }
       } catch (e: any) {
-        if (e.status !== 403 && e.status !== 401) {
-          console.error("Rate settings sync failed", e.message || e);
+        if (e?.response?.status !== 403 && e?.response?.status !== 401) {
+          console.error("Rate settings sync failed", e?.message || e);
         }
       }
 
