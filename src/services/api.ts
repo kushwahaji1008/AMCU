@@ -5,6 +5,24 @@ import { Capacitor } from '@capacitor/core';
 
 const isNative = Capacitor.isNativePlatform();
 
+async function safePut(dbInstance: any, doc: any) {
+  if (!doc._id) {
+    if (doc.id) doc._id = doc.id;
+  }
+  if (!doc._id) {
+    return await dbInstance.put(doc);
+  }
+  try {
+    const existing: any = await dbInstance.get(doc._id);
+    return await dbInstance.put({ ...existing, ...doc, _rev: existing._rev });
+  } catch (e: any) {
+    if (e.status === 404) {
+      return await dbInstance.put(doc);
+    }
+    throw e;
+  }
+}
+
 export default api;
 
 export const authApi = {
@@ -122,13 +140,13 @@ export const farmerApi = {
     const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     const { balance, ...fData } = doc;
-      await db.farmers.put(fData);
+      await safePut(db.farmers, fData);
       if (balance !== undefined) {
          try {
            const existingB: any = await db.farmerBalances.get(doc._id);
-           await db.farmerBalances.put({ ...existingB, balance, _id: doc._id, farmerInternalId: doc._id });
+           await safePut(db.farmerBalances, { ...existingB, balance, _id: doc._id, farmerInternalId: doc._id });
          } catch(e) {
-           await db.farmerBalances.put({ _id: doc._id, farmerInternalId: doc._id, balance });
+           await safePut(db.farmerBalances, { _id: doc._id, farmerInternalId: doc._id, balance });
          }
       }
     
@@ -138,8 +156,23 @@ export const farmerApi = {
     }
     try {
       const serverRes = await api.post('/farmers', data);
-      await db.farmers.remove(doc); // clean temp doc
-      await db.farmers.put({ ...serverRes.data, _id: serverRes.data.id || serverRes.data._id });
+      try {
+        const tempDoc = await db.farmers.get(tempId);
+        await db.farmers.remove(tempDoc);
+      } catch(e) {}
+      
+      const newServerData = { ...serverRes.data, _id: serverRes.data.id || serverRes.data._id };
+      const { balance: sBalance, ...sFData } = newServerData;
+      await safePut(db.farmers, sFData);
+      if (sBalance !== undefined) {
+         try {
+           const existingB: any = await db.farmerBalances.get(newServerData._id);
+           await safePut(db.farmerBalances, { ...existingB, balance: sBalance, _id: newServerData._id, farmerInternalId: newServerData._id });
+         } catch(e) {
+           await safePut(db.farmerBalances, { _id: newServerData._id, farmerInternalId: newServerData._id, balance: sBalance });
+         }
+      }
+
       return serverRes;
     } catch (e: any) {
       if (!isNative) throw e;
@@ -148,18 +181,26 @@ export const farmerApi = {
     }
   },
   update: async (id: string, data: any) => {
+    const { balance, ...fData } = data;
     try {
-      const existing = await db.farmers.get(id);
-      await db.farmers.put({ ...existing, ...data });
-    } catch (e) {
-      const { balance, ...fData } = data;
-      await db.farmers.put({ ...fData, _id: id });
+      const existing: any = await db.farmers.get(id);
+      await safePut(db.farmers, { ...existing, ...fData });
       if (balance !== undefined) {
          try {
            const existingB: any = await db.farmerBalances.get(id);
-           await db.farmerBalances.put({ ...existingB, balance, _id: id, farmerInternalId: id });
+           await safePut(db.farmerBalances, { ...existingB, balance, _id: id, farmerInternalId: id });
          } catch(e) {
-           await db.farmerBalances.put({ _id: id, farmerInternalId: id, balance });
+           await safePut(db.farmerBalances, { _id: id, farmerInternalId: id, balance });
+         }
+      }
+    } catch (e) {
+      await safePut(db.farmers, { ...fData, _id: id });
+      if (balance !== undefined) {
+         try {
+           const existingB: any = await db.farmerBalances.get(id);
+           await safePut(db.farmerBalances, { ...existingB, balance, _id: id, farmerInternalId: id });
+         } catch(e) {
+           await safePut(db.farmerBalances, { _id: id, farmerInternalId: id, balance });
          }
       }
     }
@@ -218,7 +259,7 @@ export const collectionApi = {
   create: async (data: any) => {
     const tempId = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
-    await db.collections.put(doc);
+    await safePut(db.collections, doc);
 
     if (isNative) {
       await offlineService.queueTask('CREATE_COLLECTION', data);
@@ -226,8 +267,11 @@ export const collectionApi = {
     }
     try {
       const res = await api.post('/collections', data);
-      await db.collections.remove(doc);
-      await db.collections.put({ ...res.data, _id: res.data.id || res.data._id });
+      try {
+        const tempExisting = await db.collections.get(tempId);
+        await db.collections.remove(tempExisting);
+      } catch (e) {}
+      await safePut(db.collections, { ...res.data, _id: res.data.id || res.data._id });
       return res;
     } catch (e) {
       if (!isNative) throw e;
@@ -238,9 +282,9 @@ export const collectionApi = {
   update: async (id: string, data: any) => {
     try {
       const existing = await db.collections.get(id);
-      await db.collections.put({ ...existing, ...data });
+      await safePut(db.collections, { ...existing, ...data });
     } catch (e) {
-      await db.collections.put({ ...data, _id: id });
+      await safePut(db.collections, { ...data, _id: id });
     }
 
     if (isNative) {
@@ -284,7 +328,7 @@ export const collectionApi = {
 export const shiftApi = {
   createSummary: async (data: any) => {
     const doc = { ...data, _id: 'shift_' + Date.now() };
-    await db.shifts.put(doc);
+    await safePut(db.shifts, doc);
     
     if (isNative) {
       await offlineService.queueTask('CREATE_SHIFT', data);
@@ -324,7 +368,7 @@ export const saleApi = {
   },
   createCustomer: async (data: any) => {
     const doc = { ...data, _id: 'cust_' + Date.now() };
-    await db.salesCustomers.put(doc);
+    await safePut(db.salesCustomers, doc);
 
     if (isNative) {
       await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
@@ -407,7 +451,7 @@ export const rateApi = {
   },
   create: async (data: any) => {
     const doc = { ...data, _id: 'rate_' + Date.now() };
-    await db.rates.put(doc);
+    await safePut(db.rates, doc);
 
     if (isNative) {
       await offlineService.queueTask('CREATE_RATE', data);
@@ -424,9 +468,9 @@ export const rateApi = {
   update: async (id: string, data: any) => {
     try {
       const existing = await db.rates.get(id);
-      await db.rates.put({ ...existing, ...data });
+      await safePut(db.rates, { ...existing, ...data });
     } catch (e) {
-      await db.rates.put({ ...data, _id: id });
+      await safePut(db.rates, { ...data, _id: id });
     }
 
     if (isNative) {
@@ -463,9 +507,9 @@ export const rateApi = {
   saveSettings: async (data: any) => {
     try {
       const existing = await db.rateSettings.get('current');
-      await db.rateSettings.put({ ...data, _id: 'current', _rev: existing._rev });
+      await safePut(db.rateSettings, { ...data, _id: 'current', _rev: existing._rev });
     } catch (e) {
-      await db.rateSettings.put({ ...data, _id: 'current' });
+      await safePut(db.rateSettings, { ...data, _id: 'current' });
     }
 
     if (isNative) {
@@ -517,7 +561,7 @@ export const userApi = {
   },
   create: async (data: any) => {
     const doc = { ...data, _id: 'user_' + Date.now() };
-    await db.users.put(doc);
+    await safePut(db.users, doc);
 
     if (isNative) {
       await offlineService.queueTask('CREATE_USER', data);
@@ -534,9 +578,9 @@ export const userApi = {
   update: async (id: string, data: any) => {
     try {
       const existing = await db.users.get(id);
-      await db.users.put({ ...existing, ...data });
+      await safePut(db.users, { ...existing, ...data });
     } catch (e) {
-      await db.users.put({ ...data, _id: id });
+      await safePut(db.users, { ...data, _id: id });
     }
 
     if (isNative) {
@@ -576,9 +620,9 @@ export const dairyApi = {
   update: async (id: string, data: any) => {
     try {
       const existing = await db.dairies.get(id);
-      await db.dairies.put({ ...existing, ...data });
+      await safePut(db.dairies, { ...existing, ...data });
     } catch (e) {
-      await db.dairies.put({ ...data, _id: id });
+      await safePut(db.dairies, { ...data, _id: id });
     }
 
     if (isNative) {
