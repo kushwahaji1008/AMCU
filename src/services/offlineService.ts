@@ -13,6 +13,7 @@ const dbOptions: any = {
 
 export const db = {
   farmers: new PouchDB('farmers', dbOptions),
+  farmerBalances: new PouchDB('farmer_balances', dbOptions),
   collections: new PouchDB('collections', dbOptions),
   shifts: new PouchDB('shifts', dbOptions),
   salesCustomers: new PouchDB('sales_customers', dbOptions),
@@ -279,7 +280,16 @@ class OfflineService {
   // 1. Farmers
   async getFarmers(): Promise<any[]> {
     const result = await db.farmers.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+    const balancesResult = await db.farmerBalances.allDocs({ include_docs: true });
+    
+    const balancesMap = new Map();
+    balancesResult.rows.forEach(r => balancesMap.set(r.id, (r.doc as any).balance));
+    
+    return result.rows.map(row => {
+      const f = row.doc as any;
+      f.balance = balancesMap.get(f._id) || 0;
+      return f;
+    });
   }
 
   async getFarmerById(id: string) {

@@ -121,7 +121,16 @@ export const farmerApi = {
   create: async (data: any) => {
     const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
-    await db.farmers.put(doc);
+    const { balance, ...fData } = doc;
+      await db.farmers.put(fData);
+      if (balance !== undefined) {
+         try {
+           const existingB: any = await db.farmerBalances.get(doc._id);
+           await db.farmerBalances.put({ ...existingB, balance, _id: doc._id, farmerInternalId: doc._id });
+         } catch(e) {
+           await db.farmerBalances.put({ _id: doc._id, farmerInternalId: doc._id, balance });
+         }
+      }
     
     if (isNative) {
       await offlineService.queueTask('CREATE_FARMER', data);
@@ -143,7 +152,16 @@ export const farmerApi = {
       const existing = await db.farmers.get(id);
       await db.farmers.put({ ...existing, ...data });
     } catch (e) {
-      await db.farmers.put({ ...data, _id: id });
+      const { balance, ...fData } = data;
+      await db.farmers.put({ ...fData, _id: id });
+      if (balance !== undefined) {
+         try {
+           const existingB: any = await db.farmerBalances.get(id);
+           await db.farmerBalances.put({ ...existingB, balance, _id: id, farmerInternalId: id });
+         } catch(e) {
+           await db.farmerBalances.put({ _id: id, farmerInternalId: id, balance });
+         }
+      }
     }
 
     if (isNative) {

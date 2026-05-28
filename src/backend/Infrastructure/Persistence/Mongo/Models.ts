@@ -14,8 +14,7 @@ export const FarmerSchema = new Schema({
   bankAccount: { type: String },
   ifsc: { type: String },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
-  balance: { type: Number, default: 0 },
-  dairyId: { type: String, required: true },
+    dairyId: { type: String, required: true },
   createdAt: { type: String, default: () => new Date().toISOString() },
 });
 
@@ -164,3 +163,10 @@ export const CustomerModel = mongoose.model<Customer & Document>('Customer', Cus
 export const UserModel = mongoose.model<User & Document>('User', UserSchema);
 export const DairyModel = mongoose.model<any & Document>('Dairy', DairySchema);
 export const SettingsModel = mongoose.model<any & Document>('Settings', SettingsSchema);
+
+// --- FarmerBalance Schema ---
+export const FarmerBalanceSchema = new Schema({
+  farmerInternalId: { type: String, required: true },
+  balance: { type: Number, default: 0 },
+});
+export const FarmerBalanceModel = mongoose.model('FarmerBalance', FarmerBalanceSchema);

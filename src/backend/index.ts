@@ -307,6 +307,20 @@ app.use('/api-docs', async (req, res, next) => {
 
 // Farmer Management
 app.get('/api/farmers', authenticate, (req, res, next) => farmerController.getAllFarmers(req, res).catch(next));
+app.get('/api/farmers/balances', authenticate, async (req, res, next) => {
+  try {
+    const { getDatabaseId } = require('./Core/RequestContext');
+    const { dbManager } = require('./Infrastructure/Persistence/Mongo/DatabaseManager');
+    const model = await dbManager.getFarmerBalanceModel(getDatabaseId());
+    const balances = await model.find();
+    res.json(balances.map((b: any) => ({
+      id: b._id.toString(),
+      farmerInternalId: b.farmerInternalId,
+      balance: b.balance,
+      dairyId: b.dairyId
+    })));
+  } catch(e) { next(e); }
+});
 app.get('/api/farmers/search/:farmerId', authenticate, async (req, res, next) => {
   try {
     const farmer = await farmerRepo.getByFarmerId(req.params.farmerId);
