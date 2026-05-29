@@ -206,6 +206,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <LogOut size={18} />
               {t('signOut')}
             </button>
+            <div className="mt-4 text-center">
+              <span className="text-[10px] text-stone-400 font-mono tracking-wider">
+                v{import.meta.env.VITE_APP_VERSION || '1.0.0'}
+              </span>
+            </div>
           </div>
         </div>
       </aside>

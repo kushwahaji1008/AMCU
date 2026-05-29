@@ -1,342 +1,120 @@
-import PouchDB from 'pouchdb-browser';
-import pouchdbFind from 'pouchdb-find';
-import { Capacitor } from '@capacitor/core';
-import api from './axiosInstance';
-
-PouchDB.plugin(pouchdbFind);
-
-// Local databases using IndexedDB adapter explicitly (Works flawlessly on PWA and Android Capacitor)
-const isNative = Capacitor.isNativePlatform();
-const dbOptions: any = {
-  adapter: 'idb'
-};
-
-export const db = {
-  farmers: new PouchDB('farmers', dbOptions),
-  farmerBalances: new PouchDB('farmer_balances', dbOptions),
-  collections: new PouchDB('collections', dbOptions),
-  shifts: new PouchDB('shifts', dbOptions),
-  salesCustomers: new PouchDB('sales_customers', dbOptions),
-  salesRecords: new PouchDB('sales_records', dbOptions),
-  rates: new PouchDB('rates', dbOptions),
-  rateSettings: new PouchDB('rate_settings', dbOptions),
-  payments: new PouchDB('payments', dbOptions),
-  ledgers: new PouchDB('ledgers', dbOptions),
-  users: new PouchDB('users', dbOptions),
-  dairies: new PouchDB('dairies', dbOptions),
-  syncQueue: new PouchDB('sync_queue', dbOptions)
-};
-
-// Create indexes safely
-db.farmers.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
-db.collections.createIndex({ index: { fields: ['date', 'shift'] } }).catch(() => {});
-db.shifts.createIndex({ index: { fields: ['date'] } }).catch(() => {});
-db.salesCustomers.createIndex({ index: { fields: ['id'] } }).catch(() => {});
-db.salesRecords.createIndex({ index: { fields: ['date'] } }).catch(() => {});
-db.rates.createIndex({ index: { fields: ['id'] } }).catch(() => {});
-db.ledgers.createIndex({ index: { fields: ['farmerId', 'date'] } }).catch(() => {});
-db.payments.createIndex({ index: { fields: ['farmerId'] } }).catch(() => {});
-
-export interface SyncTask {
-  _id: string;
-  type: 
-    | 'CREATE_FARMER' | 'UPDATE_FARMER' | 'DELETE_FARMER'
-    | 'CREATE_COLLECTION' | 'UPDATE_COLLECTION'
-    | 'CREATE_SHIFT' | 'SAVE_SHIFT_SUMMARY'
-    | 'CREATE_SALE_CUSTOMER' | 'RECORD_SALE'
-    | 'CREATE_RATE' | 'UPDATE_RATE' | 'DELETE_RATE' | 'SAVE_RATE_SETTINGS'
-    | 'RECORD_PAYMENT' | 'CREATE_USER' | 'UPDATE_USER' | 'DELETE_USER'
-    | 'UPDATE_DAIRY' | 'FINALIZE_BILLS';
-  payload: any;
-  timestamp: number;
-}
+import { db } from '../db';
+import { Collection, Farmer, Ledger, RateSetting, SalesCustomer, SalesRecord, User } from '../db/models';
+import { Q } from '@nozbe/watermelondb';
 
 class OfflineService {
-  public isOnline: boolean = navigator.onLine;
-  private syncInProgress: boolean = false;
-
-  constructor() {
-    window.addEventListener('online', () => {
-      this.isOnline = true;
-      this.processSyncQueue();
-      this.syncFromServer();
-    });
-    window.addEventListener('offline', () => {
-      this.isOnline = false;
-    });
-  }
-
-  async queueTask(type: SyncTask['type'], payload: any) {
-    const task: SyncTask = {
-      _id: new Date().toISOString() + '_' + Math.random().toString(36).substr(2, 9),
-      type,
-      payload,
-      timestamp: Date.now()
-    };
-    await db.syncQueue.put(task);
-    
-    if (this.isOnline) {
-      this.processSyncQueue();
-    }
-  }
-
-  async processSyncQueue() {
-    if (!Capacitor.isNativePlatform()) return;
-    if (this.syncInProgress || !this.isOnline) return;
-    this.syncInProgress = true;
-
-    try {
-      const result = await db.syncQueue.allDocs({ include_docs: true });
-      const tasks = result.rows.map(row => row.doc as unknown as SyncTask).sort((a, b) => a.timestamp - b.timestamp);
-
-      for (const task of tasks) {
-        try {
-          switch (task.type) {
-            case 'CREATE_FARMER':
-              await api.post('/farmers', task.payload);
-              break;
-            case 'UPDATE_FARMER':
-              await api.put(`/farmers/${task.payload.id}`, task.payload.data);
-              break;
-            case 'DELETE_FARMER':
-              await api.delete(`/farmers/${task.payload}`);
-              break;
-            case 'CREATE_COLLECTION':
-              await api.post('/collections', task.payload);
-              break;
-            case 'UPDATE_COLLECTION':
-              await api.put(`/collections/${task.payload.id}`, task.payload.data);
-              break;
-            case 'CREATE_SHIFT':
-            case 'SAVE_SHIFT_SUMMARY':
-              await api.post('/shifts/summary', task.payload);
-              break;
-            case 'CREATE_SALE_CUSTOMER':
-              await api.post('/sales/customers', task.payload);
-              break;
-            case 'RECORD_SALE':
-              await api.post('/sales', task.payload);
-              break;
-            case 'CREATE_RATE':
-              await api.post('/rates', task.payload);
-              break;
-            case 'UPDATE_RATE':
-              await api.put(`/rates/${task.payload.id}`, task.payload.data);
-              break;
-            case 'DELETE_RATE':
-              await api.delete(`/rates/${task.payload}`);
-              break;
-            case 'SAVE_RATE_SETTINGS':
-              await api.post('/rates/settings', task.payload);
-              break;
-            case 'RECORD_PAYMENT':
-              await api.post('/payments', task.payload);
-              break;
-            case 'CREATE_USER':
-              await api.post('/users', task.payload);
-              break;
-            case 'UPDATE_USER':
-              await api.put(`/users/${task.payload.id}`, task.payload.data);
-              break;
-            case 'DELETE_USER':
-              await api.delete(`/users/${task.payload}`);
-              break;
-            case 'UPDATE_DAIRY':
-              await api.put(`/dairies/${task.payload.id}`, task.payload.data);
-              break;
-            case 'FINALIZE_BILLS':
-              await api.post('/reports/finalize-bills', task.payload);
-              break;
-          }
-          // Remove from queue after successful sync
-          await db.syncQueue.remove(task as any);
-        } catch (error: any) {
-          console.error('Failed to sync task:', task, error);
-          if (error.status >= 400 && error.status < 500) {
-             await db.syncQueue.remove(task as any);
-          }
-        }
-      }
-    } finally {
-      this.syncInProgress = false;
-    }
-  }
-
-  private async safeGetList(endpoint: string): Promise<any[]> {
-    try {
-      const res = await api.get(endpoint);
-      if (Array.isArray(res.data)) return res.data;
-      if (res.data && Array.isArray(res.data.data)) return res.data.data;
-      return [];
-    } catch (e: any) {
-      if (e?.response?.status === 403 || e?.response?.status === 401) {
-        console.warn(`Access denied for ${endpoint}, skipping sync.`);
-        return [];
-      }
-      console.error(`Sync failed for ${endpoint}:`, e?.message || e);
-      return [];
-    }
-  }
-
-  private async syncCollection(dbInstance: any, endpoint: string) {
-    const data = await this.safeGetList(endpoint);
-    await this.syncDataToLocal(dbInstance, data);
-  }
-
-  private async syncDataToLocal(dbInstance: any, data: any[]) {
-    const existing = await dbInstance.allDocs();
-    const existingMap = new Map(existing.rows.map((r: any) => [r.id, r.value.rev]));
-    
-    // Deduplicate data by ID to prevent intra-bulk conflicts
-    const uniqueDataMap = new Map();
-    data.forEach(item => {
-      const id = item.id || item._id;
-      if (id) {
-        uniqueDataMap.set(id, item);
-      }
-    });
-
-    const bulkData = Array.from(uniqueDataMap.values()).map((item: any) => {
-      const id = item.id || item._id;
-      const doc = { ...item, _id: id };
-      if (existingMap.has(id)) {
-        doc._rev = existingMap.get(id);
-        existingMap.delete(id);
-      }
-      return doc;
-    });
-
-    for (const [id, rev] of existingMap.entries()) {
-      // Don't delete design docs
-      if (typeof id === 'string' && !id.startsWith('_design/')) {
-        bulkData.push({ _id: id, _rev: rev, _deleted: true });
-      }
-    }
-
-    if (bulkData.length > 0) {
-      try {
-        await dbInstance.bulkDocs(bulkData);
-      } catch (e) {
-        console.error('bulkDocs conflict or error:', e);
-      }
-    }
-  }
+  isOnline: boolean = true;
+  constructor() {}
 
   async syncFromServer() {
-    if (!Capacitor.isNativePlatform()) return;
-    if (!this.isOnline) return;
-    try {
-      // 1. Sync Farmers
-      await this.syncCollection(db.farmers, '/farmers');
-      
-      // 2. Sync Collections (last 30 days)
-      const date = new Date();
-      date.setDate(date.getDate() - 30);
-      await this.syncCollection(db.collections, `/collections/report?date=${date.toISOString()}`);
-
-      // 3. Sync Shifts
-      await this.syncCollection(db.shifts, '/shifts/recent?limit=30');
-
-      // 4. Sync Sales Customers
-      await this.syncCollection(db.salesCustomers, '/sales/customers');
-
-      // 5. Sync Rates
-      await this.syncCollection(db.rates, '/rates');
-
-      // 6. Sync Rate Settings
-      try {
-        const rateSettingsRes = await api.get('/rates/settings');
-        const rateSettings = rateSettingsRes.data;
-        if (rateSettings && !Array.isArray(rateSettings)) {
-          try {
-            const existing = await db.rateSettings.get('current');
-            await db.rateSettings.put({ ...rateSettings, _id: 'current', _rev: existing._rev });
-          } catch (e) {
-            await db.rateSettings.put({ ...rateSettings, _id: 'current' });
-          }
-        }
-      } catch (e: any) {
-        if (e?.response?.status !== 403 && e?.response?.status !== 401) {
-          console.error("Rate settings sync failed", e?.message || e);
-        }
-      }
-
-      // 7. Sync Ledger
-      await this.syncCollection(db.ledgers, '/ledger');
-
-      // 8. Sync Users
-      await this.syncCollection(db.users, '/users');
-
-      // 9. Sync Dairies
-      await this.syncCollection(db.dairies, '/dairies');
-
-    } catch (error) {
-      console.error('Failed to sync from server:', error);
-    }
+    // offline mock
   }
 
-  // --- Offline Read/Mutation Methods ---
-
-  // 1. Farmers
-  async getFarmers(): Promise<any[]> {
-    const result = await db.farmers.allDocs({ include_docs: true });
-    const balancesResult = await db.farmerBalances.allDocs({ include_docs: true });
-    
-    const balancesMap = new Map();
-    balancesResult.rows.forEach(r => balancesMap.set(r.id, (r.doc as any).balance));
-    
-    return result.rows.map(row => {
-      const f = row.doc as any;
-      f.balance = balancesMap.get(f._id) || 0;
-      return f;
-    });
+  async getFarmers() {
+    const farmers = await db.collections.get<Farmer>('farmers').query().fetch();
+    return farmers.map((f) => ({
+      id: f.id,
+      farmerId: f.farmerId,
+      name: f.name,
+      phone: f.phone,
+    }));
   }
 
   async getFarmerById(id: string) {
     try {
-      return await db.farmers.get(id);
-    } catch (e) {
-      const result = await db.farmers.find({ selector: { farmerId: id } });
-      return result.docs[0] || null;
+      const f = await db.collections.get<Farmer>('farmers').find(id);
+      return { id: f.id, farmerId: f.farmerId, name: f.name, phone: f.phone };
+    } catch {
+      return null;
     }
   }
 
   async searchFarmer(farmerId: string) {
-    const result = await db.farmers.find({ selector: { farmerId } });
-    return result.docs[0] || null;
+    const farmers = await db.collections.get<Farmer>('farmers').query(Q.where('farmer_id', farmerId)).fetch();
+    const f = farmers[0];
+    if (f) return { id: f.id, farmerId: f.farmerId, name: f.name, phone: f.phone };
+    return null;
   }
 
-  // 2. Collections
+  async createFarmer(data: any) {
+    return await db.write(async () => {
+      return await db.collections.get<Farmer>('farmers').create((f) => {
+        f.farmerId = data.farmerId;
+        f.name = data.name;
+        f.phone = data.phone;
+      });
+    });
+  }
+
+  async updateFarmer(id: string, data: any) {
+    return await db.write(async () => {
+      const f = await db.collections.get<Farmer>('farmers').find(id);
+      return await f.update((farmer) => {
+        if (data.name) farmer.name = data.name;
+        if (data.phone) farmer.phone = data.phone;
+        if (data.farmerId) farmer.farmerId = data.farmerId;
+      });
+    });
+  }
+
+  async deleteFarmer(id: string) {
+    return await db.write(async () => {
+      const f = await db.collections.get<Farmer>('farmers').find(id);
+      return await f.markAsDeleted();
+    });
+  }
+
   async getCollectionsByDate(dateStr: string, endDate?: string) {
-    const result = await db.collections.allDocs({ include_docs: true });
-    const docs = result.rows.map(row => row.doc as any);
     const startCompare = dateStr.split('T')[0];
-    
+    let items;
     if (endDate) {
       const endCompare = endDate.split('T')[0];
-      return docs.filter(doc => {
-        if (!doc.date) return false;
-        const comp = doc.date.split('T')[0];
-        return comp >= startCompare && comp <= endCompare;
-      });
+      items = await db.collections.get<Collection>('collections')
+        .query(Q.where('date', Q.gte(startCompare)), Q.where('date', Q.lte(endCompare))).fetch();
+    } else {
+      items = await db.collections.get<Collection>('collections')
+        .query(Q.where('date', Q.like(`${startCompare}%`))).fetch();
     }
-    
-    return docs.filter(doc => doc.date && doc.date.split('T')[0] === startCompare);
+    return items.map((c) => ({
+      id: c.id,
+      farmerInternalId: c.farmerInternalId,
+      date: c.date,
+      shift: c.shift,
+      quantity: c.quantity,
+      fat: c.fat,
+      snf: c.snf,
+      amount: c.amount,
+    }));
   }
 
-  // 3. Shifts
-  async getRecentShifts(limit: number = 10): Promise<any[]> {
-    const result = await db.shifts.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any).slice(0, limit);
+  async createCollection(data: any) {
+     return await db.write(async () => {
+      return await db.collections.get<Collection>('collections').create((c) => {
+        c.farmerInternalId = data.farmerInternalId || data.farmerId;
+        c.date = data.date;
+        c.shift = data.shift;
+        c.quantity = data.quantity;
+        c.fat = data.fat;
+        c.snf = data.snf;
+        c.amount = data.amount;
+      });
+     });
+  }
+
+  async getRecentShifts(limit: number = 10) {
+    const cls = await db.collections.get<Collection>('collections').query(Q.sortBy('date', Q.desc), Q.take(limit)).fetch();
+    return cls.map(c => ({ date: c.date, shift: c.shift }));
   }
 
   async getShiftSummaryOffline(dateStr: string, shift: string) {
-    const collections = await this.getCollectionsByDate(dateStr);
-    const shiftCollections = collections.filter(c => String(c?.shift || '').toLowerCase() === String(shift || '').toLowerCase());
-    const totalQty = shiftCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const totalAmt = shiftCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
-    const avgFat = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / totalQty : 0;
-    const avgSnf = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / totalQty : 0;
+    const dt = dateStr.split('T')[0];
+    const collections = await db.collections.get<Collection>('collections')
+      .query(Q.where('date', Q.like(`${dt}%`)), Q.where('shift', shift)).fetch();
+
+    const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
+    const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
+    const avgFat = collections.length ? collections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / totalQty : 0;
+    const avgSnf = collections.length ? collections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / totalQty : 0;
 
     return {
       date: dateStr,
@@ -345,91 +123,112 @@ class OfflineService {
       totalAmt,
       avgFat,
       avgSnf,
-      collectionsCount: shiftCollections.length,
-      collections: shiftCollections
+      collectionsCount: collections.length,
+      collections: collections.map(c => ({
+        id: c.id, farmerInternalId: c.farmerInternalId, quantity: c.quantity, fat: c.fat, snf: c.snf, amount: c.amount, date: c.date, shift: c.shift
+      }))
     };
   }
 
-  // 4. Sales / Customers
-  async getSalesCustomers(): Promise<any[]> {
-    const result = await db.salesCustomers.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+  async getSalesCustomers() {
+     const res = await db.collections.get<SalesCustomer>('sales_customers').query().fetch();
+     return res.map(r => ({ id: r.id, name: r.name, phone: r.phone }));
   }
 
   async recordSaleOffline(payload: any) {
-    const doc = {
-      ...payload,
-      _id: 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      createdAt: new Date().toISOString()
-    };
-    await db.salesRecords.put(doc);
-    await this.queueTask('RECORD_SALE', payload);
-    return doc;
+    return await db.write(async () => {
+      const sale = await db.collections.get<SalesRecord>('sales_records').create((s) => {
+        s.customerId = payload.customerId || '';
+        s.date = new Date().toISOString();
+        s.quantity = payload.quantity;
+        s.amount = payload.amount;
+      });
+      return { id: sale.id, ...payload };
+    });
   }
 
-  // 5. Rates
-  async getRates(): Promise<any[]> {
-    const result = await db.rates.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+  async getRates() {
+    return []; // Re-implemented if needed
   }
 
   async getRateSettings() {
-    try {
-      return await db.rateSettings.get('current');
-    } catch {
+    const set = await db.collections.get<RateSetting>('rate_settings').query().fetch();
+    if (set.length > 0) {
       return {
         _id: 'current',
-        fatMultiplier1: 3.96,
-        snfMultiplier1: 2.64,
-        maxFatForFormula1: 6.0,
-        fatMultiplier2: 7.77,
+        fatMultiplier1: set[0].fatMultiplier1,
+        snfMultiplier1: set[0].snfMultiplier1,
+        maxFatForFormula1: set[0].maxFat,
+        fatMultiplier2: set[0].fatMultiplier2,
         snfDeductions: {}
       };
     }
+    return {
+      _id: 'current',
+      fatMultiplier1: 3.96,
+      snfMultiplier1: 2.64,
+      maxFatForFormula1: 6.0,
+      fatMultiplier2: 7.77,
+      snfDeductions: {}
+    };
+  }
+  
+  async saveRateSettings(data: any) {
+    return await db.write(async () => {
+       const set = await db.collections.get<RateSetting>('rate_settings').query().fetch();
+       if (set.length > 0) {
+          await set[0].update((s) => {
+             s.fatMultiplier1 = data.fatMultiplier1;
+             s.snfMultiplier1 = data.snfMultiplier1;
+             s.maxFat = data.maxFatForFormula1;
+             s.fatMultiplier2 = data.fatMultiplier2;
+          });
+       } else {
+          await db.collections.get<RateSetting>('rate_settings').create((s) => {
+             s.fatMultiplier1 = data.fatMultiplier1;
+             s.snfMultiplier1 = data.snfMultiplier1;
+             s.maxFat = data.maxFatForFormula1;
+             s.fatMultiplier2 = data.fatMultiplier2;
+          });
+       }
+    });
   }
 
-  // 6. Ledger & Payments
-  async getLedger(): Promise<any[]> {
-    const result = await db.ledgers.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+  async getLedger() {
+    const l = await db.collections.get<Ledger>('ledgers').query().fetch();
+    return l.map(r => ({ id: r.id, farmerInternalId: r.farmerInternalId, date: r.date, type: r.type, amount: r.amount, description: r.description }));
   }
 
   async getLedgerByFarmerId(farmerInternalId: string) {
-    const result = await db.ledgers.allDocs({ include_docs: true });
-    return result.rows
-      .map(row => row.doc as any)
-      .filter(doc => doc.farmerId === farmerInternalId || doc.farmerInternalId === farmerInternalId);
+    const l = await db.collections.get<Ledger>('ledgers').query(Q.where('farmer_internal_id', farmerInternalId)).fetch();
+    return l.map(r => ({ id: r.id, farmerInternalId: r.farmerInternalId, date: r.date, type: r.type, amount: r.amount, description: r.description }));
   }
 
   async recordPaymentOffline(payload: any) {
-    const doc = {
-      ...payload,
-      _id: 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      date: new Date().toISOString()
-    };
-    await db.ledgers.put(doc);
-    await this.queueTask('RECORD_PAYMENT', payload);
-    return doc;
+    return await db.write(async () => {
+      const led = await db.collections.get<Ledger>('ledgers').create((l) => {
+        l.farmerInternalId = payload.farmerInternalId || payload.farmerId;
+        l.date = new Date().toISOString();
+        l.type = 'payment';
+        l.amount = payload.amount;
+        l.description = payload.description || '';
+      });
+      return { id: led.id, ...payload };
+    });
   }
 
-  // 7. Users
-  async getUsers(): Promise<any[]> {
-    const result = await db.users.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+  async getUsers() {
+    const res = await db.collections.get<User>('users').query().fetch();
+    return res.map(u => ({ id: u.id, username: u.username, role: u.role }));
   }
 
-  // 8. Dairies
-  async getDairies(): Promise<any[]> {
-    const result = await db.dairies.allDocs({ include_docs: true });
-    return result.rows.map(row => row.doc as any);
+  async getDairies() {
+    return [];
   }
 
-  // 9. Bills offline calculation
   async getBillsOffline(year: number, month: number, period: number, farmerId?: string) {
     const farmers = await this.getFarmers();
-    const result = await db.collections.allDocs({ include_docs: true });
-    const collections = result.rows.map(row => row.doc as any);
-
+    
     let startDay = 1;
     let endDay = 10;
     if (period === 2) {
@@ -443,21 +242,27 @@ class OfflineService {
     const startCompare = `${year}-${String(month + 1).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
     const endCompare = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
-    const periodCollections = collections.filter(c => {
-      if (!c.date) return false;
-      const comp = c.date.split('T')[0];
-      return comp >= startCompare && comp <= endCompare;
-    });
+    const items = await db.collections.get<Collection>('collections')
+      .query(Q.where('date', Q.gte(startCompare)), Q.where('date', Q.lte(endCompare))).fetch();
+
+    const periodCollections = items.map(c => ({
+      farmerInternalId: c.farmerInternalId, 
+      date: c.date, 
+      quantity: c.quantity,
+      fat: c.fat,
+      snf: c.snf,
+      amount: c.amount
+    }));
 
     const billsMap = new Map<string, any>();
 
     periodCollections.forEach(c => {
-      const fId = c.farmerInternalId || c.farmerId;
+      const fId = c.farmerInternalId;
       if (!fId) return;
       if (farmerId && fId !== farmerId) return;
 
-      const farmerObj = farmers.find((f: any) => f.id === fId || f._id === fId || f.farmerId === fId);
-      const farmerName = farmerObj ? (farmerObj.name || farmerObj.displayName) : 'Unknown';
+      const farmerObj = farmers.find((f: any) => f.id === fId || f.farmerId === fId);
+      const farmerName = farmerObj ? farmerObj.name : 'Unknown';
       const userFarmerId = farmerObj ? farmerObj.farmerId : 'F-Unknown';
 
       if (!billsMap.has(fId)) {
@@ -483,23 +288,23 @@ class OfflineService {
       bill.count += 1;
     });
 
-    const billsList = Array.from(billsMap.values()).map(b => ({
+    return Array.from(billsMap.values()).map(b => ({
       ...b,
       averageFat: b.quantity ? b.fatSum / b.quantity : 0,
       averageSnf: b.quantity ? b.snfSum / b.quantity : 0
     }));
-
-    return billsList;
   }
 
-  // 10. Dashboard offline calculation
   async getDashboardOffline() {
     const farmers = await this.getFarmers();
-    const result = await db.collections.allDocs({ include_docs: true });
-    const collections = result.rows.map(row => row.doc as any);
-
+    
     const todayStr = new Date().toISOString().split('T')[0];
-    const todayCollections = collections.filter(c => c.date && c.date.startsWith(todayStr));
+    const todayCollectionsDocs = await db.collections.get<Collection>('collections')
+        .query(Q.where('date', Q.like(`${todayStr}%`))).fetch();
+
+    const todayCollections = todayCollectionsDocs.map(c => ({
+       farmerInternalId: c.farmerInternalId, quantity: c.quantity, fat: c.fat, snf: c.snf, amount: c.amount, shift: c.shift
+    }));
 
     const todayQty = todayCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const morningQty = todayCollections.filter(c => c.shift === 'Morning').reduce((sum, c) => sum + (c.quantity || 0), 0);
@@ -509,31 +314,33 @@ class OfflineService {
     const avgFat = todayQty ? todayCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / todayQty : 0;
     const avgSnf = todayQty ? todayCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / todayQty : 0;
 
-    // Sorting collections to get recent transactions
-    const sortedCollections = collections
-      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
-      .slice(0, 10);
+    const allCollectionsDocs = await db.collections.get<Collection>('collections')
+        .query(Q.sortBy('date', Q.desc), Q.take(10)).fetch();
 
-    const recentTxns = sortedCollections.map(c => {
-      const farmerObj = farmers.find((f: any) => f.id === c.farmerInternalId || f._id === c.farmerInternalId || f.farmerId === c.farmerInternalId);
+    const recentTxns = allCollectionsDocs.map(c => {
+      const farmerObj = farmers.find((f: any) => f.id === c.farmerInternalId || f.farmerId === c.farmerInternalId);
       return {
-        ...c,
-        farmerName: farmerObj ? (farmerObj.name || farmerObj.displayName) : (c.farmerName || 'Unknown'),
-        farmerId: farmerObj ? farmerObj.farmerId : (c.farmerId || '')
+        id: c.id,
+        date: c.date,
+        quantity: c.quantity,
+        amount: c.amount,
+        farmerName: farmerObj ? farmerObj.name : 'Unknown',
+        farmerId: farmerObj ? farmerObj.farmerId : ''
       };
     });
 
-    // Generate trendData for last 7 days
     const trendData: any[] = [];
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const dateCollections = collections.filter(c => c.date && c.date.startsWith(dateStr));
+      const tdate = new Date();
+      tdate.setDate(tdate.getDate() - i);
+      const dateStr2 = tdate.toISOString().split('T')[0];
+      const dateCollectionsDocs = await db.collections.get<Collection>('collections')
+        .query(Q.where('date', Q.like(`${dateStr2}%`))).fetch();
+        
       trendData.push({
-        date: dateStr,
-        quantity: dateCollections.reduce((sum, c) => sum + (c.quantity || 0), 0),
-        amount: dateCollections.reduce((sum, c) => sum + (c.amount || 0), 0)
+        date: dateStr2,
+        quantity: dateCollectionsDocs.reduce((sum, c) => sum + (c.quantity || 0), 0),
+        amount: dateCollectionsDocs.reduce((sum, c) => sum + (c.amount || 0), 0)
       });
     }
 
@@ -552,3 +359,4 @@ class OfflineService {
 }
 
 export const offlineService = new OfflineService();
+

@@ -193,14 +193,23 @@ export default function Settings() {
               )}
               {activeTab === 'System' && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl">
+                  <div className="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl dark:border dark:border-stone-700">
                     <div>
-                      <p className="text-sm font-medium text-stone-900">Database Backup</p>
-                      <p className="text-xs text-stone-500">Last backup: 2 hours ago</p>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">Database Backup</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">Last backup: 2 hours ago</p>
                     </div>
-                    <button className="px-4 py-2 bg-white border border-stone-100 rounded-xl text-xs font-medium hover:bg-stone-50 transition-colors">
+                    <button className="px-4 py-2 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-700 rounded-xl text-xs font-medium dark:text-white hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
                       Backup Now
                     </button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl dark:border dark:border-stone-700">
+                    <div>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">App Version</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">Current version installed</p>
+                    </div>
+                    <span className="text-sm font-mono text-stone-600 dark:text-stone-300">
+                      v{import.meta.env.VITE_APP_VERSION || '1.0.0'}
+                    </span>
                   </div>
                 </div>
               )}

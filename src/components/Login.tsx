@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
 import { Milk, LogIn, Mail, Lock, AlertCircle, Globe, Clock, User as UserIcon } from 'lucide-react';
@@ -161,23 +159,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="relative py-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-stone-100 dark:border-stone-800"></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white dark:bg-stone-900 px-4 text-stone-400 dark:text-stone-500 font-medium tracking-wider">Or continue with</span>
-          </div>
-        </div>
-
-        <button
-          onClick={signInWithGoogle}
-          className="w-full py-4 border border-stone-100 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-medium hover:bg-stone-50 dark:hover:bg-stone-800 transition-all flex items-center justify-center gap-3"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-          Google Workspace Account
-        </button>
-
         <p className="text-center text-sm text-stone-500 dark:text-stone-400 pt-4">
           Don't have an account?{' '}
           <Link to="/register" className="text-stone-900 dark:text-white font-medium hover:underline">
@@ -185,9 +166,14 @@ export default function Login() {
           </Link>
         </p>
 
-        <p className="text-center text-xs text-stone-400 dark:text-stone-500 pt-4">
-          Authorized personnel only. All access is monitored and logged.
-        </p>
+        <div className="text-center space-y-2 pt-4">
+          <p className="text-xs text-stone-400 dark:text-stone-500">
+            Authorized personnel only. All access is monitored and logged.
+          </p>
+          <p className="text-[10px] text-stone-300 dark:text-stone-600 font-mono">
+            v{import.meta.env.VITE_APP_VERSION || '1.0.0'}
+          </p>
+        </div>
       </div>
     </div>
   );

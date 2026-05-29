@@ -1,119 +1,115 @@
-# Offline-First Dairy Management System
+# DugdhSetu - Dairy Management System
 
-## Project Overview
-A fully-featured, offline-first application for managing dairy operations, including farmer records, milk collections, bulk sales, shift tracking, and dynamic rate calculation. 
+DugdhSetu is a comprehensive, full-stack dairy management application designed to streamline milk collection, farmer management, sales, and financial reporting for dairy cooperatives and private dairies.
 
-The software is built with a local-first philosophy. Operations run entirely locally on the device (Web or Native Android via Capacitor) using `PouchDB` backed by `IndexedDB`. When a network connection is available, background synchronization reconciles data with the remote Node.js/Express backend (backed by MongoDB).
+## 🚀 Features
+
+- **Farmer Management**: Register and manage farmer profiles with unique IDs.
+- **Milk Collection**: Real-time recording of milk collection with FAT/SNF testing and automatic price calculation.
+- **Sales Management**: Track milk sales to customers and manage customer accounts.
+- **Rate Chart Management**: Dynamic rate charts based on FAT and SNF ranges.
+- **Financial Ledger**: Automatic ledger entries for collections and manual payment recording.
+- **Reporting & Analytics**: Dashboard statistics, daily collection reports, and individual farmer statements.
+- **Multi-Tenant Architecture**: Support for multiple dairies with isolated data using a tenant-based database system.
+- **Role-Based Access Control (RBAC)**: Distinct permissions for Super Admins, Admins, and Operators.
+- **Notifications**: Simulation mode for SMS and WhatsApp notifications.
+- **Case-Insensitive Login**: Robust authentication supporting various username casings.
 
 ## 🛠 Tech Stack
 
-### Frontend & Mobile Native
-* **Framework:** React 19 + TypeScript + Vite
-* **Styling:** Tailwind CSS + Lucide React (Icons)
-* **Mobile Wrapper:** Capacitor JS (v8) for Android/iOS native deployment
-* **Local Database:** PouchDB (`pouchdb-browser`, `pouchdb-find`) using modern `idb` built-in adapters.
-* **Charts/UI:** Recharts, Web5/PWA integrations.
+### Frontend
+- **React 18** with **Vite**
+- **TypeScript**
+- **Tailwind CSS** for styling
+- **Lucide React** for iconography
+- **Framer Motion** for animations
+- **Recharts** & **D3** for data visualization
+- **Sonner** for toast notifications
+- **Axios** for API communication
 
-### Backend Server
-* **Environment:** Node.js (Express v4)
-* **Database:** MongoDB (via Mongoose)
-* **Authentication:** JSON Web Tokens (JWT) + bcryptjs
-* **Security/Config:** Helmet, Cors, dotenv, express-rate-limit 
-* **Compilation:** Managed via `tsx` (Dev) and `esbuild` (Prod) into a single `server.cjs` executable.
+### Backend
+- **Node.js** with **Express**
+- **MongoDB** with **Mongoose**
+- **JWT** for authentication
+- **Bcryptjs** for password hashing
 
----
+## 🏗 Architecture
 
-## 🏗 Architecture & Offline Synchronization
+The project follows a modular architecture inspired by Clean Architecture principles:
 
-1. **Local State (PouchDB):** 
-   - Operations (Create, Update, Delete) are immediately written to local PouchDB instances.
-   - PouchDB utilizes the built-in IndexedDB (`idb`) adapter natively for both Mobile (Capacitor) and Browser environments.
-2. **Offline Queueing:**
-   - If offline, state transitions are scheduled into a local `sync_queue` PouchDB collection.
-3. **Background Sync:**
-   - When connection is restored (`offlineService.ts`), the `sync_queue` pushes pending modifications to the Express backend via REST endpoints.
-   - Remote changes are pulled into the local databases to ensure the device is up to date.
+### Backend Structure (`/src/backend`)
+- **Core**: Contains domain entities and interfaces.
+- **Application**: Business logic services and repository interfaces.
+- **Infrastructure**: Implementation of repositories (MongoDB) and external services.
+- **API**: Express controllers, middleware (Auth, Error), and route definitions.
 
----
+### Frontend Structure (`/src`)
+- **components**: Reusable UI components and layout elements.
+- **services**: API client and service wrappers.
+- **context**: React Context providers (Auth, Theme).
+- **hooks**: Custom React hooks for shared logic.
+- **pages**: Main application views.
 
-## 🗄️ Database Schemas / Collections
+## 🚦 Getting Started
 
-Both MongoDB and local PouchDB mirror these core data collections:
-* **Farmers:** Registered farmers providing milk.
-* **Collections:** Individual milk deposit records.
-* **Shifts:** Morning/Evening collection shift summaries.
-* **Sales Customers:** Buyers/businesses purchasing bulk milk.
-* **Sales Records:** Transaction logs for bulk sales.
-* **Rates & Rate Settings:** Dynamic SNF / FAT based pricing matrices.
-* **Payments & Ledgers:** Farmer accounting, payouts, and balances.
-* **Users:** App administrator and staff accounts.
-* **Dairies:** Global/tenant configurations.
+### Prerequisites
+- Node.js (v18+)
+- MongoDB Atlas account or local MongoDB instance
 
----
-
-## ⚙️ Setup & Installation Instructions
-
-### 1. Prerequisites
-* **Node.js**: v18.x or v22.x recommended
-* **Database**: A MongoDB instance (Local or MongoDB Atlas)
-* **Mobile Build**: Android Studio (for Android app) or Xcode (for iOS)
-
-### 2. Environment Variables
-Create a `.env` file in the root directory:
+### Environment Variables
+Create a `.env` file in the root directory (refer to `.env.example`):
 ```env
-# Server Target & Port (required for cloud run / Docker setup)
-PORT=3000
-
-# MongoDB URI (Required)
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.../dairy_db
-
-# Backend App Secret (For JWT Auth)
-JWT_SECRET=your_super_secret_jwt_key
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
 ```
 
-### 3. Installation
-```bash
-# Install all required npm packages
-npm install
-```
-
-### 4. Running Locally
-Start the unified DEV server (Vite + Express):
-```bash
-npm run dev
-```
-*The app will automatically run on http://localhost:3000*
-
----
-
-## 📦 Building for Production
-
-### Web / PWA Deployment
-1. Build the client and server applications:
+### Installation
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the development server (Express + Vite):
+   ```bash
+   npm run dev
+   ```
+3. Build for production:
    ```bash
    npm run build
    ```
-2. Start the production server:
-   ```bash
-   npm start
-   ```
 
-### 📱 Android Deployment (Capacitor)
-To build the project into a native `.apk` or `.aab`:
-1. Build the production React web bundle:
-   ```bash
-   npm run build
-   ```
-2. Sync the web assets into the Capacitor Android project:
-   ```bash
-   npx cap sync android
-   ```
-3. Open Android Studio to build the app package:
-   ```bash
-   npx cap open android
-   ```
-4. *Inside Android Studio:* Select `Build > Generate Signed Bundle / APK` to create your distribution file.
+## 🔐 Authentication
 
-## 🔑 Customizations & Notes
-* If you modify any native configurations in `android/app/src/main/AndroidManifest.xml`, make sure to run `npx cap sync` afterward.
-* HMR (Hot Module Replacement) routes through Vite middleware while in `development` mode but serves purely static files in `production`.
+- **Super Admin**: Global access to manage all dairies and users.
+- **Admin**: Manage a specific dairy, its farmers, rates, and operators.
+- **Operator**: Daily milk collection and sales recording.
+
+Usernames are case-insensitive. The system automatically normalizes usernames to lowercase during registration and login.
+
+## 📊 Database Multi-Tenancy
+
+The application uses a `databaseId` to isolate data between different dairies. 
+- The `RequestContext` (using `AsyncLocalStorage`) manages the `databaseId` throughout the request lifecycle.
+- Repositories use `dbManager.getModel(getDatabaseId())` to dynamically switch between database contexts.
+
+## 🛡 Security
+...
+
+## 🔧 Troubleshooting Email (OTP)
+
+If you see the error `535-5.7.8 Username and Password not accepted`, it means Google is rejecting your login.
+
+### Solution: Use a Google App Password
+1.  **Enable 2-Step Verification** in your [Google Account Security settings](https://myaccount.google.com/security).
+2.  Go to [App Passwords](https://myaccount.google.com/apppasswords).
+3.  Select **Mail** and **Other (DugdhaSetu)**, then click **Generate**.
+4.  Copy the **16-character code** (e.g. `abcd efgh ijkl mnop`).
+5.  Go to **Settings > Secrets** in AI Studio and update `EMAIL_PASS` with this code (remove spaces).
+6.  Ensure `EMAIL_USER` is your full Gmail address.
+
+### Diagnostic Tool
+You can test your email configuration by visiting:
+`{APP_URL}/api/diag/email?to=your-email@example.com`
+
+## 📝 License
+
+This project is proprietary. All rights reserved.

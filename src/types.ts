@@ -10,7 +10,7 @@ export interface Farmer {
   ifsc?: string;
   status: 'Active' | 'Inactive';
   createdAt: string;
-  balance?: number; // Balance merged from farmer_balances collection
+  balance: number; // Current pending balance
   dairyId: string; // The dairy this farmer belongs to
 }
 
@@ -112,10 +112,4 @@ export interface LedgerEntry {
   method?: string;
   reference?: string;
   operatorId?: string;
-}
-
-export interface FarmerBalance {
-  id: string;
-  farmerInternalId: string;
-  balance: number;
 }

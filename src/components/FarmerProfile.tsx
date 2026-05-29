@@ -14,7 +14,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { format } from 'date-fns';
-import { toDate } from '../firebase';
+function toDate(value: any) { return new Date(value); }
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';

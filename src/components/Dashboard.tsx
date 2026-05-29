@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { toDate } from '../firebase';
 import { Link } from 'react-router-dom';
+
+function toDate(value: any) { return new Date(value); }
 import { useLanguage } from '../LanguageContext';
 import { useAuth } from '../AuthContext';
 import { CollectionTransaction } from '../types';
