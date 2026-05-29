@@ -60,7 +60,12 @@ export default function RateChartManagement() {
       try {
         const response = await rateApi.getSettings();
         if (response.data && Object.keys(response.data).length > 0) {
-          setRateSettings(response.data as RateSettings);
+          const data = response.data;
+          setRateSettings(prev => ({
+            ...prev,
+            ...data,
+            snfDeductions: data.snfDeductions || prev.snfDeductions || {}
+          }));
         }
       } catch (err) {
         handleError(err, "Failed to fetch rate settings");
@@ -274,7 +279,7 @@ export default function RateChartManagement() {
                     SNF Deductions (%)
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {Object.entries(rateSettings.snfDeductions)
+                    {Object.entries(rateSettings.snfDeductions || {})
                       .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
                       .map(([snf, deduction]) => (
                         <div key={snf} className="space-y-1">
@@ -284,10 +289,10 @@ export default function RateChartManagement() {
                             step="0.1"
                             value={deduction}
                             onChange={(e) => {
-                              const newDeductions = { ...rateSettings.snfDeductions, [snf]: parseFloat(e.target.value) };
+                              const newDeductions = { ...(rateSettings.snfDeductions || {}), [snf]: parseFloat(e.target.value) };
                               setRateSettings({ ...rateSettings, snfDeductions: newDeductions });
                             }}
-                            className="w-full p-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-lg focus:outline-none text-sm dark:text-white"
+                            className="w-full p-2 bg-stone-100 dark:bg-stone-850 p-2 rounded border border-stone-100 dark:border-stone-800 focus:outline-none text-sm dark:text-white"
                           />
                         </div>
                       ))}

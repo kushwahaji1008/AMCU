@@ -1,4 +1,6 @@
 import Dexie, { type Table } from 'dexie';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
 /**
  * Realm Database Emulator & Engine for Web and Mobile platforms.
@@ -16,6 +18,8 @@ export class Realm {
   private dexieDb: Dexie;
   public path: string;
   public schema: RealmSchema[];
+  private initPromise: Promise<void> | null = null;
+  private saveTimeout: any = null;
 
   constructor(config: { path: string; schema: RealmSchema[] }) {
     this.path = config.path;
@@ -56,6 +60,238 @@ export class Realm {
     });
 
     this.dexieDb.version(1).stores(stores);
+
+    // Load initial backup from device storage files if on a native platform
+    if (Capacitor.isNativePlatform()) {
+      this.initPromise = this.loadBackupFromFilesystem().then(() => {});
+    }
+  }
+
+  // Triggered after create, delete, change
+  public triggerSaveBackup() {
+    if (!Capacitor.isNativePlatform()) return;
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    this.saveTimeout = setTimeout(() => {
+      this.saveBackupToFilesystem().catch((err) => {
+        console.error('[Filesystem Sync] Auto-save failed:', err);
+      });
+    }, 500);
+  }
+
+  // Backup all tables in dexieDb to capacitor filesystem or web file download
+  async saveBackupToFilesystem(): Promise<void> {
+    try {
+      const backupData: Record<string, any[]> = {};
+      for (const s of this.schema) {
+        const table = this.dexieDb.table(s.name);
+        if (table) {
+          const items = await table.toArray();
+          backupData[s.name] = items;
+        }
+      }
+      
+      const jsonString = JSON.stringify(backupData, null, 2);
+      
+      if (Capacitor.isNativePlatform()) {
+        // Save primary JSON database backup (for app-level restoration)
+        await Filesystem.writeFile({
+          path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
+          data: jsonString,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true
+        });
+        console.log('[Filesystem Sync] Successfully backed up database JSON to DugdhaSetu_AMCU/Backups/database_backup.json');
+
+        // Create human-readable, office-ready CSV reports on local phone storage like WhatsApp export files
+        if (backupData.collections && backupData.collections.length > 0) {
+          const collectionsCsv = this.generateCollectionsCsv(backupData.collections);
+          await Filesystem.writeFile({
+            path: 'DugdhaSetu_AMCU/Reports/collections_record.csv',
+            data: collectionsCsv,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+        }
+
+        if (backupData.farmers && backupData.farmers.length > 0) {
+          const farmersCsv = this.generateFarmersCsv(backupData.farmers);
+          await Filesystem.writeFile({
+            path: 'DugdhaSetu_AMCU/Reports/farmers_register.csv',
+            data: farmersCsv,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+        }
+
+        if (backupData.payments && backupData.payments.length > 0) {
+          const paymentsCsv = this.generatePaymentsCsv(backupData.payments);
+          await Filesystem.writeFile({
+            path: 'DugdhaSetu_AMCU/Reports/payments_ledger.csv',
+            data: paymentsCsv,
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+        }
+
+        console.log('[Filesystem Export] Updated live human-readable CSV documents on phone storage');
+      } else {
+        // Web context fallback: trigger direct json download
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `DugdhaSetu_AMCU_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('[Web Export] Triggered backup file download in browser');
+      }
+    } catch (e) {
+      console.error('[Filesystem Sync] Failed to write database backup:', e);
+      throw e;
+    }
+  }
+
+  // Dual Fallback: Restore all tables from capacitor filesystem back to dexieDb
+  async loadBackupFromFilesystem(): Promise<boolean> {
+    try {
+      if (!Capacitor.isNativePlatform()) return false;
+      
+      let backupContent: string | null = null;
+      let pathUsed = '';
+
+      // 1. Try reading the organized WhatsApp-style file first
+      try {
+        console.log('[Filesystem Sync] Checking organized device backup file...');
+        const file = await Filesystem.readFile({
+          path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8
+        });
+        if (file && file.data) {
+          backupContent = typeof file.data === 'string' ? file.data : JSON.stringify(file.data);
+          pathUsed = 'DugdhaSetu_AMCU/Backups/database_backup.json';
+        }
+      } catch (e) {
+        console.log('[Filesystem Sync] No organized backup found, searching old legacy backup paths...');
+      }
+
+      // 2. Fallback to old legacy root path if organized path is empty
+      if (!backupContent) {
+        try {
+          const file = await Filesystem.readFile({
+            path: 'milkflow_amcu_db_backup.json',
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8
+          });
+          if (file && file.data) {
+            backupContent = typeof file.data === 'string' ? file.data : JSON.stringify(file.data);
+            pathUsed = 'milkflow_amcu_db_backup.json';
+          }
+        } catch (e) {
+          console.log('[Filesystem Sync] Legacy root database backup not found.');
+        }
+      }
+
+      // If backup is loaded, parse and apply transactions
+      if (backupContent) {
+        return await this.restoreBackupFromJSON(backupContent);
+      }
+    } catch (e) {
+      console.error('[Filesystem Sync] Failed to restore database from filesystem:', e);
+    }
+    return false;
+  }
+
+  // Restore raw JSON content directly into Dexie tables
+  async restoreBackupFromJSON(jsonString: string): Promise<boolean> {
+    try {
+      const backupData = JSON.parse(jsonString);
+      if (backupData && typeof backupData === 'object') {
+        const tableNames = this.schema.map((s) => s.name);
+        await this.dexieDb.transaction('rw', tableNames, async () => {
+          for (const tableName of Object.keys(backupData)) {
+            const table = this.dexieDb.table(tableName);
+            if (table) {
+              await table.clear();
+              if (Array.isArray(backupData[tableName]) && backupData[tableName].length > 0) {
+                await table.bulkAdd(backupData[tableName]);
+              }
+            }
+          }
+        });
+        console.log('[Realm Sync] Successfully restored tables from database backup JSON data.');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('[Realm Sync] Failed to parse and restore database backup JSON:', e);
+      throw e;
+    }
+  }
+
+  // Generate Excel/WPS compatible CSV sheets of milk collections
+  private generateCollectionsCsv(items: any[]): string {
+    const headers = ['Date', 'Shift', 'Farmer Code', 'Farmer Name', 'Milk Type', 'Quantity (Ltr)', 'FAT (%)', 'SNF (%)', 'CLR', 'Rate (Rs/Ltr)', 'Total Amount (Rs)', 'Timestamp'];
+    const rows = items.map(c => [
+      c.date || '',
+      c.shift || '',
+      c.farmerCode || c.farmerId || '',
+      c.farmerName || '',
+      c.milkType || '',
+      c.quantity || 0,
+      c.fat || 0,
+      c.snf || 0,
+      c.clr || 0,
+      c.rate || 0,
+      c.amount || 0,
+      c.timestamp ? new Date(c.timestamp).toLocaleString() : ''
+    ]);
+    return [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""').replace(/\n/g, ' ')}"`).join(','))].join('\n');
+  }
+
+  // Generate Excel/WPS compatible CSV sheets of farmers register
+  private generateFarmersCsv(items: any[]): string {
+    const headers = ['Farmer Code', 'Farmer Name', 'Mobile Number', 'Village', 'Cattle Type', 'Outstanding Balance (Rs)', 'Status'];
+    const rows = items.map(f => [
+      f.farmerCode || f.farmerId || '',
+      f.name || '',
+      f.mobile || '',
+      f.village || '',
+      f.cattleType || '',
+      f.balance || 0,
+      f.status || ''
+    ]);
+    return [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""').replace(/\n/g, ' ')}"`).join(','))].join('\n');
+  }
+
+  // Generate Excel/WPS compatible CSV sheets of payments disbursements
+  private generatePaymentsCsv(items: any[]): string {
+    const headers = ['Date', 'Farmer ID', 'Farmer Name', 'Paid Amount (Rs)', 'Payment Method', 'Status', 'Reference'];
+    const rows = items.map(p => [
+      p.date || '',
+      p.farmerId || '',
+      p.farmerName || '',
+      p.amount || 0,
+      p.method || '',
+      p.status || '',
+      p.reference || ''
+    ]);
+    return [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""').replace(/\n/g, ' ')}"`).join(','))].join('\n');
+  }
+
+  // Ensure database initialization is complete before performing query/mutation
+  private async ensureInitialized(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
   }
 
   // Get indexable DEXIE table
@@ -71,6 +307,7 @@ export class Realm {
    * Realm objects() method
    */
   async objects<T = any>(name: string): Promise<T[]> {
+    await this.ensureInitialized();
     const table = this.getTable(name);
     return (await table.toArray()) as T[];
   }
@@ -79,6 +316,7 @@ export class Realm {
    * Realm objectForPrimaryKey() method
    */
   async objectForPrimaryKey<T = any>(name: string, key: any): Promise<T | null> {
+    await this.ensureInitialized();
     const table = this.getTable(name);
     const item = await table.get(key);
     return item || null;
@@ -92,6 +330,7 @@ export class Realm {
     properties: any,
     updateMode: 'never' | 'all' | 'modified' = 'all'
   ): Promise<T> {
+    await this.ensureInitialized();
     const table = this.getTable(name);
     const schemaDef = this.schema.find((s) => s.name === name);
     const primaryKey = schemaDef?.primaryKey || 'id';
@@ -106,6 +345,8 @@ export class Realm {
     } else {
       await table.add(properties);
     }
+    
+    this.triggerSaveBackup();
     return properties as T;
   }
 
@@ -113,6 +354,7 @@ export class Realm {
    * Realm delete() method
    */
   async delete(name: string, objectOrKey: any): Promise<void> {
+    await this.ensureInitialized();
     const table = this.getTable(name);
     const schemaDef = this.schema.find((s) => s.name === name);
     const primaryKey = schemaDef?.primaryKey || 'id';
@@ -125,21 +367,28 @@ export class Realm {
     } else {
       await table.delete(objectOrKey);
     }
+    
+    this.triggerSaveBackup();
   }
 
   /**
    * Realm transaction write wrapper
    */
   async write<T = any>(callback: () => Promise<T> | T): Promise<T> {
-    return await this.dexieDb.transaction('rw', this.dexieDb.tables, async () => {
+    await this.ensureInitialized();
+    const tableNames = this.schema.map((s) => s.name);
+    const result = await this.dexieDb.transaction('rw', tableNames, async () => {
       return await callback();
     });
+    this.triggerSaveBackup();
+    return result;
   }
 
   /**
    * Query matching Realm's simple query system
    */
   async find<T = any>(name: string, predicate: (item: T) => boolean): Promise<T[]> {
+    await this.ensureInitialized();
     const all = await this.objects<T>(name);
     return all.filter(predicate);
   }

@@ -8,7 +8,11 @@ export default function DeviceIntegration() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'Weighing' | 'Analyzer' | 'Printer'>('Weighing');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [devices, setDevices] = useState<any[]>([]);
+  const [devices, setDevices] = useState<any[]>([
+    { id: 1, name: 'Smart Weighing Scale', model: 'Shimadzu DX-500', serial: 'WS-59302', type: 'Weighing', status: 'Online' },
+    { id: 2, name: 'Lactoscan Analyzer', model: 'LS-Pro v3', serial: 'LA-10492', type: 'Analyzer', status: 'Online' },
+    { id: 3, name: 'Thermal Receipt Printer', model: 'Epson RP-80', serial: 'PR-88402', type: 'Printer', status: 'Online' },
+  ]);
 
   const handleConnect = (id: number) => {
     setIsConnecting(true);

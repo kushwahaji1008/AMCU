@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, offlineService } from '../services/offlineService';
+import { realmInstance } from '../services/realm';
 import { toast } from 'sonner';
 
 export default function HelpAbout() {
@@ -21,6 +22,39 @@ export default function HelpAbout() {
   const [loading, setLoading] = useState(false);
   const [networkState, setNetworkState] = useState(offlineService.isOnline);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const triggerWebBackupRestore = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (event: any) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const toastId = toast.loading('Reading and importing backup JSON file...');
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e: any) => {
+          try {
+            const content = e.target.result;
+            const success = await realmInstance.restoreBackupFromJSON(content);
+            if (success) {
+              await fetchDbStats();
+              toast.success('Database restored successfully from local file backup!', { id: toastId });
+            } else {
+              toast.error('Failed to parse the backup JSON file.', { id: toastId });
+            }
+          } catch (err: any) {
+            toast.error(`Restore error: ${err.message || String(err)}`, { id: toastId });
+          }
+        };
+        reader.readAsText(file);
+      } catch (err: any) {
+        toast.error(`Failed to read backup file: ${err.message || String(err)}`, { id: toastId });
+      }
+    };
+    input.click();
+  };
 
   const fetchDbStats = async () => {
     try {
@@ -353,6 +387,90 @@ export default function HelpAbout() {
                       </div>
                     </>
                   )}
+                </div>
+              </div>
+
+              {/* Native Device Storage Backup/Restore widgets */}
+              <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
+                <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">Local Device File Storage</h3>
+                <p className="text-xs text-stone-500 leading-relaxed pl-1">
+                  Ensure permanent preservation of collections data by backing up or restoring from your phone's physical files.
+                </p>
+
+                {/* File paths & structures listing like WhatsApp */}
+                <div className="bg-stone-50 dark:bg-stone-800/40 p-4 rounded-2xl border border-stone-100 dark:border-stone-800 space-y-3">
+                  <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest block pl-1">
+                    Exported Device Folders (documents root)
+                  </span>
+                  <div className="space-y-3 text-xs text-stone-600 dark:text-stone-300">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">📁 JSON Database Backup (Safe Recovery File):</span>
+                      <code className="font-mono text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 p-2 rounded select-all break-all leading-normal">
+                        DugdhaSetu_AMCU/Backups/database_backup.json
+                      </code>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">📊 Milk Collections Spreadsheet (Excel Ready):</span>
+                      <code className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded select-all break-all leading-normal">
+                        DugdhaSetu_AMCU/Reports/collections_record.csv
+                      </code>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">👤 Registered Farmers List (Excel Ready):</span>
+                      <code className="font-mono text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/20 p-2 rounded select-all break-all leading-normal">
+                        DugdhaSetu_AMCU/Reports/farmers_register.csv
+                      </code>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-stone-400 dark:text-stone-500 pl-1 leading-relaxed">
+                    💡 <strong>How to view:</strong> Open your phone's default File Manager app (Google Files, Samsung My Files), tap on <strong>Documents</strong>, and look for the folder named <strong>DugdhaSetu_AMCU</strong>. You can open any of these <code>.csv</code> spreadsheet reports directly inside Excel, WPS Office, or share them over WhatsApp!
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={async () => {
+                      const id = toast.loading('Creating physical database backup and generating CSV reports...');
+                      try {
+                        await realmInstance.saveBackupToFilesystem();
+                        toast.success('Successfully backed up database and generated CSV spreadsheets in phone storage!', { id });
+                      } catch (err: any) {
+                        toast.error(`Backup failed: ${err.message || String(err)}`, { id });
+                      }
+                    }}
+                    className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <CheckCircle size={14} />
+                    Backup To Files
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (window.confirm('Warning: Restoring will overwrite existing IndexedDB tables with the duplicate files. Continue?')) {
+                        const { Capacitor } = await import('@capacitor/core');
+                        if (!Capacitor.isNativePlatform()) {
+                          triggerWebBackupRestore();
+                          return;
+                        }
+
+                        const id = toast.loading('Restoring database from physical file...');
+                        try {
+                          const restored = await realmInstance.loadBackupFromFilesystem();
+                          if (restored) {
+                            await fetchDbStats();
+                            toast.success('Database successfully restored from device file storage!', { id });
+                          } else {
+                            toast.error('No backup file found or restore was empty.', { id });
+                          }
+                        } catch (err: any) {
+                          toast.error(`Restore failed: ${err.message || String(err)}`, { id });
+                        }
+                      }
+                    }}
+                    className="py-3 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <Database size={14} />
+                    Restore From Files
+                  </button>
                 </div>
               </div>
 

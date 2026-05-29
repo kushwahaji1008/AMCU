@@ -117,8 +117,14 @@ class OfflineService {
     if (Capacitor.isNativePlatform()) {
       try {
         Network.addListener('networkStatusChange', (status) => {
+          const wasOnline = this.isOnline;
           this.isOnline = status.connected;
           console.log(`[OfflineService] Native Network state changed: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}`);
+          
+          if (wasOnline !== this.isOnline) {
+            window.dispatchEvent(new Event(this.isOnline ? 'online' : 'offline'));
+          }
+
           if (this.isOnline) {
             this.processSyncQueue();
             this.syncFromServer();
@@ -127,8 +133,14 @@ class OfflineService {
 
         // Initialize state natively
         Network.getStatus().then((status) => {
+          const wasOnline = this.isOnline;
           this.isOnline = status.connected;
           console.log(`[OfflineService] Initial Native Network state: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}`);
+          
+          if (wasOnline !== this.isOnline) {
+            window.dispatchEvent(new Event(this.isOnline ? 'online' : 'offline'));
+          }
+
           if (this.isOnline) {
             this.processSyncQueue();
             this.syncFromServer();
@@ -506,35 +518,51 @@ class OfflineService {
       const farmerObj = farmers.find((f: any) => f.id === fId || f._id === fId || f.farmerId === fId);
       const farmerName = farmerObj ? (farmerObj.name || farmerObj.displayName) : 'Unknown';
       const userFarmerId = farmerObj ? farmerObj.farmerId : 'F-Unknown';
+      const village = farmerObj ? (farmerObj.village || '') : '';
 
       if (!billsMap.has(fId)) {
         billsMap.set(fId, {
           farmerId: userFarmerId,
           farmerInternalId: fId,
           farmerName,
+          village,
           quantity: 0,
+          totalQuantity: 0,
           averageFat: 0,
           averageSnf: 0,
+          avgFat: 0,
+          avgSnf: 0,
           amount: 0,
           fatSum: 0,
           snfSum: 0,
-          count: 0
+          count: 0,
+          startDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`,
+          endDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`,
+          collections: []
         });
       }
 
       const bill = billsMap.get(fId);
       bill.quantity += c.quantity || 0;
+      bill.totalQuantity += c.quantity || 0;
       bill.amount += c.amount || 0;
       bill.fatSum += (c.fat || 0) * (c.quantity || 0);
       bill.snfSum += (c.snf || 0) * (c.quantity || 0);
       bill.count += 1;
+      bill.collections.push(c);
     });
 
-    const billsList = Array.from(billsMap.values()).map(b => ({
-      ...b,
-      averageFat: b.quantity ? b.fatSum / b.quantity : 0,
-      averageSnf: b.quantity ? b.snfSum / b.quantity : 0
-    }));
+    const billsList = Array.from(billsMap.values()).map(b => {
+      const avgFatVal = b.quantity ? b.fatSum / b.quantity : 0;
+      const avgSnfVal = b.quantity ? b.snfSum / b.quantity : 0;
+      return {
+        ...b,
+        averageFat: avgFatVal,
+        averageSnf: avgSnfVal,
+        avgFat: avgFatVal,
+        avgSnf: avgSnfVal
+      };
+    });
 
     return billsList;
   }
@@ -572,22 +600,23 @@ class OfflineService {
       };
     });
 
-    const trendData: any[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const dateCollections = collections.filter(c => {
-        if (!c.date) return false;
-        const comp = typeof c.date === 'string' ? c.date.split('T')[0] : new Date(c.date).toISOString().split('T')[0];
-        return comp === dateStr;
-      });
-      trendData.push({
-        date: dateStr,
-        quantity: dateCollections.reduce((sum, c) => sum + (c.quantity || 0), 0),
-        amount: dateCollections.reduce((sum, c) => sum + (c.amount || 0), 0)
-      });
-    }
+    // We can include the last 30 days of collections as trendData so the chart can filter or query them perfectly
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+    const trendData = collections.filter(c => {
+      if (!c.date) return false;
+      const comp = typeof c.date === 'string' ? c.date.split('T')[0] : new Date(c.date).toISOString().split('T')[0];
+      return comp >= thirtyDaysAgoStr;
+    }).map(c => {
+      const farmerObj = farmers.find((f: any) => f.id === c.farmerInternalId || f._id === c.farmerInternalId || f.farmerId === c.farmerInternalId);
+      return {
+        ...c,
+        farmerName: farmerObj ? (farmerObj.name || farmerObj.displayName) : (c.farmerName || 'Unknown'),
+        farmerId: farmerObj ? farmerObj.farmerId : (c.farmerId || '')
+      };
+    });
 
     return {
       todayQty,
