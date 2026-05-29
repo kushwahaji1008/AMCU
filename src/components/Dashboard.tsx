@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-
-function toDate(value: any) { return new Date(value); }
 import { useLanguage } from '../LanguageContext';
 import { useAuth } from '../AuthContext';
 import { CollectionTransaction } from '../types';
@@ -24,6 +22,14 @@ import {
   Bar
 } from 'recharts';
 import { cn } from '../lib/utils';
+
+// Helper to convert timestamp/value to Date object natively
+function toDate(value: any): Date {
+  if (!value) return new Date();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
 import { reportApi } from '../services/api';
 
 export default function Dashboard() {

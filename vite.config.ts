@@ -11,18 +11,8 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    define: {
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify(process.env.npm_package_version || '1.0.0'),
-    },
     plugins: [
-      react({
-        babel: {
-          plugins: [
-            ['@babel/plugin-proposal-decorators', { legacy: true }],
-            ['@babel/plugin-transform-class-properties', { loose: true }]
-          ]
-        }
-      }), 
+      react(), 
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',

@@ -14,11 +14,18 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { format } from 'date-fns';
-function toDate(value: any) { return new Date(value); }
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { farmerApi, collectionApi, paymentApi } from '../services/api';
+
+// Helper to convert timestamp/value to Date object natively
+function toDate(value: any): Date {
+  if (!value) return new Date();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
 
 export default function FarmerProfile() {
   const { id } = useParams<{ id: string }>();

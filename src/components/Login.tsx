@@ -15,7 +15,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
-  const { signInWithGoogle, signInWithEmail, signInSuperAdmin } = useAuth();
+  const { signInWithEmail, signInSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -166,13 +166,15 @@ export default function Login() {
           </Link>
         </p>
 
-        <div className="text-center space-y-2 pt-4">
+        <div className="text-center pt-2 space-y-1.5">
           <p className="text-xs text-stone-400 dark:text-stone-500">
             Authorized personnel only. All access is monitored and logged.
           </p>
-          <p className="text-[10px] text-stone-300 dark:text-stone-600 font-mono">
-            v{import.meta.env.VITE_APP_VERSION || '1.0.0'}
-          </p>
+          <div className="flex justify-center">
+            <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-0.5 rounded-full border border-orange-200/50 dark:border-orange-900/35">
+              v1.2.5
+            </span>
+          </div>
         </div>
       </div>
     </div>

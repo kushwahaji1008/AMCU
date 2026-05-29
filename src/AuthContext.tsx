@@ -1,5 +1,12 @@
+/**
+ * AuthContext
+ * 
+ * Provides global authentication state and methods to the React application.
+ * Manages user profiles, JWT tokens, and multi-tenant database switching.
+ */
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { offlineService } from './services/offlineService';
+import { authApi } from './services/api';
 
 export interface UserProfile {
   uid: string;
@@ -9,9 +16,11 @@ export interface UserProfile {
   photoURL: string;
   role: 'super_admin' | 'admin' | 'operator';
   status: 'active' | 'inactive';
-  databaseId?: string;
   dairyId?: string;
   dairyName?: string;
+  adminId?: string;
+  databaseId: string;
+  createdAt: any;
   address?: string;
   phone?: string;
 }
@@ -21,11 +30,10 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isAuthReady: boolean;
-  signInWithEmail: (email: string, pass: string) => Promise<any>;
-  signInSuperAdmin: (email: string, pass: string) => Promise<any>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<{ requiresOTP: boolean; userId?: string }>;
+  signInSuperAdmin: (email: string, pass: string) => Promise<{ requiresOTP: boolean; userId?: string }>;
   logout: () => Promise<void>;
-  switchDatabase: (id: string) => void;
+  switchDatabase: (databaseId: string) => void;
   updateProfile: (data: Partial<UserProfile>) => void;
 }
 
@@ -37,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
+  /**
+   * Initialize authentication state from localStorage on app load.
+   */
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedProfile = localStorage.getItem('profile');
@@ -47,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser({ token });
         setProfile(p);
       } catch (e) {
+        console.error("Failed to parse saved profile", e);
         localStorage.removeItem('token');
         localStorage.removeItem('profile');
       }
@@ -56,45 +68,135 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthReady(true);
   }, []);
 
+  /**
+   * Attempts to detect the device name/model.
+   */
+  const getDeviceName = async (): Promise<string | undefined> => {
+    try {
+      // 1. Try User-Agent Client Hints (Modern browsers)
+      if ((navigator as any).userAgentData?.getHighEntropyValues) {
+        const hints = await (navigator as any).userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion']);
+        if (hints.model) return hints.model;
+      }
+      
+      // 2. Fallback to parsing User-Agent string for common patterns
+      const ua = navigator.userAgent;
+      const modelMatch = ua.match(/\(([^;]+);([^;]+);([^;)]+)\)/);
+      if (modelMatch && modelMatch[3]) {
+        const potentialModel = modelMatch[3].trim();
+        if (potentialModel.includes('Build/') || /SM-|Pixel|iPhone|iPad/.test(potentialModel)) {
+          return potentialModel.split('Build/')[0].trim();
+        }
+      }
+      
+      return undefined;
+    } catch (e) {
+      return undefined;
+    }
+  };
+
+  /**
+   * Standard Email/Password login.
+   */
   const signInWithEmail = async (email: string, pass: string) => {
+    const deviceName = await getDeviceName();
+    const response = await authApi.login({ username: email, password: pass, deviceName });
+    const { token, user: userData, requiresOTP } = response.data;
+    
+    // Note: OTP is currently disabled in the backend, but kept here for structural compatibility
+    if (requiresOTP) {
+      return { requiresOTP: true, userId: userData.id };
+    }
+
     const p: UserProfile = {
-      uid: 'offline-local-user',
-      email: email,
-      displayName: email.split('@')[0],
+      uid: userData.id,
+      email: userData.email || userData.username,
+      displayName: userData.username,
       photoURL: '',
-      role: 'admin',
-      status: 'active',
-      databaseId: 'local',
+      role: userData.role,
+      status: userData.status || 'active',
+      dairyId: userData.dairyId,
+      databaseId: userData.databaseId,
+      createdAt: userData.createdAt,
     };
 
-    localStorage.setItem('token', 'local-token');
+    // Persist session
+    localStorage.setItem('token', token);
     localStorage.setItem('profile', JSON.stringify(p));
+    localStorage.setItem('databaseId', p.databaseId);
     
-    setUser({ token: 'local-token' });
+    setUser({ token });
     setProfile(p);
+
     return { requiresOTP: false };
   };
 
+  /**
+   * Super Admin login.
+   */
   const signInSuperAdmin = async (email: string, pass: string) => {
-    return signInWithEmail(email, pass);
+    const deviceName = await getDeviceName();
+    const response = await authApi.verifyAdmin({ email, password: pass, deviceName });
+    const { token, user: userData, requiresOTP } = response.data;
+    
+    if (requiresOTP) {
+      return { requiresOTP: true, userId: userData.id };
+    }
+
+    const p: UserProfile = {
+      uid: userData.id,
+      email: userData.email || userData.username,
+      displayName: userData.username,
+      photoURL: '',
+      role: userData.role,
+      status: userData.status || 'active',
+      dairyId: userData.dairyId,
+      databaseId: userData.databaseId,
+      createdAt: userData.createdAt,
+    };
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('profile', JSON.stringify(p));
+    localStorage.setItem('databaseId', p.databaseId);
+    
+    setUser({ token });
+    setProfile(p);
+
+    return { requiresOTP: false };
   };
 
+  /**
+   * Logs out the user and clears all session data.
+   */
   const logout = async () => {
     localStorage.removeItem('token');
     localStorage.removeItem('profile');
+    localStorage.removeItem('databaseId');
     setUser(null);
     setProfile(null);
   };
 
-  const switchDatabase = (id: string) => {
-    if (profile) setProfile({ ...profile, databaseId: id });
-  };
-  const updateProfile = (data: Partial<UserProfile>) => {
-    if (profile) setProfile({ ...profile, ...data });
+  /**
+   * Switches the active database context (Multi-tenancy).
+   * Used by Super Admins to view data from different dairies.
+   */
+  const switchDatabase = (databaseId: string) => {
+    if (profile) {
+      const newProfile = { ...profile, databaseId };
+      setProfile(newProfile);
+      localStorage.setItem('profile', JSON.stringify(newProfile));
+      localStorage.setItem('databaseId', databaseId);
+      // Force reload to ensure all components re-fetch with the new databaseId header
+      window.location.reload();
+    }
   };
 
-  const signInWithGoogle = async () => {
-    throw new Error("Google Sign-In not supported in fully offline mode.");
+  const updateProfile = (data: Partial<UserProfile>) => {
+    if (profile) {
+      const newProfile = { ...profile, ...data };
+      setProfile(newProfile);
+      localStorage.setItem('profile', JSON.stringify(newProfile));
+    }
   };
 
   return (
@@ -105,7 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthReady,
       signInWithEmail,
       signInSuperAdmin,
-      signInWithGoogle,
       logout,
       switchDatabase,
       updateProfile
@@ -115,6 +216,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Hook to access authentication context.
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

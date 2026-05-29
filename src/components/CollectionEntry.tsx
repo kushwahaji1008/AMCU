@@ -43,6 +43,10 @@ export default function CollectionEntry() {
   const [transactions, setTransactions] = useState<CollectionTransaction[]>([]);
   const [selectedTxn, setSelectedTxn] = useState<CollectionTransaction | null>(null);
 
+  const isAlreadyPoured = !!(farmer && (transactions || []).some(
+    t => t.farmerInternalId === farmer.id || t.farmerId === farmer.farmerId
+  ));
+
   const fetchRateCharts = async () => {
     try {
       const response = await rateApi.getAll();
@@ -226,6 +230,12 @@ export default function CollectionEntry() {
     e.preventDefault();
     if (!farmer || !calculated.amount) return;
 
+    if (isAlreadyPoured) {
+      toast.error(`Farmer ${farmer.name} has already recorded a milk pour for the ${selectedShift} shift today.`);
+      setError(`Farmer has already poured milk for the ${selectedShift} shift today.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const txnData = {
@@ -375,6 +385,21 @@ export default function CollectionEntry() {
                 </div>
               </div>
             )}
+
+            {isAlreadyPoured && (
+              <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-2xl flex items-start gap-3 text-sm border border-amber-200/50 dark:border-amber-900/35">
+                <AlertCircle className="flex-shrink-0 mt-0.5 text-amber-500" size={18} />
+                <div>
+                  <p className="font-semibold text-amber-800 dark:text-amber-300">Over-pour Alert</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400/90 leading-relaxed mt-0.5">
+                    This farmer has already recorded a milk pour for the <strong>{selectedShift}</strong> shift on <strong>{format(new Date(selectedDate), 'dd MMM yyyy')}</strong>. 
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400/90 leading-relaxed mt-1 font-semibold">
+                    Each member is permitted to pour milk only once per shift. Submit button is disabled.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {farmer && (
@@ -469,7 +494,7 @@ export default function CollectionEntry() {
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={!farmer || loading || !formData.quantity || !formData.fat}
+                disabled={!farmer || loading || isAlreadyPoured || !formData.quantity || !formData.fat}
                 className={cn(
                   "w-full py-4 rounded-2xl font-medium flex items-center justify-center gap-2 transition-all",
                   success 

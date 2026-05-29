@@ -1,120 +1,397 @@
-import { db } from '../db';
-import { Collection, Farmer, Ledger, RateSetting, SalesCustomer, SalesRecord, User } from '../db/models';
-import { Q } from '@nozbe/watermelondb';
+import { realmInstance } from './realm';
+import api from './axiosInstance';
+import { Capacitor } from '@capacitor/core';
+import { Network } from '@capacitor/network';
+
+/**
+ * Custom PouchDB to Realm drop-in emulation wrapper.
+ * Emulates CouchDB/PouchDB methods for smooth integration with existing APIs,
+ * while executing fully on top of our schema-indexed Realm database architecture.
+ */
+const createCollectionWrapper = (schemaName: string) => {
+  return {
+    allDocs: async (options?: { include_docs?: boolean }) => {
+      const objects = await realmInstance.objects<any>(schemaName);
+      return {
+        rows: objects.map(item => ({
+          id: item.id || item._id,
+          key: item.id || item._id,
+          value: { rev: item._rev || '1' },
+          doc: { ...item, _id: item.id || item._id }
+        }))
+      };
+    },
+    get: async (id: string) => {
+      const item = await realmInstance.objectForPrimaryKey<any>(schemaName, id);
+      if (!item) {
+        throw { status: 404, message: 'missing', error: true };
+      }
+      return { ...item, _id: item.id || item._id };
+    },
+    put: async (doc: any) => {
+      const id = doc.id || doc._id;
+      if (!id) {
+        throw new Error(`Document must have an ID for Realm schema "${schemaName}".`);
+      }
+      // PouchDB expects _id, but we store as id
+      const itemToSave = { ...doc, id };
+      return await realmInstance.write(async () => {
+        return await realmInstance.create(schemaName, itemToSave, 'all');
+      });
+    },
+    remove: async (doc: any) => {
+      const id = doc.id || doc._id;
+      if (!id) {
+        throw new Error('Document must have an ID to remove.');
+      }
+      return await realmInstance.write(async () => {
+        await realmInstance.delete(schemaName, id);
+      });
+    },
+    find: async (query: any) => {
+      const selector = query.selector || {};
+      const objects = await realmInstance.objects<any>(schemaName);
+      const docs = objects.filter(item => {
+        return Object.keys(selector).every(key => {
+          const val = selector[key];
+          const itemVal = item[key];
+          return itemVal === val;
+        });
+      });
+      return {
+        docs: docs.map(item => ({ ...item, _id: item.id || item._id }))
+      };
+    },
+    createIndex: async (indexConfig: any) => {
+      // Indexing is pre-configured dynamically in the Realm engine. Safe no-op.
+      return { result: 'created' };
+    }
+  };
+};
+
+export const db = {
+  farmers: createCollectionWrapper('farmers'),
+  collections: createCollectionWrapper('collections'),
+  shifts: createCollectionWrapper('shifts'),
+  salesCustomers: createCollectionWrapper('sales_customers'),
+  salesRecords: createCollectionWrapper('sales_records'),
+  rates: createCollectionWrapper('rates'),
+  rateSettings: createCollectionWrapper('rate_settings'),
+  payments: createCollectionWrapper('payments'),
+  ledgers: createCollectionWrapper('ledgers'),
+  users: createCollectionWrapper('users'),
+  dairies: createCollectionWrapper('dairies'),
+  syncQueue: createCollectionWrapper('sync_queue')
+};
+
+export interface SyncTask {
+  _id: string;
+  type: 
+    | 'CREATE_FARMER' | 'UPDATE_FARMER' | 'DELETE_FARMER'
+    | 'CREATE_COLLECTION' | 'UPDATE_COLLECTION'
+    | 'CREATE_SHIFT' | 'SAVE_SHIFT_SUMMARY'
+    | 'CREATE_SALE_CUSTOMER' | 'RECORD_SALE'
+    | 'CREATE_RATE' | 'UPDATE_RATE' | 'DELETE_RATE' | 'SAVE_RATE_SETTINGS'
+    | 'RECORD_PAYMENT' | 'CREATE_USER' | 'UPDATE_USER' | 'DELETE_USER'
+    | 'UPDATE_DAIRY' | 'FINALIZE_BILLS';
+  payload: any;
+  timestamp: number;
+}
 
 class OfflineService {
-  isOnline: boolean = true;
-  constructor() {}
+  public isOnline: boolean = navigator.onLine;
+  private syncInProgress: boolean = false;
 
-  async syncFromServer() {
-    // offline mock
+  constructor() {
+    // 1. Web browser fallback listeners
+    window.addEventListener('online', () => {
+      this.isOnline = true;
+      this.processSyncQueue();
+      this.syncFromServer();
+    });
+    window.addEventListener('offline', () => {
+      this.isOnline = false;
+    });
+
+    // 2. Native Capacitor network listeners for Android and iOS
+    if (Capacitor.isNativePlatform()) {
+      try {
+        Network.addListener('networkStatusChange', (status) => {
+          this.isOnline = status.connected;
+          console.log(`[OfflineService] Native Network state changed: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}`);
+          if (this.isOnline) {
+            this.processSyncQueue();
+            this.syncFromServer();
+          }
+        });
+
+        // Initialize state natively
+        Network.getStatus().then((status) => {
+          this.isOnline = status.connected;
+          console.log(`[OfflineService] Initial Native Network state: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}`);
+          if (this.isOnline) {
+            this.processSyncQueue();
+            this.syncFromServer();
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to initialize Capacitor Network listeners, relying on window listeners:', err);
+      }
+    }
   }
 
-  async getFarmers() {
-    const farmers = await db.collections.get<Farmer>('farmers').query().fetch();
-    return farmers.map((f) => ({
-      id: f.id,
-      farmerId: f.farmerId,
-      name: f.name,
-      phone: f.phone,
-    }));
+  async queueTask(type: SyncTask['type'], payload: any) {
+    const task: SyncTask = {
+      _id: new Date().toISOString() + '_' + Math.random().toString(36).substr(2, 9),
+      type,
+      payload,
+      timestamp: Date.now()
+    };
+    await realmInstance.write(() => 
+      realmInstance.create('sync_queue', { ...task, id: task._id }, 'all')
+    );
+    
+    if (this.isOnline) {
+      this.processSyncQueue();
+    }
   }
 
-  async getFarmerById(id: string) {
+  async processSyncQueue() {
+    if (this.syncInProgress || !this.isOnline) return;
+    this.syncInProgress = true;
+
     try {
-      const f = await db.collections.get<Farmer>('farmers').find(id);
-      return { id: f.id, farmerId: f.farmerId, name: f.name, phone: f.phone };
-    } catch {
+      const result = await realmInstance.objects<any>('sync_queue');
+      const tasks = [...result].sort((a, b) => a.timestamp - b.timestamp);
+
+      for (const task of tasks) {
+        try {
+          switch (task.type) {
+            case 'CREATE_FARMER':
+              await api.post('/farmers', task.payload);
+              break;
+            case 'UPDATE_FARMER':
+              await api.put(`/farmers/${task.payload.id}`, task.payload.data);
+              break;
+            case 'DELETE_FARMER':
+              await api.delete(`/farmers/${task.payload}`);
+              break;
+            case 'CREATE_COLLECTION':
+              await api.post('/collections', task.payload);
+              break;
+            case 'UPDATE_COLLECTION':
+              await api.put(`/collections/${task.payload.id}`, task.payload.data);
+              break;
+            case 'CREATE_SHIFT':
+            case 'SAVE_SHIFT_SUMMARY':
+              await api.post('/shifts/summary', task.payload);
+              break;
+            case 'CREATE_SALE_CUSTOMER':
+              await api.post('/sales/customers', task.payload);
+              break;
+            case 'RECORD_SALE':
+              await api.post('/sales', task.payload);
+              break;
+            case 'CREATE_RATE':
+              await api.post('/rates', task.payload);
+              break;
+            case 'UPDATE_RATE':
+              await api.put(`/rates/${task.payload.id}`, task.payload.data);
+              break;
+            case 'DELETE_RATE':
+              await api.delete(`/rates/${task.payload}`);
+              break;
+            case 'SAVE_RATE_SETTINGS':
+              await api.post('/rates/settings', task.payload);
+              break;
+            case 'RECORD_PAYMENT':
+              await api.post('/payments', task.payload);
+              break;
+            case 'CREATE_USER':
+              await api.post('/users', task.payload);
+              break;
+            case 'UPDATE_USER':
+              await api.put(`/users/${task.payload.id}`, task.payload.data);
+              break;
+            case 'DELETE_USER':
+              await api.delete(`/users/${task.payload}`);
+              break;
+            case 'UPDATE_DAIRY':
+              await api.put(`/dairies/${task.payload.id}`, task.payload.data);
+              break;
+            case 'FINALIZE_BILLS':
+              await api.post('/reports/finalize-bills', task.payload);
+              break;
+          }
+          // Remove from queue after successful sync
+          await realmInstance.write(() => realmInstance.delete('sync_queue', task.id || task._id));
+        } catch (error: any) {
+          console.error('Failed to sync task:', task, error);
+          if (error.status >= 400 && error.status < 500) {
+             await realmInstance.write(() => realmInstance.delete('sync_queue', task.id || task._id));
+          }
+        }
+      }
+    } finally {
+      this.syncInProgress = false;
+    }
+  }
+
+  private async safeGetList(endpoint: string): Promise<any[] | null> {
+    try {
+      const res = await api.get(endpoint);
+      if (Array.isArray(res.data)) return res.data;
+      if (res.data && Array.isArray(res.data.data)) return res.data.data;
+      return [];
+    } catch (e: any) {
+      const status = e?.status || e?.response?.status;
+      if (status === 403 || status === 401) {
+        console.warn(`Access denied for ${endpoint}, skipping sync.`);
+        return null;
+      }
+      console.error(`Sync failed for ${endpoint}:`, e?.message || e);
       return null;
     }
   }
 
+  private async syncCollection(schemaName: string, endpoint: string) {
+    const data = await this.safeGetList(endpoint);
+    if (data === null) {
+      return;
+    }
+    await this.syncDataToLocal(schemaName, data);
+  }
+
+  private async syncDataToLocal(schemaName: string, data: any[]) {
+    const existing = await realmInstance.objects<any>(schemaName);
+    const existingIds = new Set(existing.map((r: any) => r.id || r._id));
+    
+    const uniqueIncoming = new Map();
+    data.forEach(item => {
+      const id = item.id || item._id;
+      if (id) {
+        uniqueIncoming.set(id, item);
+      }
+    });
+
+    await realmInstance.write(async () => {
+      // Upsert incoming values
+      for (const item of uniqueIncoming.values()) {
+        const id = item.id || item._id;
+        await realmInstance.create(schemaName, { ...item, id }, 'all');
+        existingIds.delete(id);
+      }
+
+      // Delete values that were deleted on the server
+      for (const id of existingIds) {
+        if (typeof id === 'string') {
+          // Keep persistent local rate settings current
+          if (schemaName === 'rate_settings' && id === 'current') continue;
+          await realmInstance.delete(schemaName, id);
+        }
+      }
+    });
+  }
+
+  async syncFromServer() {
+    if (!this.isOnline) return;
+    try {
+      // 1. Sync Farmers
+      await this.syncCollection('farmers', '/farmers');
+      
+      // 2. Sync Collections (last 30 days)
+      const date = new Date();
+      date.setDate(date.getDate() - 30);
+      await this.syncCollection('collections', `/collections/report?date=${date.toISOString()}`);
+
+      // 3. Sync Shifts
+      await this.syncCollection('shifts', '/shifts/recent?limit=30');
+
+      // 4. Sync Sales Customers
+      await this.syncCollection('sales_customers', '/sales/customers');
+
+      // 5. Sync Rates
+      await this.syncCollection('rates', '/rates');
+
+      // 6. Sync Rate Settings
+      try {
+        const rateSettingsRes = await api.get('/rates/settings');
+        const rateSettings = rateSettingsRes.data;
+        if (rateSettings && !Array.isArray(rateSettings)) {
+          await realmInstance.write(() => realmInstance.create('rate_settings', { ...rateSettings, id: 'current' }, 'all'));
+        }
+      } catch (e: any) {
+        const status = e?.status || e?.response?.status;
+        if (status !== 403 && status !== 401) {
+          console.error("Rate settings sync failed", e?.message || e);
+        }
+      }
+
+      // 7. Sync Ledgers
+      await this.syncCollection('ledgers', '/ledger');
+
+      // 8. Sync Users
+      await this.syncCollection('users', '/users');
+
+      // 9. Sync Dairies
+      await this.syncCollection('dairies', '/dairies');
+
+    } catch (error) {
+      console.error('Failed to sync from server:', error);
+    }
+  }
+
+  // --- Offline Read/Mutation Methods ---
+
+  // 1. Farmers
+  async getFarmers(): Promise<any[]> {
+    return await realmInstance.objects('farmers');
+  }
+
+  async getFarmerById(id: string) {
+    return await realmInstance.objectForPrimaryKey('farmers', id);
+  }
+
   async searchFarmer(farmerId: string) {
-    const farmers = await db.collections.get<Farmer>('farmers').query(Q.where('farmer_id', farmerId)).fetch();
-    const f = farmers[0];
-    if (f) return { id: f.id, farmerId: f.farmerId, name: f.name, phone: f.phone };
-    return null;
+    const results = await realmInstance.find('farmers', f => f.farmerId === farmerId);
+    return results[0] || null;
   }
 
-  async createFarmer(data: any) {
-    return await db.write(async () => {
-      return await db.collections.get<Farmer>('farmers').create((f) => {
-        f.farmerId = data.farmerId;
-        f.name = data.name;
-        f.phone = data.phone;
-      });
-    });
-  }
-
-  async updateFarmer(id: string, data: any) {
-    return await db.write(async () => {
-      const f = await db.collections.get<Farmer>('farmers').find(id);
-      return await f.update((farmer) => {
-        if (data.name) farmer.name = data.name;
-        if (data.phone) farmer.phone = data.phone;
-        if (data.farmerId) farmer.farmerId = data.farmerId;
-      });
-    });
-  }
-
-  async deleteFarmer(id: string) {
-    return await db.write(async () => {
-      const f = await db.collections.get<Farmer>('farmers').find(id);
-      return await f.markAsDeleted();
-    });
-  }
-
+  // 2. Collections
   async getCollectionsByDate(dateStr: string, endDate?: string) {
+    const docs = await realmInstance.objects<any>('collections');
     const startCompare = dateStr.split('T')[0];
-    let items;
+    
     if (endDate) {
       const endCompare = endDate.split('T')[0];
-      items = await db.collections.get<Collection>('collections')
-        .query(Q.where('date', Q.gte(startCompare)), Q.where('date', Q.lte(endCompare))).fetch();
-    } else {
-      items = await db.collections.get<Collection>('collections')
-        .query(Q.where('date', Q.like(`${startCompare}%`))).fetch();
-    }
-    return items.map((c) => ({
-      id: c.id,
-      farmerInternalId: c.farmerInternalId,
-      date: c.date,
-      shift: c.shift,
-      quantity: c.quantity,
-      fat: c.fat,
-      snf: c.snf,
-      amount: c.amount,
-    }));
-  }
-
-  async createCollection(data: any) {
-     return await db.write(async () => {
-      return await db.collections.get<Collection>('collections').create((c) => {
-        c.farmerInternalId = data.farmerInternalId || data.farmerId;
-        c.date = data.date;
-        c.shift = data.shift;
-        c.quantity = data.quantity;
-        c.fat = data.fat;
-        c.snf = data.snf;
-        c.amount = data.amount;
+      return docs.filter(doc => {
+        if (!doc.date) return false;
+        const comp = typeof doc.date === 'string' ? doc.date.split('T')[0] : new Date(doc.date).toISOString().split('T')[0];
+        return comp >= startCompare && comp <= endCompare;
       });
-     });
+    }
+    
+    return docs.filter(doc => {
+      if (!doc.date) return false;
+      const comp = typeof doc.date === 'string' ? doc.date.split('T')[0] : new Date(doc.date).toISOString().split('T')[0];
+      return comp === startCompare;
+    });
   }
 
-  async getRecentShifts(limit: number = 10) {
-    const cls = await db.collections.get<Collection>('collections').query(Q.sortBy('date', Q.desc), Q.take(limit)).fetch();
-    return cls.map(c => ({ date: c.date, shift: c.shift }));
+  // 3. Shifts
+  async getRecentShifts(limit: number = 10): Promise<any[]> {
+    const items = await realmInstance.objects<any>('shifts');
+    return items.slice(0, limit);
   }
 
   async getShiftSummaryOffline(dateStr: string, shift: string) {
-    const dt = dateStr.split('T')[0];
-    const collections = await db.collections.get<Collection>('collections')
-      .query(Q.where('date', Q.like(`${dt}%`)), Q.where('shift', shift)).fetch();
+    const collections = await this.getCollectionsByDate(dateStr);
+    const shiftCollections = collections.filter(c => c.shift && c.shift.toLowerCase() === shift.toLowerCase());
 
-    const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
-    const avgFat = collections.length ? collections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / totalQty : 0;
-    const avgSnf = collections.length ? collections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / totalQty : 0;
+    const totalQty = shiftCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
+    const totalAmt = shiftCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
+    const avgFat = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / totalQty : 0;
+    const avgSnf = shiftCollections.length ? shiftCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / totalQty : 0;
 
     return {
       date: dateStr,
@@ -123,48 +400,38 @@ class OfflineService {
       totalAmt,
       avgFat,
       avgSnf,
-      collectionsCount: collections.length,
-      collections: collections.map(c => ({
-        id: c.id, farmerInternalId: c.farmerInternalId, quantity: c.quantity, fat: c.fat, snf: c.snf, amount: c.amount, date: c.date, shift: c.shift
-      }))
+      collectionsCount: shiftCollections.length,
+      collections: shiftCollections
     };
   }
 
-  async getSalesCustomers() {
-     const res = await db.collections.get<SalesCustomer>('sales_customers').query().fetch();
-     return res.map(r => ({ id: r.id, name: r.name, phone: r.phone }));
+  // 4. Sales / Customers
+  async getSalesCustomers(): Promise<any[]> {
+    return await realmInstance.objects('sales_customers');
   }
 
   async recordSaleOffline(payload: any) {
-    return await db.write(async () => {
-      const sale = await db.collections.get<SalesRecord>('sales_records').create((s) => {
-        s.customerId = payload.customerId || '';
-        s.date = new Date().toISOString();
-        s.quantity = payload.quantity;
-        s.amount = payload.amount;
-      });
-      return { id: sale.id, ...payload };
-    });
+    const id = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const doc = {
+      ...payload,
+      id,
+      createdAt: new Date().toISOString()
+    };
+    await realmInstance.write(() => realmInstance.create('sales_records', doc, 'all'));
+    await this.queueTask('RECORD_SALE', payload);
+    return doc;
   }
 
-  async getRates() {
-    return []; // Re-implemented if needed
+  // 5. Rates
+  async getRates(): Promise<any[]> {
+    return await realmInstance.objects('rates');
   }
 
   async getRateSettings() {
-    const set = await db.collections.get<RateSetting>('rate_settings').query().fetch();
-    if (set.length > 0) {
-      return {
-        _id: 'current',
-        fatMultiplier1: set[0].fatMultiplier1,
-        snfMultiplier1: set[0].snfMultiplier1,
-        maxFatForFormula1: set[0].maxFat,
-        fatMultiplier2: set[0].fatMultiplier2,
-        snfDeductions: {}
-      };
-    }
+    const settings = await realmInstance.objectForPrimaryKey<any>('rate_settings', 'current');
+    if (settings) return settings;
     return {
-      _id: 'current',
+      id: 'current',
       fatMultiplier1: 3.96,
       snfMultiplier1: 2.64,
       maxFatForFormula1: 6.0,
@@ -172,63 +439,44 @@ class OfflineService {
       snfDeductions: {}
     };
   }
-  
-  async saveRateSettings(data: any) {
-    return await db.write(async () => {
-       const set = await db.collections.get<RateSetting>('rate_settings').query().fetch();
-       if (set.length > 0) {
-          await set[0].update((s) => {
-             s.fatMultiplier1 = data.fatMultiplier1;
-             s.snfMultiplier1 = data.snfMultiplier1;
-             s.maxFat = data.maxFatForFormula1;
-             s.fatMultiplier2 = data.fatMultiplier2;
-          });
-       } else {
-          await db.collections.get<RateSetting>('rate_settings').create((s) => {
-             s.fatMultiplier1 = data.fatMultiplier1;
-             s.snfMultiplier1 = data.snfMultiplier1;
-             s.maxFat = data.maxFatForFormula1;
-             s.fatMultiplier2 = data.fatMultiplier2;
-          });
-       }
-    });
-  }
 
-  async getLedger() {
-    const l = await db.collections.get<Ledger>('ledgers').query().fetch();
-    return l.map(r => ({ id: r.id, farmerInternalId: r.farmerInternalId, date: r.date, type: r.type, amount: r.amount, description: r.description }));
+  // 6. Ledger & Payments
+  async getLedger(): Promise<any[]> {
+    return await realmInstance.objects('ledgers');
   }
 
   async getLedgerByFarmerId(farmerInternalId: string) {
-    const l = await db.collections.get<Ledger>('ledgers').query(Q.where('farmer_internal_id', farmerInternalId)).fetch();
-    return l.map(r => ({ id: r.id, farmerInternalId: r.farmerInternalId, date: r.date, type: r.type, amount: r.amount, description: r.description }));
+    const items = await realmInstance.objects<any>('ledgers');
+    return items.filter(doc => doc.farmerInternalId === farmerInternalId || doc.farmerId === farmerInternalId);
   }
 
   async recordPaymentOffline(payload: any) {
-    return await db.write(async () => {
-      const led = await db.collections.get<Ledger>('ledgers').create((l) => {
-        l.farmerInternalId = payload.farmerInternalId || payload.farmerId;
-        l.date = new Date().toISOString();
-        l.type = 'payment';
-        l.amount = payload.amount;
-        l.description = payload.description || '';
-      });
-      return { id: led.id, ...payload };
-    });
+    const id = 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const doc = {
+      ...payload,
+      id,
+      date: new Date().toISOString()
+    };
+    await realmInstance.write(() => realmInstance.create('ledgers', doc, 'all'));
+    await this.queueTask('RECORD_PAYMENT', payload);
+    return doc;
   }
 
-  async getUsers() {
-    const res = await db.collections.get<User>('users').query().fetch();
-    return res.map(u => ({ id: u.id, username: u.username, role: u.role }));
+  // 7. Users
+  async getUsers(): Promise<any[]> {
+    return await realmInstance.objects('users');
   }
 
-  async getDairies() {
-    return [];
+  // 8. Dairies
+  async getDairies(): Promise<any[]> {
+    return await realmInstance.objects('dairies');
   }
 
+  // 9. Bills offline calculation
   async getBillsOffline(year: number, month: number, period: number, farmerId?: string) {
     const farmers = await this.getFarmers();
-    
+    const collections = await realmInstance.objects<any>('collections');
+
     let startDay = 1;
     let endDay = 10;
     if (period === 2) {
@@ -242,27 +490,21 @@ class OfflineService {
     const startCompare = `${year}-${String(month + 1).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
     const endCompare = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
-    const items = await db.collections.get<Collection>('collections')
-      .query(Q.where('date', Q.gte(startCompare)), Q.where('date', Q.lte(endCompare))).fetch();
-
-    const periodCollections = items.map(c => ({
-      farmerInternalId: c.farmerInternalId, 
-      date: c.date, 
-      quantity: c.quantity,
-      fat: c.fat,
-      snf: c.snf,
-      amount: c.amount
-    }));
+    const periodCollections = collections.filter(c => {
+      if (!c.date) return false;
+      const comp = typeof c.date === 'string' ? c.date.split('T')[0] : new Date(c.date).toISOString().split('T')[0];
+      return comp >= startCompare && comp <= endCompare;
+    });
 
     const billsMap = new Map<string, any>();
 
     periodCollections.forEach(c => {
-      const fId = c.farmerInternalId;
+      const fId = c.farmerInternalId || c.farmerId;
       if (!fId) return;
       if (farmerId && fId !== farmerId) return;
 
-      const farmerObj = farmers.find((f: any) => f.id === fId || f.farmerId === fId);
-      const farmerName = farmerObj ? farmerObj.name : 'Unknown';
+      const farmerObj = farmers.find((f: any) => f.id === fId || f._id === fId || f.farmerId === fId);
+      const farmerName = farmerObj ? (farmerObj.name || farmerObj.displayName) : 'Unknown';
       const userFarmerId = farmerObj ? farmerObj.farmerId : 'F-Unknown';
 
       if (!billsMap.has(fId)) {
@@ -288,23 +530,26 @@ class OfflineService {
       bill.count += 1;
     });
 
-    return Array.from(billsMap.values()).map(b => ({
+    const billsList = Array.from(billsMap.values()).map(b => ({
       ...b,
       averageFat: b.quantity ? b.fatSum / b.quantity : 0,
       averageSnf: b.quantity ? b.snfSum / b.quantity : 0
     }));
+
+    return billsList;
   }
 
+  // 10. Dashboard offline calculation
   async getDashboardOffline() {
     const farmers = await this.getFarmers();
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayCollectionsDocs = await db.collections.get<Collection>('collections')
-        .query(Q.where('date', Q.like(`${todayStr}%`))).fetch();
+    const collections = await realmInstance.objects<any>('collections');
 
-    const todayCollections = todayCollectionsDocs.map(c => ({
-       farmerInternalId: c.farmerInternalId, quantity: c.quantity, fat: c.fat, snf: c.snf, amount: c.amount, shift: c.shift
-    }));
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayCollections = collections.filter(c => {
+      if (!c.date) return false;
+      const comp = typeof c.date === 'string' ? c.date.split('T')[0] : new Date(c.date).toISOString().split('T')[0];
+      return comp === todayStr;
+    });
 
     const todayQty = todayCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const morningQty = todayCollections.filter(c => c.shift === 'Morning').reduce((sum, c) => sum + (c.quantity || 0), 0);
@@ -314,33 +559,33 @@ class OfflineService {
     const avgFat = todayQty ? todayCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / todayQty : 0;
     const avgSnf = todayQty ? todayCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / todayQty : 0;
 
-    const allCollectionsDocs = await db.collections.get<Collection>('collections')
-        .query(Q.sortBy('date', Q.desc), Q.take(10)).fetch();
+    const sortedCollections = [...collections]
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+      .slice(0, 10);
 
-    const recentTxns = allCollectionsDocs.map(c => {
-      const farmerObj = farmers.find((f: any) => f.id === c.farmerInternalId || f.farmerId === c.farmerInternalId);
+    const recentTxns = sortedCollections.map(c => {
+      const farmerObj = farmers.find((f: any) => f.id === c.farmerInternalId || f._id === c.farmerInternalId || f.farmerId === c.farmerInternalId);
       return {
-        id: c.id,
-        date: c.date,
-        quantity: c.quantity,
-        amount: c.amount,
-        farmerName: farmerObj ? farmerObj.name : 'Unknown',
-        farmerId: farmerObj ? farmerObj.farmerId : ''
+        ...c,
+        farmerName: farmerObj ? (farmerObj.name || farmerObj.displayName) : (c.farmerName || 'Unknown'),
+        farmerId: farmerObj ? farmerObj.farmerId : (c.farmerId || '')
       };
     });
 
     const trendData: any[] = [];
     for (let i = 6; i >= 0; i--) {
-      const tdate = new Date();
-      tdate.setDate(tdate.getDate() - i);
-      const dateStr2 = tdate.toISOString().split('T')[0];
-      const dateCollectionsDocs = await db.collections.get<Collection>('collections')
-        .query(Q.where('date', Q.like(`${dateStr2}%`))).fetch();
-        
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const dateCollections = collections.filter(c => {
+        if (!c.date) return false;
+        const comp = typeof c.date === 'string' ? c.date.split('T')[0] : new Date(c.date).toISOString().split('T')[0];
+        return comp === dateStr;
+      });
       trendData.push({
-        date: dateStr2,
-        quantity: dateCollectionsDocs.reduce((sum, c) => sum + (c.quantity || 0), 0),
-        amount: dateCollectionsDocs.reduce((sum, c) => sum + (c.amount || 0), 0)
+        date: dateStr,
+        quantity: dateCollections.reduce((sum, c) => sum + (c.quantity || 0), 0),
+        amount: dateCollections.reduce((sum, c) => sum + (c.amount || 0), 0)
       });
     }
 
@@ -359,4 +604,3 @@ class OfflineService {
 }
 
 export const offlineService = new OfflineService();
-
