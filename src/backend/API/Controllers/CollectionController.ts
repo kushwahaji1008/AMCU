@@ -27,6 +27,15 @@ export class CollectionController {
     }
   }
 
+  async getAllCollections(req: Request, res: Response) {
+    try {
+      const collections = await this.collectionService.getAllCollections();
+      res.json(collections);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
   async updateCollection(req: Request, res: Response) {
     try {
       const collection = await this.collectionService.updateCollection(req.params.id, req.body);

@@ -310,6 +310,12 @@ export class MongoSaleRepository implements ISaleRepository {
     const docs = await model.find({ date: { $gte: start, $lte: end } });
     return docs.map(doc => mapDoc<MilkSale>(doc));
   }
+
+  async getAll(): Promise<MilkSale[]> {
+    const model = await dbManager.getSaleModel(getDatabaseId());
+    const docs = await model.find().sort({ date: -1 });
+    return docs.map(doc => mapDoc<MilkSale>(doc));
+  }
 }
 
 // --- Customer Repository ---

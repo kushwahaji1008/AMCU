@@ -42,6 +42,10 @@ export class CollectionService {
     return this.collectionRepo.getDailyReport(date, endDate);
   }
 
+  async getAllCollections(): Promise<MilkCollection[]> {
+    return this.collectionRepo.getAll();
+  }
+
   async updateCollection(id: string, data: Partial<MilkCollection>): Promise<MilkCollection> {
     return this.collectionRepo.update(id, data);
   }

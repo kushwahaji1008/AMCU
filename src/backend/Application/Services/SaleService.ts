@@ -35,4 +35,8 @@ export class SaleService {
   async getDailySalesReport(date: Date): Promise<MilkSale[]> {
     return this.saleRepo.getDailyReport(date);
   }
+
+  async getAllSales(): Promise<MilkSale[]> {
+    return this.saleRepo.getAll();
+  }
 }

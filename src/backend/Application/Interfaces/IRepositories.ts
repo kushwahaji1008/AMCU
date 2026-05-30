@@ -55,6 +55,7 @@ export interface IShiftSummaryRepository {
 export interface ISaleRepository {
   create(sale: Omit<MilkSale, 'id' | 'createdAt'>): Promise<MilkSale>;
   getDailyReport(date: Date): Promise<MilkSale[]>;
+  getAll(): Promise<MilkSale[]>;
 }
 
 export interface ICustomerRepository {

@@ -323,6 +323,7 @@ app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerCont
 // Milk Collection Routes
 app.post('/api/collections', authenticate, (req, res, next) => collectionController.createCollection(req, res).catch(next));
 app.put('/api/collections/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
+app.get('/api/collections', authenticate, (req, res, next) => collectionController.getAllCollections(req, res).catch(next));
 app.get('/api/collections/report', authenticate, (req, res, next) => collectionController.getDailyReport(req, res).catch(next));
 app.get('/api/collections/farmer/:farmerInternalId', authenticate, (req, res, next) => collectionController.getByFarmerId(req, res).catch(next));
 app.post('/api/shifts/summary', authenticate, (req, res, next) => collectionController.createShiftSummary(req, res).catch(next));
@@ -332,6 +333,7 @@ app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionContro
 // Sales & Customer Routes
 app.get('/api/customers', authenticate, (req, res, next) => saleController.getAllCustomers(req, res).catch(next));
 app.post('/api/customers', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
+app.get('/api/sales', authenticate, (req, res, next) => saleController.getAllSales(req, res).catch(next));
 app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSale(req, res).catch(next));
 
 // Reporting & Analytics Routes

@@ -311,10 +311,8 @@ class OfflineService {
       // 1. Sync Farmers
       await this.syncCollection('farmers', '/farmers');
       
-      // 2. Sync Collections (last 30 days)
-      const date = new Date();
-      date.setDate(date.getDate() - 30);
-      await this.syncCollection('collections', `/collections/report?date=${date.toISOString()}`);
+      // 2. Sync Collections (ALL of them, ensuring permanent offsite backup and local retention)
+      await this.syncCollection('collections', '/collections');
 
       // 3. Sync Shifts
       await this.syncCollection('shifts', '/shifts/recent?limit=30');
@@ -322,10 +320,13 @@ class OfflineService {
       // 4. Sync Sales Customers
       await this.syncCollection('sales_customers', '/sales/customers');
 
-      // 5. Sync Rates
+      // 5. Sync Sales Records (ALL transactions from feed/milk sales)
+      await this.syncCollection('sales_records', '/sales');
+
+      // 6. Sync Rates
       await this.syncCollection('rates', '/rates');
 
-      // 6. Sync Rate Settings
+      // 7. Sync Rate Settings
       try {
         const rateSettingsRes = await api.get('/rates/settings');
         const rateSettings = rateSettingsRes.data;
@@ -339,13 +340,13 @@ class OfflineService {
         }
       }
 
-      // 7. Sync Ledgers
+      // 8. Sync Ledgers (all entries)
       await this.syncCollection('ledgers', '/ledger');
 
-      // 8. Sync Users
+      // 9. Sync Users
       await this.syncCollection('users', '/users');
 
-      // 9. Sync Dairies
+      // 10. Sync Dairies
       await this.syncCollection('dairies', '/dairies');
 
     } catch (error) {

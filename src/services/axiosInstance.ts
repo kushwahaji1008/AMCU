@@ -7,12 +7,6 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  // Support dynamic custom API Server URLs from local storage (great for custom native phone testing)
-  const customUrl = localStorage.getItem('custom_api_url');
-  if (customUrl) {
-    config.baseURL = customUrl;
-  }
-
   const token = localStorage.getItem('token');
   const databaseId = localStorage.getItem('databaseId');
   

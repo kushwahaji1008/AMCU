@@ -22,6 +22,15 @@ export class SaleController {
     const sale = await this.saleService.recordSale(req.body);
     res.status(201).json(sale);
   }
+
+  async getAllSales(req: Request, res: Response) {
+    try {
+      const sales = await this.saleService.getAllSales();
+      res.json(sales);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 export class ReportingController {
