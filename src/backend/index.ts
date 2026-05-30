@@ -44,7 +44,7 @@ import { CollectionController } from './API/Controllers/CollectionController';
 import { SaleController, ReportingController } from './API/Controllers/SaleController';
 
 // Middlewares
-import { authenticate, authorize } from './API/Middleware/AuthMiddleware';
+import { authenticate, authorize, AuthRequest } from './API/Middleware/AuthMiddleware';
 import { ErrorMiddleware } from './API/Middleware/ErrorMiddleware';
 import { validateRegistration, validateLogin, validateFarmer } from './API/Middleware/ValidationMiddleware';
 import * as useragent from 'express-useragent';

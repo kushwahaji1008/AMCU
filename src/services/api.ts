@@ -169,7 +169,7 @@ export const farmerApi = {
     const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     await db.farmers.put(doc);
-    await offlineService.queueTask('CREATE_FARMER', data);
+    await offlineService.queueTask('CREATE_FARMER', doc);
     return { data: doc };
   },
   update: async (id: string, data: any) => {
@@ -327,7 +327,7 @@ export const shiftApi = {
     const tempId = 'shift_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     await db.shifts.put(doc);
-    await offlineService.queueTask('CREATE_SHIFT', data);
+    await offlineService.queueTask('CREATE_SHIFT', doc);
     return { data: doc };
   },
   getSummary: async (date: string, shift: string) => {
@@ -369,7 +369,7 @@ export const saleApi = {
     const tempId = 'cust_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     await db.salesCustomers.put(doc);
-    await offlineService.queueTask('CREATE_SALE_CUSTOMER', data);
+    await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
     return { data: doc };
   },
   recordSale: async (data: any) => {
@@ -466,7 +466,7 @@ export const rateApi = {
     const tempId = 'rate_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     await db.rates.put(doc);
-    await offlineService.queueTask('CREATE_RATE', data);
+    await offlineService.queueTask('CREATE_RATE', doc);
     return { data: doc };
   },
   update: async (id: string, data: any) => {
@@ -610,7 +610,7 @@ export const userApi = {
     const tempId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const doc = { ...data, id: tempId, _id: tempId };
     await db.users.put(doc);
-    await offlineService.queueTask('CREATE_USER', data);
+    await offlineService.queueTask('CREATE_USER', doc);
     return { data: doc };
   },
   update: async (id: string, data: any) => {

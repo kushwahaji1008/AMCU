@@ -525,7 +525,7 @@ export default function CollectionEntry() {
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={!farmer || loading || isAlreadyPoured || !formData.quantity || !formData.fat}
+                disabled={!farmer || loading || isAlreadyPoured || !formData.quantity || !formData.fat || !calculated.amount}
                 className={cn(
                   "w-full py-4 rounded-2xl font-medium flex items-center justify-center gap-2 transition-all",
                   success 

@@ -179,34 +179,46 @@ class OfflineService {
       for (const task of tasks) {
         try {
           switch (task.type) {
-            case 'CREATE_FARMER':
-              await api.post('/farmers', task.payload);
+            case 'CREATE_FARMER': {
+              const res = await api.post('/farmers', task.payload);
+              await this.handleCreateSyncResult('farmers', task.payload.id, res.data);
               break;
+            }
             case 'UPDATE_FARMER':
               await api.put(`/farmers/${task.payload.id}`, task.payload.data);
               break;
             case 'DELETE_FARMER':
               await api.delete(`/farmers/${task.payload}`);
               break;
-            case 'CREATE_COLLECTION':
-              await api.post('/collections', task.payload);
+            case 'CREATE_COLLECTION': {
+              const res = await api.post('/collections', task.payload);
+              await this.handleCreateSyncResult('collections', task.payload.id, res.data);
               break;
+            }
             case 'UPDATE_COLLECTION':
               await api.put(`/collections/${task.payload.id}`, task.payload.data);
               break;
             case 'CREATE_SHIFT':
-            case 'SAVE_SHIFT_SUMMARY':
-              await api.post('/shifts/summary', task.payload);
+            case 'SAVE_SHIFT_SUMMARY': {
+              const res = await api.post('/shifts/summary', task.payload);
+              await this.handleCreateSyncResult('shifts', task.payload.id, res.data);
               break;
-            case 'CREATE_SALE_CUSTOMER':
-              await api.post('/sales/customers', task.payload);
+            }
+            case 'CREATE_SALE_CUSTOMER': {
+              const res = await api.post('/sales/customers', task.payload);
+              await this.handleCreateSyncResult('sales_customers', task.payload.id, res.data);
               break;
-            case 'RECORD_SALE':
-              await api.post('/sales', task.payload);
+            }
+            case 'RECORD_SALE': {
+              const res = await api.post('/sales', task.payload);
+              await this.handleCreateSyncResult('sales_records', task.payload.id, res.data);
               break;
-            case 'CREATE_RATE':
-              await api.post('/rates', task.payload);
+            }
+            case 'CREATE_RATE': {
+              const res = await api.post('/rates', task.payload);
+              await this.handleCreateSyncResult('rates', task.payload.id, res.data);
               break;
+            }
             case 'UPDATE_RATE':
               await api.put(`/rates/${task.payload.id}`, task.payload.data);
               break;
@@ -216,12 +228,16 @@ class OfflineService {
             case 'SAVE_RATE_SETTINGS':
               await api.post('/rates/settings', task.payload);
               break;
-            case 'RECORD_PAYMENT':
-              await api.post('/payments', task.payload);
+            case 'RECORD_PAYMENT': {
+              const res = await api.post('/payments', task.payload);
+              await this.handleCreateSyncResult('ledgers', task.payload.id, res.data);
               break;
-            case 'CREATE_USER':
-              await api.post('/users', task.payload);
+            }
+            case 'CREATE_USER': {
+              const res = await api.post('/users', task.payload);
+              await this.handleCreateSyncResult('users', task.payload.id, res.data);
               break;
+            }
             case 'UPDATE_USER':
               await api.put(`/users/${task.payload.id}`, task.payload.data);
               break;
@@ -247,6 +263,26 @@ class OfflineService {
     } finally {
       this.syncInProgress = false;
     }
+  }
+
+  private async handleCreateSyncResult(schemaName: string, tempId: string, serverDoc: any) {
+    if (!tempId || !serverDoc) return;
+    // Server might return _id or id
+    const realId = serverDoc.id || serverDoc._id;
+    if (!realId) return;
+
+    await realmInstance.write(async () => {
+      // 1. Delete temp record if it was indeed temporary and not already the real one
+      if (tempId !== realId) {
+        try {
+          await realmInstance.delete(schemaName, tempId);
+        } catch (e) {
+          // Record may not exist or primary key mismatch, safe to ignore
+        }
+      }
+      // 2. Upsert real record from server with normalized ID
+      await realmInstance.create(schemaName, { ...serverDoc, id: realId }, 'all');
+    });
   }
 
   private async safeGetList(endpoint: string): Promise<any[] | null> {
