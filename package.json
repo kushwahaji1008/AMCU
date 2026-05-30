@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
+    "build": "vite build",
     "appflow:build": "cd android && chmod +x gradlew && ./gradlew wrapper --gradle-version 8.13.0 && cd .. && vite build && npx cap sync android"
     "build:android": "vite build && npx cap sync android",
     "preview": "vite preview",
