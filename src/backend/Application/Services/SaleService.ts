@@ -24,10 +24,12 @@ export class SaleService {
   ) {}
 
   async recordSale(dto: CreateSaleDTO): Promise<MilkSale> {
-    const amount = dto.quantity * dto.rate;
+    const amount = Math.round(dto.quantity * dto.rate * 100) / 100;
+    const rate = Math.round(dto.rate * 100) / 100;
     return this.saleRepo.create({
       ...dto,
       date: new Date(dto.date),
+      rate,
       amount,
     });
   }

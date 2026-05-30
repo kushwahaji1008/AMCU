@@ -22,7 +22,8 @@ export class CollectionService {
       rate = 40; 
     }
 
-    const amount = data.quantity * rate;
+    const amount = Math.round(data.quantity * rate * 100) / 100;
+    const roundedRate = Math.round(rate * 100) / 100;
 
     // 2. Create Collection Record
     const farmer = await this.farmerRepo.getById(data.farmerId);
@@ -31,7 +32,7 @@ export class CollectionService {
       farmerInternalId: farmer?.id || data.farmerId,
       farmerId: farmer?.farmerId || '',
       farmerCode: farmer?.farmerCode || '',
-      rate,
+      rate: roundedRate,
       amount,
     });
 

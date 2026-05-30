@@ -53,10 +53,10 @@ export default function ShiftManagement() {
 
       setShiftStats({
         totalFarmers: farmerIds.size,
-        totalQuantity: qty,
-        amount: amt,
-        avgFat: shiftCollections.length > 0 ? fatSum / shiftCollections.length : 0,
-        avgSnf: shiftCollections.length > 0 ? snfSum / shiftCollections.length : 0,
+        totalQuantity: Math.round(qty * 100) / 100,
+        amount: Math.round(amt * 100) / 100,
+        avgFat: shiftCollections.length > 0 ? Math.round((fatSum / shiftCollections.length) * 100) / 100 : 0,
+        avgSnf: shiftCollections.length > 0 ? Math.round((snfSum / shiftCollections.length) * 100) / 100 : 0,
       });
 
       // Check if shift is summarized

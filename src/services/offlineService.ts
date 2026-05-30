@@ -425,13 +425,17 @@ class OfflineService {
 
   async recordSaleOffline(payload: any) {
     const id = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const roundedRate = Math.round((payload.rate || 0) * 100) / 100;
+    const roundedAmount = Math.round((payload.amount || payload.quantity * roundedRate || 0) * 100) / 100;
     const doc = {
       ...payload,
       id,
+      rate: roundedRate,
+      amount: roundedAmount,
       createdAt: new Date().toISOString()
     };
     await realmInstance.write(() => realmInstance.create('sales_records', doc, 'all'));
-    await this.queueTask('RECORD_SALE', payload);
+    await this.queueTask('RECORD_SALE', doc);
     return doc;
   }
 
@@ -465,13 +469,15 @@ class OfflineService {
 
   async recordPaymentOffline(payload: any) {
     const id = 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const roundedAmount = Math.round((payload.amount || 0) * 100) / 100;
     const doc = {
       ...payload,
       id,
+      amount: roundedAmount,
       date: new Date().toISOString()
     };
     await realmInstance.write(() => realmInstance.create('ledgers', doc, 'all'));
-    await this.queueTask('RECORD_PAYMENT', payload);
+    await this.queueTask('RECORD_PAYMENT', doc);
     return doc;
   }
 
@@ -554,10 +560,12 @@ class OfflineService {
     });
 
     const billsList = Array.from(billsMap.values()).map(b => {
-      const avgFatVal = b.quantity ? b.fatSum / b.quantity : 0;
-      const avgSnfVal = b.quantity ? b.snfSum / b.quantity : 0;
+      const avgFatVal = b.quantity ? Math.round((b.fatSum / b.quantity) * 100) / 100 : 0;
+      const avgSnfVal = b.quantity ? Math.round((b.snfSum / b.quantity) * 100) / 100 : 0;
       return {
         ...b,
+        amount: Math.round(b.amount * 100) / 100,
+        totalQuantity: Math.round(b.totalQuantity * 100) / 100,
         averageFat: avgFatVal,
         averageSnf: avgSnfVal,
         avgFat: avgFatVal,
@@ -580,13 +588,13 @@ class OfflineService {
       return comp === todayStr;
     });
 
-    const todayQty = todayCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const morningQty = todayCollections.filter(c => c.shift === 'Morning').reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const eveningQty = todayCollections.filter(c => c.shift === 'Evening').reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const todayAmount = todayCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
+    const todayQty = Math.round(todayCollections.reduce((sum, c) => sum + (c.quantity || 0), 0) * 100) / 100;
+    const morningQty = Math.round(todayCollections.filter(c => c.shift === 'Morning').reduce((sum, c) => sum + (c.quantity || 0), 0) * 100) / 100;
+    const eveningQty = Math.round(todayCollections.filter(c => c.shift === 'Evening').reduce((sum, c) => sum + (c.quantity || 0), 0) * 100) / 100;
+    const todayAmount = Math.round(todayCollections.reduce((sum, c) => sum + (c.amount || 0), 0) * 100) / 100;
     
-    const avgFat = todayQty ? todayCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / todayQty : 0;
-    const avgSnf = todayQty ? todayCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / todayQty : 0;
+    const avgFat = todayQty ? Math.round((todayCollections.reduce((sum, c) => sum + (c.fat || 0) * (c.quantity || 0), 0) / todayQty) * 100) / 100 : 0;
+    const avgSnf = todayQty ? Math.round((todayCollections.reduce((sum, c) => sum + (c.snf || 0) * (c.quantity || 0), 0) / todayQty) * 100) / 100 : 0;
 
     const sortedCollections = [...collections]
       .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
