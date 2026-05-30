@@ -342,9 +342,8 @@ export class MongoUserRepository implements IUserRepository {
     return doc ? mapDoc<User>(doc) : null;
   }
 
-  async getAll(role?: string): Promise<User[]> {
+  async getAll(filter: { role?: string; dairyId?: string; databaseId?: string } = {}): Promise<User[]> {
     const model = await dbManager.getUserModel('(default)');
-    const filter = role ? { role } : {};
     const docs = await model.find(filter);
     return docs.map(doc => mapDoc<User>(doc));
   }

@@ -65,7 +65,7 @@ export interface ICustomerRepository {
 
 export interface IUserRepository {
   getByUsername(username: string): Promise<User | null>;
-  getAll(role?: string): Promise<User[]>;
+  getAll(filter?: { role?: string; dairyId?: string; databaseId?: string }): Promise<User[]>;
   create(user: Omit<User, 'id' | 'createdAt'>): Promise<User>;
   update(id: string, user: Partial<User>): Promise<User>;
   delete(id: string): Promise<void>;

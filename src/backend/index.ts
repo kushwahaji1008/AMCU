@@ -409,18 +409,45 @@ app.post('/api/payments', authenticate, authorize(['admin', 'super_admin']), asy
 });
 
 // User Management (Admin only)
-app.get('/api/users', authenticate, async (req, res, next) => {
+app.get('/api/users', authenticate, (req: AuthRequest, res, next) => {
   try {
     const role = req.query.role as string;
-    const users = await userRepo.getAll(role);
-    res.json(users);
+    const filter: any = {};
+    if (role) filter.role = role;
+    
+    // For admins, only show users belonging to their own dairy
+    if (req.user && req.user.role !== 'super_admin') {
+      filter.databaseId = req.user.databaseId;
+    }
+    
+    userRepo.getAll(filter).then(users => res.json(users)).catch(next);
   } catch (error) { next(error); }
 });
 
-app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
+app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async (req: AuthRequest, res, next) => {
   try {
-    const { username, password, role, dairyData, dairyId, databaseId } = req.body;
-    const user = await authService.register(username, password, role, dairyData, dairyId, databaseId);
+    const { username, email, password, role, dairyData, dairyId, databaseId } = req.body;
+    
+    // Security: If not super_admin, force the context to their own dairy and role to operator
+    let targetRole = role;
+    let targetDairyId = dairyId;
+    let targetDatabaseId = databaseId;
+    
+    if (req.user && req.user.role !== 'super_admin') {
+      targetRole = 'operator';
+      targetDairyId = req.user.databaseId; // Assuming databaseId acts as dairy context
+      targetDatabaseId = req.user.databaseId;
+    }
+
+    const user = await authService.register(
+      username, 
+      email || username, 
+      password, 
+      targetRole, 
+      dairyData, 
+      targetDairyId, 
+      targetDatabaseId
+    );
     res.status(201).json(user);
   } catch (error) { next(error); }
 });
