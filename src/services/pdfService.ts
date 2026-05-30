@@ -20,12 +20,23 @@ export const pdfService = {
       // Native (Android/iOS): Save to filesystem and open
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       
-      const savedFile = await Filesystem.writeFile({
-        path: fileName,
-        data: pdfBase64,
-        directory: Directory.Documents,
-        recursive: true
-      });
+      let savedFile;
+      try {
+        savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Documents,
+          recursive: true
+        });
+      } catch (writeErr) {
+        console.warn('[PDF Service] Direct Documents write failed, falling back to permissionless app-private storage:', writeErr);
+        savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Data,
+          recursive: true
+        });
+      }
 
       await FileOpener.open({
         filePath: savedFile.uri,

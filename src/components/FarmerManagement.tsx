@@ -38,7 +38,7 @@ export default function FarmerManagement() {
     fetchFarmers();
   }, []);
 
-  const downloadBarcode = (farmerId: string, farmerName: string) => {
+  const downloadBarcode = async (farmerId: string, farmerName: string) => {
     const canvas = document.createElement('canvas');
     try {
       JsBarcode(canvas, farmerId, {
@@ -52,16 +52,48 @@ export default function FarmerManagement() {
       });
 
       const url = canvas.toDataURL("image/png");
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Barcode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Barcode for ${farmerName} downloaded`);
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { FileOpener } = await import('@capacitor-community/file-opener');
+        const base64Data = url.split(',')[1];
+        const fileName = `Barcode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+
+        let savedFile;
+        try {
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Media/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true
+          });
+        } catch (writeErr) {
+          console.warn('[Farmer Management] Direct Documents barcode write failed, falling back to private local storage:', writeErr);
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Media/${fileName}`,
+            data: base64Data,
+            directory: Directory.Data,
+            recursive: true
+          });
+        }
+
+        await FileOpener.open({
+          filePath: savedFile.uri,
+          contentType: 'image/png'
+        });
+        toast.success(`Barcode saved and opened successfully`);
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Barcode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Barcode for ${farmerName} downloaded`);
+      }
     } catch (err) {
-      console.error('Barcode generation failed:', err);
-      toast.error('Failed to generate barcode');
+      console.error('Barcode generation or saving failed:', err);
+      toast.error('Failed to generate or save barcode');
     }
   };
 
@@ -76,16 +108,48 @@ export default function FarmerManagement() {
         },
       });
       
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `QRCode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`QR Code for ${farmerName} downloaded`);
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { FileOpener } = await import('@capacitor-community/file-opener');
+        const base64Data = url.split(',')[1];
+        const fileName = `QRCode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+
+        let savedFile;
+        try {
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Media/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true
+          });
+        } catch (writeErr) {
+          console.warn('[Farmer Management] Direct Documents QR write failed, falling back to private local storage:', writeErr);
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Media/${fileName}`,
+            data: base64Data,
+            directory: Directory.Data,
+            recursive: true
+          });
+        }
+
+        await FileOpener.open({
+          filePath: savedFile.uri,
+          contentType: 'image/png'
+        });
+        toast.success(`QR Code saved and opened successfully`);
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `QRCode_${farmerId}_${farmerName.replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`QR Code for ${farmerName} downloaded`);
+      }
     } catch (err) {
-      console.error('QR Code generation failed:', err);
-      toast.error('Failed to generate QR code');
+      console.error('QR Code generation or saving failed:', err);
+      toast.error('Failed to generate or save QR code');
     }
   };
 

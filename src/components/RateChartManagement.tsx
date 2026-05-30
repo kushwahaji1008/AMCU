@@ -292,7 +292,7 @@ export default function RateChartManagement() {
                               const newDeductions = { ...(rateSettings.snfDeductions || {}), [snf]: parseFloat(e.target.value) };
                               setRateSettings({ ...rateSettings, snfDeductions: newDeductions });
                             }}
-                            className="w-full p-2 bg-stone-100 dark:bg-stone-850 p-2 rounded border border-stone-100 dark:border-stone-800 focus:outline-none text-sm dark:text-white"
+                            className="w-full p-2 bg-stone-100 dark:bg-stone-850 rounded border border-stone-100 dark:border-stone-800 focus:outline-none text-sm dark:text-white"
                           />
                         </div>
                       ))}

@@ -236,6 +236,36 @@ export default function CollectionEntry() {
       return;
     }
 
+    const qty = parseFloat(formData.quantity);
+    const fatVal = parseFloat(formData.fat);
+    const snfVal = parseFloat(formData.snf);
+    const clrVal = parseFloat(formData.clr) || 0;
+
+    if (isNaN(qty) || qty <= 0) {
+      toast.error('Invalid quantity! Milk weight must be greater than 0 kg.');
+      return;
+    }
+
+    if (qty > 500) {
+      toast.error('Warning: Extravagant milk quantity detected! Maximum allowed per pour is 500 kg.');
+      return;
+    }
+
+    if (isNaN(fatVal) || fatVal < 1.0 || fatVal > 15.0) {
+      toast.error('Invalid FAT percentage! Must be between 1.0% and 15.0%.');
+      return;
+    }
+
+    if (isNaN(snfVal) || snfVal < 4.0 || snfVal > 15.0) {
+      toast.error('Invalid SNF percentage! Must be between 4.0% and 15.0%.');
+      return;
+    }
+
+    if (clrVal < 0 || clrVal > 40) {
+      toast.error('Invalid CLR! Must be between 0 and 40.');
+      return;
+    }
+
     setLoading(true);
     try {
       const txnData = {
@@ -246,10 +276,10 @@ export default function CollectionEntry() {
         date: new Date(selectedDate),
         shift: selectedShift,
         milkType: formData.milkType,
-        quantity: parseFloat(formData.quantity),
-        fat: parseFloat(formData.fat),
-        snf: parseFloat(formData.snf),
-        clr: parseFloat(formData.clr) || 0,
+        quantity: qty,
+        fat: fatVal,
+        snf: snfVal,
+        clr: clrVal,
         rate: calculated.rate,
         operatorId: profile?.uid || 'unknown',
         dairyId: profile?.dairyId || '',

@@ -56,14 +56,60 @@ export const authApi = {
       }
       return api.post('/auth/login', credentials);
     } catch (e: any) {
-      if (!offlineService.isOnline) {
+      // If offline, or a network timeout/unreachable failure occurs, gracefully log in offline
+      const isConnectionError = !e.response || e.message === 'Network Error' || e.code === 'ECONNREFUSED';
+      if (!offlineService.isOnline || isConnectionError) {
+        // Retrieve cached users from local Dexie database
+        const usersResult = await db.users.allDocs({ include_docs: true });
+        const users = usersResult.rows.map(r => r.doc as any);
+        const user = users.find(u => u.username === credentials.username || u.email === credentials.username);
+        
+        if (user) {
+          return {
+            data: {
+              token: 'offline_token_' + user._id,
+              user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                status: user.status || 'active',
+                dairyId: user.dairyId,
+                databaseId: user.databaseId || '(default)',
+                createdAt: user.createdAt
+              },
+              requiresOTP: false
+            }
+          };
+        }
+        
+        // Simple fallback operators if cached user is missing
+        if (credentials.username === 'operator' || credentials.username === 'admin' || credentials.username === 'ekdangadairy@gmail.com') {
+          return {
+            data: {
+              token: 'offline_token_default',
+              user: {
+                id: 'offline_default',
+                username: credentials.username.split('@')[0],
+                email: credentials.username,
+                role: credentials.username === 'admin' ? 'admin' : 'operator',
+                status: 'active',
+                dairyId: 'offline_dairy',
+                databaseId: '(default)',
+                createdAt: new Date().toISOString()
+              },
+              requiresOTP: false
+            }
+          };
+        }
+        
         return {
           data: {
             token: 'offline_token_fallback',
             user: {
               id: 'fallback_id',
               username: credentials.username,
-              email: credentials.username + '@dairy.local',
+              email: credentials.username.includes('@') ? credentials.username : credentials.username + '@dairy.local',
               role: 'admin',
               status: 'active',
               dairyId: 'local_dairy',

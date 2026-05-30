@@ -63,7 +63,13 @@ export class Realm {
 
     // Load initial backup from device storage files if on a native platform
     if (Capacitor.isNativePlatform()) {
-      this.initPromise = this.loadBackupFromFilesystem().then(() => {});
+      this.initPromise = this.loadBackupFromFilesystem()
+        .then(() => {
+          console.log('[Realm Sync] Backup loaded successfully.');
+        })
+        .catch((err) => {
+          console.error('[Realm Sync] Failed to load backup on start:', err);
+        });
     }
   }
 
@@ -95,51 +101,71 @@ export class Realm {
       const jsonString = JSON.stringify(backupData, null, 2);
       
       if (Capacitor.isNativePlatform()) {
-        // Save primary JSON database backup (for app-level restoration)
-        await Filesystem.writeFile({
-          path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
-          data: jsonString,
-          directory: Directory.Documents,
-          encoding: Encoding.UTF8,
-          recursive: true
-        });
-        console.log('[Filesystem Sync] Successfully backed up database JSON to DugdhaSetu_AMCU/Backups/database_backup.json');
-
-        // Create human-readable, office-ready CSV reports on local phone storage like WhatsApp export files
-        if (backupData.collections && backupData.collections.length > 0) {
-          const collectionsCsv = this.generateCollectionsCsv(backupData.collections);
+        // 1. ALWAYS write to permissionless Directory.Data first as our absolute reliable storage
+        try {
           await Filesystem.writeFile({
-            path: 'DugdhaSetu_AMCU/Reports/collections_record.csv',
-            data: collectionsCsv,
+            path: 'database_backup_internal.json',
+            data: jsonString,
+            directory: Directory.Data,
+            encoding: Encoding.UTF8,
+            recursive: true
+          });
+          console.log('[Filesystem Sync] Saved internal database backup in secure Directory.Data');
+        } catch (err) {
+          console.error('[Filesystem Sync] App private directory write failed (unlikely layout issue):', err);
+        }
+
+        // 2. Try writing to public Directory.Documents for user visibility and backups.
+        // We wrap this entire block in try-catch because Scoped Storage can throw a permission exception.
+        try {
+          // Save primary JSON database backup (for app-level restoration)
+          await Filesystem.writeFile({
+            path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
+            data: jsonString,
             directory: Directory.Documents,
             encoding: Encoding.UTF8,
             recursive: true
           });
-        }
+          console.log('[Filesystem Sync] Successfully backed up database JSON to DugdhaSetu_AMCU/Backups/database_backup.json');
 
-        if (backupData.farmers && backupData.farmers.length > 0) {
-          const farmersCsv = this.generateFarmersCsv(backupData.farmers);
-          await Filesystem.writeFile({
-            path: 'DugdhaSetu_AMCU/Reports/farmers_register.csv',
-            data: farmersCsv,
-            directory: Directory.Documents,
-            encoding: Encoding.UTF8,
-            recursive: true
-          });
-        }
+          // Create human-readable, office-ready CSV reports on local phone storage like WhatsApp export files
+          if (backupData.collections && backupData.collections.length > 0) {
+            const collectionsCsv = this.generateCollectionsCsv(backupData.collections);
+            await Filesystem.writeFile({
+              path: 'DugdhaSetu_AMCU/Reports/collections_record.csv',
+              data: collectionsCsv,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+            });
+          }
 
-        if (backupData.payments && backupData.payments.length > 0) {
-          const paymentsCsv = this.generatePaymentsCsv(backupData.payments);
-          await Filesystem.writeFile({
-            path: 'DugdhaSetu_AMCU/Reports/payments_ledger.csv',
-            data: paymentsCsv,
-            directory: Directory.Documents,
-            encoding: Encoding.UTF8,
-            recursive: true
-          });
-        }
+          if (backupData.farmers && backupData.farmers.length > 0) {
+            const farmersCsv = this.generateFarmersCsv(backupData.farmers);
+            await Filesystem.writeFile({
+              path: 'DugdhaSetu_AMCU/Reports/farmers_register.csv',
+              data: farmersCsv,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+            });
+          }
 
-        console.log('[Filesystem Export] Updated live human-readable CSV documents on phone storage');
+          if (backupData.payments && backupData.payments.length > 0) {
+            const paymentsCsv = this.generatePaymentsCsv(backupData.payments);
+            await Filesystem.writeFile({
+              path: 'DugdhaSetu_AMCU/Reports/payments_ledger.csv',
+              data: paymentsCsv,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+            });
+          }
+
+          console.log('[Filesystem Export] Updated live human-readable CSV documents on phone storage');
+        } catch (err) {
+          console.warn('[Filesystem Sync] Directory.Documents write skipped (this is common on Android 10+ if permissions are not granted):', err);
+        }
       } else {
         // Web context fallback: trigger direct json download
         const blob = new Blob([jsonString], { type: 'application/json' });
@@ -167,23 +193,43 @@ export class Realm {
       let backupContent: string | null = null;
       let pathUsed = '';
 
-      // 1. Try reading the organized WhatsApp-style file first
+      // 1. Try reading the private, permissionless Directory.Data backup file first (highly reliable)
       try {
-        console.log('[Filesystem Sync] Checking organized device backup file...');
+        console.log('[Filesystem Sync] Checking internal Directory.Data database backup file...');
         const file = await Filesystem.readFile({
-          path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
-          directory: Directory.Documents,
+          path: 'database_backup_internal.json',
+          directory: Directory.Data,
           encoding: Encoding.UTF8
         });
         if (file && file.data) {
           backupContent = typeof file.data === 'string' ? file.data : JSON.stringify(file.data);
-          pathUsed = 'DugdhaSetu_AMCU/Backups/database_backup.json';
+          pathUsed = 'database_backup_internal.json (Directory.Data)';
+          console.log('[Filesystem Sync] Successfully retrieved backup from Directory.Data');
         }
       } catch (e) {
-        console.log('[Filesystem Sync] No organized backup found, searching old legacy backup paths...');
+        console.log('[Filesystem Sync] No internal backup found in Directory.Data, checking Documents directory...');
       }
 
-      // 2. Fallback to old legacy root path if organized path is empty
+      // 2. Try reading the organized WhatsApp-style file in Documents
+      if (!backupContent) {
+        try {
+          console.log('[Filesystem Sync] Checking organized device backup file in Documents...');
+          const file = await Filesystem.readFile({
+            path: 'DugdhaSetu_AMCU/Backups/database_backup.json',
+            directory: Directory.Documents,
+            encoding: Encoding.UTF8
+          });
+          if (file && file.data) {
+            backupContent = typeof file.data === 'string' ? file.data : JSON.stringify(file.data);
+            pathUsed = 'DugdhaSetu_AMCU/Backups/database_backup.json';
+            console.log('[Filesystem Sync] Retrieved backup from Documents');
+          }
+        } catch (e) {
+          console.log('[Filesystem Sync] No organized backup found in Documents.');
+        }
+      }
+
+      // 3. Fallback to old legacy root path in Documents if organized path is empty
       if (!backupContent) {
         try {
           const file = await Filesystem.readFile({
@@ -194,6 +240,7 @@ export class Realm {
           if (file && file.data) {
             backupContent = typeof file.data === 'string' ? file.data : JSON.stringify(file.data);
             pathUsed = 'milkflow_amcu_db_backup.json';
+            console.log('[Filesystem Sync] Retrieved legacy backup from Documents');
           }
         } catch (e) {
           console.log('[Filesystem Sync] Legacy root database backup not found.');

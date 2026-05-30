@@ -33,6 +33,7 @@ const translations: Translations = {
   backup: { en: 'Backup', hi: 'बैकअप' },
   help: { en: 'Help', hi: 'सहायता' },
   signOut: { en: 'Sign Out', hi: 'साइन आउट' },
+  androidSystem: { en: 'Android System', hi: 'एंड्रॉइड सिस्टम' },
   ledger: { en: 'Ledger', hi: 'लेजर' },
   bills: { en: 'Bills', hi: 'बिल' },
   morning: { en: 'Morning', hi: 'सुबह' },

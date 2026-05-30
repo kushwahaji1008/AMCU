@@ -9,6 +9,13 @@
 @layer base {
   body {
     @apply transition-colors duration-300 font-sans text-stone-900 dark:text-stone-100 bg-stone-50 dark:bg-stone-950;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
   }
 }
 

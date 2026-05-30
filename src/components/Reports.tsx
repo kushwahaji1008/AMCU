@@ -59,7 +59,7 @@ export default function Reports() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     if (transactions.length === 0) {
       toast.error('No records to export');
       return;
@@ -82,16 +82,53 @@ export default function Reports() {
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `DugdhaSetu_Report_${dateRange.start}_to_${dateRange.end}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Report exported as CSV');
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { FileOpener } = await import('@capacitor-community/file-opener');
+        const base64Data = btoa(unescape(encodeURIComponent(csvContent)));
+        const fileName = `DugdhaSetu_Report_${dateRange.start}_to_${dateRange.end}.csv`;
+
+        let savedFile;
+        try {
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Reports/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true
+          });
+        } catch (writeErr) {
+          console.warn('[Reports Export] Direct Documents CSV write failed, falling back to private local storage:', writeErr);
+          savedFile = await Filesystem.writeFile({
+            path: `DugdhaSetu_AMCU/Reports/${fileName}`,
+            data: base64Data,
+            directory: Directory.Data,
+            recursive: true
+          });
+        }
+
+        await FileOpener.open({
+          filePath: savedFile.uri,
+          contentType: 'text/csv'
+        });
+        toast.success('Report saved and opened successfully!');
+      } catch (err: any) {
+        console.error('Natively saving CSV failed:', err);
+        toast.error('Failed to natively save or open report.');
+      }
+    } else {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `DugdhaSetu_Report_${dateRange.start}_to_${dateRange.end}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Report exported as CSV');
+    }
   };
 
   const exportToPDF = async () => {

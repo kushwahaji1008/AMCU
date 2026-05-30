@@ -74,7 +74,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: t('bills'), path: '/billing', icon: FileText },
     { name: t('reports'), path: '/reports', icon: FileText },
     { name: t('devices'), path: '/devices', icon: Cpu, adminOnly: true },
-    { name: 'Mobile App', path: '/mobile', icon: Smartphone },
+    { name: t('androidSystem'), path: '/mobile', icon: Smartphone },
     { name: t('users'), path: '/users', icon: Shield, adminOnly: true },
     { name: t('settings'), path: '/settings', icon: Settings2, adminOnly: true },
     { name: t('auditLog'), path: '/audit', icon: Shield, superAdminOnly: true },

@@ -18,6 +18,26 @@ export default function Login() {
   const { signInWithEmail, signInSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const [showServerSettings, setShowServerSettings] = useState(false);
+  const [customApiUrl, setCustomApiUrl] = useState(localStorage.getItem('custom_api_url') || '');
+
+  const defaultApiUrl = import.meta.env.VITE_API_URL || 
+    (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') 
+      ? `${window.location.origin}/api` 
+      : 'https://amcu.onrender.com/api');
+
+  const handleSaveServerUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (customApiUrl.trim()) {
+      localStorage.setItem('custom_api_url', customApiUrl.trim());
+      toast.success('Custom API URL updated: ' + customApiUrl.trim());
+    } else {
+      localStorage.removeItem('custom_api_url');
+      toast.info('Restored default system API target');
+    }
+    setShowServerSettings(false);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const reason = params.get('reason');
@@ -166,14 +186,57 @@ export default function Login() {
           </Link>
         </p>
 
-        <div className="text-center pt-2 space-y-1.5">
+        <div className="text-center pt-4 space-y-3">
+          {showServerSettings ? (
+            <form onSubmit={handleSaveServerUrl} className="bg-stone-50 dark:bg-stone-800/50 border border-stone-200/50 dark:border-stone-700/50 p-4 rounded-2xl text-left space-y-3 transition-all duration-300">
+              <h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">Advanced Server Settings</h3>
+              <p className="text-[11px] text-stone-400 leading-normal">
+                Override active API backend (Current Default: <code className="font-mono bg-stone-100 dark:bg-stone-900 px-1 py-0.5 rounded break-all">{defaultApiUrl}</code>)
+              </p>
+              <div className="space-y-1">
+                <input
+                  type="url"
+                  placeholder="https://your-api.com/api"
+                  value={customApiUrl}
+                  onChange={(e) => setCustomApiUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-stone-500 text-stone-800 dark:text-stone-100 placeholder:font-sans font-medium"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomApiUrl('');
+                    localStorage.removeItem('custom_api_url');
+                    toast.info('Cleared custom server API URL');
+                    setShowServerSettings(false);
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 bg-stone-100/50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-md transition-colors"
+                >
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  className="px-2.5 py-1 text-[11px] font-medium text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 rounded-md transition-colors hover:bg-stone-800 dark:hover:bg-white"
+                >
+                  Save URL
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           <p className="text-xs text-stone-400 dark:text-stone-500">
             Authorized personnel only. All access is monitored and logged.
           </p>
           <div className="flex justify-center">
-            <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-0.5 rounded-full border border-orange-200/50 dark:border-orange-900/35">
-              v1.2.5
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowServerSettings(!showServerSettings)}
+              className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-0.5 rounded-full border border-orange-200/50 dark:border-orange-900/35 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title="Click to configure Advanced Server settings"
+            >
+              v1.2.5 (Settings)
+            </button>
           </div>
         </div>
       </div>
