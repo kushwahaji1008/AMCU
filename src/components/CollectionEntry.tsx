@@ -281,6 +281,7 @@ export default function CollectionEntry() {
         snf: snfVal,
         clr: clrVal,
         rate: calculated.rate,
+        amount: calculated.amount,
         operatorId: profile?.uid || 'unknown',
         dairyId: profile?.dairyId || '',
       };

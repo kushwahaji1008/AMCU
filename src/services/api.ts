@@ -254,14 +254,11 @@ export const collectionApi = {
         if (e?.status >= 400 && e?.status < 500) {
           throw e;
         }
-        console.warn('Failed online collection creation, falling back to offline queue:', e);
+        console.warn('Failed online collection creation, falling back to offline logic:', e);
       }
     }
 
-    const tempId = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.collections.put(doc);
-    await offlineService.queueTask('CREATE_COLLECTION', data);
+    const doc = await offlineService.recordCollectionOffline(data);
     return { data: doc };
   },
   update: async (id: string, data: any) => {

@@ -294,7 +294,10 @@ class OfflineService {
         existingIds.delete(id);
       }
 
-      // Delete values that were deleted on the server
+      // We DISBALE deletion of local-only records to ensure permanent offline storage
+      // Only delete if the user explicitly removes it from the UI.
+      // This fulfills the requirement: "i want this permanently while I don't delete it from my app data"
+      /*
       for (const id of existingIds) {
         if (typeof id === 'string') {
           // Keep persistent local rate settings current
@@ -302,6 +305,7 @@ class OfflineService {
           await realmInstance.delete(schemaName, id);
         }
       }
+      */
     });
   }
 
@@ -389,6 +393,25 @@ class OfflineService {
       const comp = typeof doc.date === 'string' ? doc.date.split('T')[0] : new Date(doc.date).toISOString().split('T')[0];
       return comp === startCompare;
     });
+  }
+
+  async recordCollectionOffline(payload: any) {
+    const id = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const roundedRate = Math.round((payload.rate || 0) * 100) / 100;
+    const roundedAmount = Math.round((payload.amount || (payload.quantity * roundedRate) || 0) * 100) / 100;
+    
+    const doc = {
+      ...payload,
+      id,
+      rate: roundedRate,
+      amount: roundedAmount,
+      date: payload.date || new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    
+    await realmInstance.write(() => realmInstance.create('collections', doc, 'all'));
+    await this.queueTask('CREATE_COLLECTION', doc);
+    return doc;
   }
 
   // 3. Shifts
