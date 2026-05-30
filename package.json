@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "DugdhaSetu",
   "private": true,
   "version": "1.2.5",
   "type": "module",
@@ -7,6 +7,7 @@
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
+    "appflow:build": "vite build && npx cap add android && npx cap sync android ",
     "build:android": "vite build && npx cap sync android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
