@@ -46,7 +46,7 @@ import { SaleController, ReportingController } from './API/Controllers/SaleContr
 // Middlewares
 import { authenticate, authorize, AuthRequest } from './API/Middleware/AuthMiddleware';
 import { ErrorMiddleware } from './API/Middleware/ErrorMiddleware';
-import { validateRegistration, validateLogin, validateFarmer } from './API/Middleware/ValidationMiddleware';
+import { validateRegistration, validateLogin, validateFarmer, validateCollection } from './API/Middleware/ValidationMiddleware';
 import * as useragent from 'express-useragent';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './API/Config/Swagger';
@@ -321,7 +321,7 @@ app.delete('/api/farmers/:id', authenticate, authorize(['admin', 'super_admin'])
 app.get('/api/farmers/:id/summary', authenticate, (req, res, next) => farmerController.getFarmerSummary(req, res).catch(next));
 
 // Milk Collection Routes
-app.post('/api/collections', authenticate, (req, res, next) => collectionController.createCollection(req, res).catch(next));
+app.post('/api/collections', authenticate, validateCollection, (req, res, next) => collectionController.createCollection(req, res).catch(next));
 app.put('/api/collections/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => collectionController.updateCollection(req, res).catch(next));
 app.get('/api/collections', authenticate, (req, res, next) => collectionController.getAllCollections(req, res).catch(next));
 app.get('/api/collections/report', authenticate, (req, res, next) => collectionController.getDailyReport(req, res).catch(next));

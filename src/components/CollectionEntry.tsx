@@ -251,13 +251,31 @@ export default function CollectionEntry() {
       return;
     }
 
-    if (isNaN(fatVal) || fatVal < 1.0 || fatVal > 15.0) {
-      toast.error('Invalid FAT percentage! Must be between 1.0% and 15.0%.');
+    if (isNaN(fatVal)) {
+      toast.error('Invalid FAT percentage!');
       return;
     }
 
-    if (isNaN(snfVal) || snfVal < 4.0 || snfVal > 15.0) {
-      toast.error('Invalid SNF percentage! Must be between 4.0% and 15.0%.');
+    if (isNaN(snfVal)) {
+      toast.error('Invalid SNF percentage!');
+      return;
+    }
+
+    // Specialized Fat and SNF validation
+    let isValid = false;
+    if (fatVal >= 3.0 && fatVal <= 5.9) {
+      if (snfVal >= 8.0 && snfVal <= 8.5) {
+        isValid = true;
+      }
+    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
+      if (snfVal >= 8.3 && snfVal <= 9.0) {
+        isValid = true;
+      }
+    }
+
+    if (!isValid) {
+      toast.error('Invalid fat snf input');
+      setError('Invalid fat snf input');
       return;
     }
 

@@ -360,6 +360,26 @@ class OfflineService {
 
   async recordCollectionOffline(payload: any) {
     if (!isNativeApp()) throw new Error('Offline mode not available on web');
+
+    const fatVal = parseFloat(payload.fat);
+    const snfVal = parseFloat(payload.snf);
+
+    // Specialized Fat and SNF validation
+    let isValid = false;
+    if (fatVal >= 3.0 && fatVal <= 5.9) {
+      if (snfVal >= 8.0 && snfVal <= 8.5) {
+        isValid = true;
+      }
+    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
+      if (snfVal >= 8.3 && snfVal <= 9.0) {
+        isValid = true;
+      }
+    }
+
+    if (!isValid) {
+      throw new Error('Invalid fat snf input');
+    }
+
     const id = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const roundedRate = Math.round((payload.rate || 0) * 100) / 100;
     const roundedAmount = Math.round((payload.amount || (payload.quantity * roundedRate) || 0) * 100) / 100;

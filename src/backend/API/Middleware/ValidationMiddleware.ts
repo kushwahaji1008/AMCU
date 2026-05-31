@@ -75,3 +75,40 @@ export const validateFarmer = [
     next();
   }
 ];
+
+/**
+ * Validation rules for milk collection entry.
+ */
+export const validateCollection = [
+  body('farmerInternalId').notEmpty().withMessage('Farmer record is required'),
+  body('quantity').isFloat({ min: 0.1, max: 1000 }).withMessage('Quantity must be between 0.1 and 1000 kg'),
+  body('fat').isFloat().withMessage('FAT must be a number'),
+  body('snf').isFloat().withMessage('SNF must be a number'),
+  body('shift').isIn(['Morning', 'Evening']).withMessage('Shift must be Morning or Evening'),
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    const fat = parseFloat(req.body.fat);
+    const snf = parseFloat(req.body.snf);
+
+    let isValid = false;
+    if (fat >= 3.0 && fat <= 5.9) {
+      if (snf >= 8.0 && snf <= 8.5) {
+        isValid = true;
+      }
+    } else if (fat >= 6.0 && fat <= 10.0) {
+      if (snf >= 8.3 && snf <= 9.0) {
+        isValid = true;
+      }
+    }
+
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid fat snf input' });
+    }
+
+    next();
+  }
+];
