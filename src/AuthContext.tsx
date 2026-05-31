@@ -101,11 +101,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (email: string, pass: string) => {
     const deviceName = await getDeviceName();
     const response = await authApi.login({ username: email, password: pass, deviceName });
-    const { token, user: userData, requiresOTP } = response.data;
+    const { token, user: userData, requiresOTP } = response?.data || {};
     
+    if (!token && !requiresOTP) {
+      throw new Error('Invalid response from authentication server');
+    }
+
     // Note: OTP is currently disabled in the backend, but kept here for structural compatibility
     if (requiresOTP) {
+      if (!userData?.id) {
+        throw new Error('OTP identification failed: User data missing');
+      }
       return { requiresOTP: true, userId: userData.id };
+    }
+
+    if (!userData || !userData.id) {
+      console.error('Login failed: User profile missing in response', response.data);
+      throw new Error('Authenticated successfully but user profile is missing');
     }
 
     const p: UserProfile = {
@@ -137,10 +149,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInSuperAdmin = async (email: string, pass: string) => {
     const deviceName = await getDeviceName();
     const response = await authApi.verifyAdmin({ email, password: pass, deviceName });
-    const { token, user: userData, requiresOTP } = response.data;
+    const { token, user: userData, requiresOTP } = response?.data || {};
     
+    if (!token && !requiresOTP) {
+      throw new Error('Invalid response from administrative server');
+    }
+
     if (requiresOTP) {
+      if (!userData?.id) {
+        throw new Error('OTP identification failed: Administrator data missing');
+      }
       return { requiresOTP: true, userId: userData.id };
+    }
+
+    if (!userData || !userData.id) {
+      console.error('Admin login failed: Profile missing', response.data);
+      throw new Error('Authenticated as Admin but profile is incomplete');
     }
 
     const p: UserProfile = {

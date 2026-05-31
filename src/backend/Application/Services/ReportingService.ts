@@ -30,12 +30,12 @@ export class ReportingService {
     private ledgerRepo: ILedgerRepository
   ) {}
 
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getDashboardStats(days: number = 7): Promise<DashboardStats> {
     const today = new Date();
     const todayCollections = await this.collectionRepo.getDailyReport(today);
     const totalFarmers = await this.farmerRepo.getCount();
     const recentTxns = await this.collectionRepo.getRecent(5);
-    const trendData = await this.collectionRepo.getTrend(7);
+    const trendData = await this.collectionRepo.getTrend(days);
 
     let todayQty = 0;
     let morningQty = 0;

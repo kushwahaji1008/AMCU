@@ -364,20 +364,11 @@ class OfflineService {
     const fatVal = parseFloat(payload.fat);
     const snfVal = parseFloat(payload.snf);
 
-    // Specialized Fat and SNF validation
-    let isValid = false;
-    if (fatVal >= 3.0 && fatVal <= 5.9) {
-      if (snfVal >= 8.0 && snfVal <= 8.5) {
-        isValid = true;
-      }
-    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
-      if (snfVal >= 8.3 && snfVal <= 9.0) {
-        isValid = true;
-      }
-    }
+    // Relaxed validation: Allow most realistic milk quality ranges
+    const isValid = fatVal >= 0.5 && fatVal <= 15.0 && snfVal >= 5.0 && snfVal <= 12.0;
 
     if (!isValid) {
-      throw new Error('Invalid fat snf input');
+      throw new Error('Unusual quality detected (FAT: 0.5-15, SNF: 5-12 required)');
     }
 
     const id = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
@@ -555,7 +546,7 @@ class OfflineService {
     }));
   }
 
-  async getDashboardOffline() {
+  async getDashboardOffline(days: number = 7) {
     if (!isNativeApp()) return null;
     const farmers = await this.getFarmers();
     const collections = await realmInstance.objects<any>('collections');
@@ -573,6 +564,11 @@ class OfflineService {
     const fat = qty ? today.reduce((s, c) => s + (c.fat || 0) * (c.quantity || 0), 0) / qty : 0;
     const snf = qty ? today.reduce((s, c) => s + (c.snf || 0) * (c.quantity || 0), 0) / qty : 0;
 
+    // Filter collections for last N days for trend data
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    const trendData = collections.filter(c => new Date(c.date) >= cutoffDate);
+
     return {
       todayQty: Math.round(qty * 100) / 100,
       morningQty: Math.round(morning * 100) / 100,
@@ -582,7 +578,7 @@ class OfflineService {
       avgSnf: Math.round(snf * 100) / 100,
       totalFarmers: farmers.length,
       recentTxns: collections.slice(0, 10),
-      trendData: collections.slice(0, 30) // Simplified
+      trendData: trendData
     };
   }
 }

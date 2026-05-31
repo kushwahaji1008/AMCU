@@ -37,7 +37,8 @@ export class ReportingController {
   constructor(private reportingService: ReportingService) {}
 
   async getDashboardStats(req: Request, res: Response) {
-    const stats = await this.reportingService.getDashboardStats();
+    const days = req.query.days ? parseInt(req.query.days as string) : 7;
+    const stats = await this.reportingService.getDashboardStats(days);
     res.json(stats);
   }
 

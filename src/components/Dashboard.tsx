@@ -53,33 +53,32 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile?.dairyId) return;
-
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const response = await reportApi.getDashboard();
-        const data = response.data;
+        const response = await reportApi.getDashboard(timeRange);
+        const data = response?.data || {};
         
         setStats(prev => ({
           ...prev,
-          todayQty: data.todayQty,
-          morningQty: data.morningQty,
-          eveningQty: data.eveningQty,
-          todayAmount: data.todayAmount,
-          totalFarmers: data.totalFarmers,
-          avgFat: data.avgFat,
-          avgSnf: data.avgSnf,
+          todayQty: data.todayQty || 0,
+          morningQty: data.morningQty || 0,
+          eveningQty: data.eveningQty || 0,
+          todayAmount: data.todayAmount || 0,
+          totalFarmers: data.totalFarmers || 0,
+          avgFat: data.avgFat || 0,
+          avgSnf: data.avgSnf || 0,
         }));
         
         setRecentTxns(data.recentTxns || []);
         setTrendData(data.trendData || []);
         
-        // Mock top farmers for now as backend doesn't return it yet
-        // Or calculate it from trendData if it has enough info
+        // Calculate top farmers from trend data
         const farmerMap = new Map<string, number>();
         (data.trendData || []).forEach((txn: any) => {
-          farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + txn.quantity);
+          if (txn.farmerName) {
+            farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + (txn.quantity || 0));
+          }
         });
         const sorted = Array.from(farmerMap.entries())
           .map(([name, qty]) => ({ name, qty }))
@@ -95,7 +94,7 @@ export default function Dashboard() {
     };
 
     fetchStats();
-  }, [profile?.dairyId, timeRange]);
+  }, [profile?.uid, timeRange]); // Use profile.uid to trigger on user change
 
   const processedChartData = useMemo(() => {
     const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number; cow: number; buffalo: number }>();
@@ -155,6 +154,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10">
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-white/50 dark:bg-stone-950/50 backdrop-blur-[2px] z-[100] flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-4">
+            <RefreshCw className="w-10 h-10 text-stone-900 dark:text-white animate-spin" />
+            <p className="text-sm font-bold text-stone-900 dark:text-white uppercase tracking-widest">Updating Dashboard...</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl font-serif font-bold text-stone-900 dark:text-white tracking-tight">{t('dashboard')}</h1>
@@ -458,7 +467,7 @@ export default function Dashboard() {
           {/* Top Farmers */}
           <div className="glass-card rounded-[2.5rem] overflow-hidden">
             <div className="p-8 border-b border-stone-100 dark:border-stone-800">
-              <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Top Members (7D)</h3>
+              <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Top Members ({timeRange}D)</h3>
             </div>
             <div className="p-8 space-y-6">
               {topFarmers.map((farmer, idx) => (

@@ -4,7 +4,7 @@ import { collectionApi, farmerApi, rateApi } from '../services/api';
 import { useAuth } from '../AuthContext';
 import { Farmer, CollectionTransaction, RateChart, RateSettings } from '../types';
 import { format } from 'date-fns';
-import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, QrCode } from 'lucide-react';
+import { Search, Milk, Calculator, Printer, CheckCircle2, AlertCircle, Users, QrCode, RefreshCw } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
@@ -261,21 +261,12 @@ export default function CollectionEntry() {
       return;
     }
 
-    // Specialized Fat and SNF validation
-    let isValid = false;
-    if (fatVal >= 3.0 && fatVal <= 5.9) {
-      if (snfVal >= 8.0 && snfVal <= 8.5) {
-        isValid = true;
-      }
-    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
-      if (snfVal >= 8.3 && snfVal <= 9.0) {
-        isValid = true;
-      }
-    }
+    // Relaxed validation: Allow most realistic milk quality ranges
+    const isValid = fatVal >= 0.5 && fatVal <= 15.0 && snfVal >= 5.0 && snfVal <= 12.0;
 
     if (!isValid) {
-      toast.error('Invalid fat snf input');
-      setError('Invalid fat snf input');
+      toast.error('Outside realistic quality range. Please verify FAT and SNF values.');
+      setError('Unusual quality detected (FAT: 0.5-15, SNF: 5-12 required)');
       return;
     }
 
@@ -336,6 +327,16 @@ export default function CollectionEntry() {
 
   return (
     <div className="space-y-8">
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-white/50 dark:bg-stone-950/50 backdrop-blur-[2px] z-[100] flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-4">
+            <RefreshCw className="w-10 h-10 text-stone-900 dark:text-white animate-spin" />
+            <p className="text-sm font-bold text-stone-900 dark:text-white uppercase tracking-widest">Processing...</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>

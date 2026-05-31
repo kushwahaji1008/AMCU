@@ -19,16 +19,16 @@ export const authApi = {
     try {
       if (!offlineService.isOnline) {
         const usersResult = await db.users.allDocs();
-        const users = usersResult.rows.map(r => r.doc as any);
-        const user = users.find(u => u.username === credentials.username || u.email === credentials.username);
+        const users = (usersResult?.rows || []).map(r => r.doc as any);
+        const user = users.find(u => u && (u.username === credentials.username || u.email === credentials.username));
         
         if (user) {
           // In a real app, we would verify a hashed password here. 
           // For now, we allow access to verified cached users only.
           return {
             data: {
-              token: 'offline_token_' + user._id,
-              user: { ...user, id: user._id },
+              token: 'offline_token_' + (user.id || user._id),
+              user: { ...user, id: user.id || user._id },
               requiresOTP: false,
               isOfflineSession: true
             }
@@ -36,12 +36,14 @@ export const authApi = {
         }
         throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_MISSING_CACHE);
       }
-      return api.post('/auth/login', credentials);
+      return await api.post('/auth/login', credentials);
     } catch (e: any) {
-      if (!offlineService.isOnline || !e.response) {
-        throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_MISSING_CACHE);
+      // If we are online and have a status code, it's a real server error (401, 403, etc.)
+      if (offlineService.isOnline && (e.status || e.response)) {
+        throw e;
       }
-      throw e;
+      // Otherwise, it's a network failure or cache miss
+      throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_MISSING_CACHE);
     }
   },
   register: (data: any) => api.post('/auth/register', data),
@@ -303,12 +305,12 @@ export const saleApi = {
 };
 
 export const reportApi = {
-  getDashboard: async () => {
-    if (!isNativeApp()) return api.get('/reports/dashboard');
+  getDashboard: async (days: number = 7) => {
+    if (!isNativeApp()) return api.get('/reports/dashboard', { params: { days } });
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
-    const data = await offlineService.getDashboardOffline();
+    const data = await offlineService.getDashboardOffline(days);
     return { data };
   },
   getDaily: async (date: string) => {
