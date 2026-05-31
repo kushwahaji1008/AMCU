@@ -1,124 +1,45 @@
 /// <reference types="vite/client" />
 import api from './axiosInstance';
 import { offlineService, db } from './offlineService';
+import { isNativeApp, PLATFORM_ERRORS } from './platform';
 
 export default api;
 
 export const authApi = {
   login: async (credentials: any) => {
+    // Web ALWAYS requires server login
+    if (!isNativeApp()) {
+      if (!offlineService.isOnline) {
+        throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_WEB);
+      }
+      return api.post('/auth/login', credentials);
+    }
+
+    // Native App (Capacitor) support for secure offline login from Realm cache
     try {
       if (!offlineService.isOnline) {
-        // Support offline session recovery / offline mode login for cached users from Realm DB
-        const usersResult = await db.users.allDocs({ include_docs: true });
+        const usersResult = await db.users.allDocs();
         const users = usersResult.rows.map(r => r.doc as any);
         const user = users.find(u => u.username === credentials.username || u.email === credentials.username);
         
         if (user) {
+          // In a real app, we would verify a hashed password here. 
+          // For now, we allow access to verified cached users only.
           return {
             data: {
               token: 'offline_token_' + user._id,
-              user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                status: user.status || 'active',
-                dairyId: user.dairyId,
-                databaseId: user.databaseId || '(default)',
-                createdAt: user.createdAt
-              },
-              requiresOTP: false
+              user: { ...user, id: user._id },
+              requiresOTP: false,
+              isOfflineSession: true
             }
           };
         }
-        
-        // Simple fallback operator if users are empty
-        if (credentials.username === 'operator' || credentials.username === 'admin') {
-          return {
-            data: {
-              token: 'offline_token_default',
-              user: {
-                id: 'offline_default',
-                username: credentials.username,
-                email: credentials.username + '@dairy.internal',
-                role: credentials.username === 'admin' ? 'admin' : 'operator',
-                status: 'active',
-                dairyId: 'offline_dairy',
-                databaseId: '(default)',
-                createdAt: new Date().toISOString()
-              },
-              requiresOTP: false
-            }
-          };
-        }
-        
-        throw new Error("No internet connection and credentials are not cached locally.");
+        throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_MISSING_CACHE);
       }
       return api.post('/auth/login', credentials);
     } catch (e: any) {
-      // If offline, or a network timeout/unreachable failure occurs, gracefully log in offline
-      const isConnectionError = !e.response || e.message === 'Network Error' || e.code === 'ECONNREFUSED';
-      if (!offlineService.isOnline || isConnectionError) {
-        // Retrieve cached users from local Dexie database
-        const usersResult = await db.users.allDocs({ include_docs: true });
-        const users = usersResult.rows.map(r => r.doc as any);
-        const user = users.find(u => u.username === credentials.username || u.email === credentials.username);
-        
-        if (user) {
-          return {
-            data: {
-              token: 'offline_token_' + user._id,
-              user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                status: user.status || 'active',
-                dairyId: user.dairyId,
-                databaseId: user.databaseId || '(default)',
-                createdAt: user.createdAt
-              },
-              requiresOTP: false
-            }
-          };
-        }
-        
-        // Simple fallback operators if cached user is missing
-        if (credentials.username === 'operator' || credentials.username === 'admin' || credentials.username === 'ekdangadairy@gmail.com') {
-          return {
-            data: {
-              token: 'offline_token_default',
-              user: {
-                id: 'offline_default',
-                username: credentials.username.split('@')[0],
-                email: credentials.username,
-                role: credentials.username === 'admin' ? 'admin' : 'operator',
-                status: 'active',
-                dairyId: 'offline_dairy',
-                databaseId: '(default)',
-                createdAt: new Date().toISOString()
-              },
-              requiresOTP: false
-            }
-          };
-        }
-        
-        return {
-          data: {
-            token: 'offline_token_fallback',
-            user: {
-              id: 'fallback_id',
-              username: credentials.username,
-              email: credentials.username.includes('@') ? credentials.username : credentials.username + '@dairy.local',
-              role: 'admin',
-              status: 'active',
-              dairyId: 'local_dairy',
-              databaseId: '(default)',
-              createdAt: new Date().toISOString()
-            },
-            requiresOTP: false
-          }
-        };
+      if (!offlineService.isOnline || !e.response) {
+        throw new Error(PLATFORM_ERRORS.OFFLINE_AUTH_MISSING_CACHE);
       }
       throw e;
     }
@@ -129,6 +50,43 @@ export const authApi = {
   resendOTP: (data: { userId: string }) => api.post('/auth/resend-otp', data),
 };
 
+// Helper for CRUD operations to handle standard platform-aware offline fallback
+const withFallback = async (
+  onlineCall: () => Promise<any>,
+  offlineCall: () => Promise<any>,
+  onlineQueueTask?: { type: any, payload: any }
+) => {
+  if (offlineService.isOnline) {
+    try {
+      const res = await onlineCall();
+      if (isNativeApp() && res.data) {
+        // Sync back to local Realm if native
+        // (Assuming individual APIs handle their specific DB put logic for now to stay compatible)
+      }
+      return res;
+    } catch (e: any) {
+      // If it's a validation error (4xx), don't fallback, just throw
+      if (e?.status >= 400 && e?.status < 500) throw e;
+      
+      // If not native, web users get an error when online call fails and they are offline or server is down
+      if (!isNativeApp()) throw e;
+      
+      // Native fallback
+      console.warn('Online sync failed, using native offline fallback');
+    }
+  }
+
+  if (!isNativeApp()) {
+    throw new Error(PLATFORM_ERRORS.OFFLINE_WEB);
+  }
+
+  const res = await offlineCall();
+  if (onlineQueueTask) {
+    await offlineService.queueTask(onlineQueueTask.type, onlineQueueTask.payload);
+  }
+  return { data: res };
+};
+
 export const adminApi = {
   getLoginLogs: () => api.get('/admin/login-logs'),
   getSwaggerStatus: () => api.get('/admin/swagger-status'),
@@ -137,6 +95,7 @@ export const adminApi = {
 
 export const farmerApi = {
   getAll: async () => {
+    if (!isNativeApp()) return api.get('/farmers');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -144,84 +103,64 @@ export const farmerApi = {
     return { data: docs };
   },
   getById: async (id: string) => {
+    if (!isNativeApp()) return api.get(`/farmers/${id}`);
     const doc = await offlineService.getFarmerById(id);
     return { data: doc };
   },
   search: async (farmerId: string) => {
+    if (!isNativeApp()) return api.get(`/farmers/search/${farmerId}`);
     const doc = await offlineService.searchFarmer(farmerId);
     return { data: doc };
   },
   create: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
-        const serverRes = await api.post('/farmers', data);
-        const savedItem = { ...serverRes.data, id: serverRes.data.id || serverRes.data._id };
-        await db.farmers.put(savedItem);
-        return serverRes;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online farmer creation, falling back to offline queue:', e);
-      }
-    }
-
-    const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.farmers.put(doc);
-    await offlineService.queueTask('CREATE_FARMER', doc);
-    return { data: doc };
+    return withFallback(
+      async () => {
+        const res = await api.post('/farmers', data);
+        if (isNativeApp()) await db.farmers.put({ ...res.data, id: res.data.id || res.data._id });
+        return res;
+      },
+      async () => {
+        const tempId = 'temp_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.farmers.put(doc);
+        return doc;
+      },
+      { type: 'CREATE_FARMER', payload: data }
+    );
   },
   update: async (id: string, data: any) => {
-    if (offlineService.isOnline) {
-      try {
-        const serverRes = await api.put(`/farmers/${id}`, data);
-        const savedItem = { ...serverRes.data, id: serverRes.data.id || serverRes.data._id || id };
-        await db.farmers.put(savedItem);
-        return serverRes;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online farmer update, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.farmers.get(id);
-      await db.farmers.put({ ...existing, ...data });
-    } catch (e) {
-      await db.farmers.put({ ...data, _id: id, id });
-    }
-    await offlineService.queueTask('UPDATE_FARMER', { id, data });
-    return { data: { ...data, id } };
+    return withFallback(
+      async () => {
+        const res = await api.put(`/farmers/${id}`, data);
+        if (isNativeApp()) await db.farmers.put({ ...res.data, id: res.data.id || res.data._id || id });
+        return res;
+      },
+      async () => {
+        const existing = await db.farmers.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.farmers.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_FARMER', payload: { id, data } }
+    );
   },
   delete: async (id: string) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.delete(`/farmers/${id}`);
-        try {
-          const existing = await db.farmers.get(id);
-          await db.farmers.remove(existing);
-        } catch (e) {}
+        if (isNativeApp()) await db.farmers.remove({ id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online farmer deletion, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.farmers.get(id);
-      await db.farmers.remove(existing);
-    } catch (e) {}
-    await offlineService.queueTask('DELETE_FARMER', id);
-    return { data: { success: true } };
+      },
+      async () => {
+        await db.farmers.remove({ id });
+        return { success: true };
+      },
+      { type: 'DELETE_FARMER', payload: id }
+    );
   },
   getSummary: async (id: string) => {
-    const collections = await db.collections.allDocs({ include_docs: true });
+    // Summary is largely computed from local collections for speed/capability
+    const collections = await db.collections.allDocs();
     const fCollections = collections.rows
       .map(r => r.doc as any)
       .filter(c => c.farmerInternalId === id || c.farmerId === id);
@@ -244,48 +183,33 @@ export const farmerApi = {
 
 export const collectionApi = {
   create: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/collections', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.collections.put(savedItem);
+        if (isNativeApp()) await db.collections.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online collection creation, falling back to offline logic:', e);
-      }
-    }
-
-    const doc = await offlineService.recordCollectionOffline(data);
-    return { data: doc };
+      },
+      async () => await offlineService.recordCollectionOffline(data)
+    );
   },
   update: async (id: string, data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.put(`/collections/${id}`, data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id || id };
-        await db.collections.put(savedItem);
+        if (isNativeApp()) await db.collections.put({ ...res.data, id: res.data.id || res.data._id || id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online collection update, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.collections.get(id);
-      await db.collections.put({ ...existing, ...data });
-    } catch (e) {
-      await db.collections.put({ ...data, _id: id, id });
-    }
-    await offlineService.queueTask('UPDATE_COLLECTION', { id, data });
-    return { data: { ...data, id } };
+      },
+      async () => {
+        const existing = await db.collections.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.collections.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_COLLECTION', payload: { id, data } }
+    );
   },
   getDailyReport: async (date: string, endDate?: string) => {
+    if (!isNativeApp()) return api.get('/collections/daily', { params: { date, endDate } });
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -293,6 +217,7 @@ export const collectionApi = {
     return { data: docs };
   },
   getReport: async (date: string, endDate?: string) => {
+    if (!isNativeApp()) return api.get('/collections/report', { params: { date, endDate } });
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -300,7 +225,8 @@ export const collectionApi = {
     return { data: docs };
   },
   getByFarmerId: async (farmerInternalId: string) => {
-    const result = await db.collections.allDocs({ include_docs: true });
+    if (!isNativeApp()) return api.get(`/collections/farmer/${farmerInternalId}`);
+    const result = await db.collections.allDocs();
     const docs = result.rows
       .map(r => r.doc as any)
       .filter(c => c.farmerInternalId === farmerInternalId || c.farmerId === farmerInternalId);
@@ -310,31 +236,28 @@ export const collectionApi = {
 
 export const shiftApi = {
   createSummary: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/shifts/summary', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.shifts.put(savedItem);
+        if (isNativeApp()) await db.shifts.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online shift summary creation, falling back to offline queue:', e);
-      }
-    }
-
-    const tempId = 'shift_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.shifts.put(doc);
-    await offlineService.queueTask('CREATE_SHIFT', doc);
-    return { data: doc };
+      },
+      async () => {
+        const tempId = 'shift_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.shifts.put(doc);
+        return doc;
+      },
+      { type: 'SAVE_SHIFT_SUMMARY', payload: data }
+    );
   },
   getSummary: async (date: string, shift: string) => {
+    if (!isNativeApp()) return api.get('/shifts/summary', { params: { date, shift } });
     const summary = await offlineService.getShiftSummaryOffline(date, shift);
     return { data: summary };
   },
   getRecent: async (limit: number = 10) => {
+    if (!isNativeApp()) return api.get('/shifts/recent', { params: { limit } });
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -345,55 +268,43 @@ export const shiftApi = {
 
 export const saleApi = {
   getCustomers: async () => {
-    if (offlineService.isOnline) {
+    if (offlineService.isOnline && isNativeApp()) {
       offlineService.syncFromServer().catch(console.error);
     }
     const docs = await offlineService.getSalesCustomers();
     return { data: docs };
   },
   createCustomer: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/sales/customers', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.salesCustomers.put(savedItem);
+        if (isNativeApp()) await db.salesCustomers.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online sale customer creation, falling back to offline queue:', e);
-      }
-    }
-
-    const tempId = 'cust_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.salesCustomers.put(doc);
-    await offlineService.queueTask('CREATE_SALE_CUSTOMER', doc);
-    return { data: doc };
+      },
+      async () => {
+        const tempId = 'cust_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.salesCustomers.put(doc);
+        return doc;
+      },
+      { type: 'CREATE_SALE_CUSTOMER', payload: data }
+    );
   },
   recordSale: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/sales', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.salesRecords.put(savedItem);
+        if (isNativeApp()) await db.salesRecords.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online sale recording, falling back to offline queue:', e);
-      }
-    }
-
-    const doc = await offlineService.recordSaleOffline(data);
-    return { data: doc };
+      },
+      async () => await offlineService.recordSaleOffline(data)
+    );
   },
 };
 
 export const reportApi = {
   getDashboard: async () => {
+    if (!isNativeApp()) return api.get('/reporting/dashboard');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -401,47 +312,39 @@ export const reportApi = {
     return { data };
   },
   getDaily: async (date: string) => {
+    if (!isNativeApp()) return api.get('/reporting/daily', { params: { date } });
     const collections = await offlineService.getCollectionsByDate(date);
     const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
     return {
-      data: {
-        collections,
-        totalQty,
-        totalAmt,
-        date
-      }
+      data: { collections, totalQty, totalAmt, date }
     };
   },
   getFarmer: async (id: string) => {
-    const collections = await db.collections.allDocs({ include_docs: true });
-    const fCollections = collections.rows
+    if (!isNativeApp()) return api.get(`/reporting/farmer/${id}`);
+    const result = await db.collections.allDocs();
+    const fCollections = result.rows
       .map(r => r.doc as any)
       .filter(c => c.farmerInternalId === id || c.farmerId === id);
     return { data: fCollections };
   },
   getBills: async (year: number, month: number, period: number, farmerId?: string) => {
+    if (!isNativeApp()) return api.get('/reporting/bills', { params: { year, month, period, farmerId } });
     const bills = await offlineService.getBillsOffline(year, month, period, farmerId);
     return { data: bills };
   },
   finalizeBills: async (data: { year: number, month: number, period: number, dairyId: string }) => {
-    if (offlineService.isOnline) {
-      try {
-        return await api.post('/reports/finalize-bills', data);
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online bills finalization, falling back to offline queue:', e);
-      }
-    }
-    await offlineService.queueTask('FINALIZE_BILLS', data);
-    return { data: { count: 1, totalBills: 1 } };
+    return withFallback(
+      async () => await api.post('/reports/finalize-bills', data),
+      async () => ({ count: 1, totalBills: 1 }),
+      { type: 'FINALIZE_BILLS', payload: data }
+    );
   },
 };
 
 export const rateApi = {
   getAll: async () => {
+    if (!isNativeApp()) return api.get('/rates');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -449,110 +352,74 @@ export const rateApi = {
     return { data: docs };
   },
   create: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/rates', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.rates.put(savedItem);
+        if (isNativeApp()) await db.rates.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online rate creation, falling back to offline queue:', e);
-      }
-    }
-
-    const tempId = 'rate_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.rates.put(doc);
-    await offlineService.queueTask('CREATE_RATE', doc);
-    return { data: doc };
+      },
+      async () => {
+        const tempId = 'rate_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.rates.put(doc);
+        return doc;
+      },
+      { type: 'CREATE_RATE', payload: data }
+    );
   },
   update: async (id: string, data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.put(`/rates/${id}`, data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id || id };
-        await db.rates.put(savedItem);
+        if (isNativeApp()) await db.rates.put({ ...res.data, id: res.data.id || res.data._id || id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online rate update, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.rates.get(id);
-      await db.rates.put({ ...existing, ...data });
-    } catch (e) {
-      await db.rates.put({ ...data, _id: id, id });
-    }
-    await offlineService.queueTask('UPDATE_RATE', { id, data });
-    return { data: { ...data, id } };
+      },
+      async () => {
+        const existing = await db.rates.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.rates.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_RATE', payload: { id, data } }
+    );
   },
   delete: async (id: string) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.delete(`/rates/${id}`);
-        try {
-          const existing = await db.rates.get(id);
-          await db.rates.remove(existing);
-        } catch (e) {}
+        if (isNativeApp()) await db.rates.remove({ id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online rate deletion, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.rates.get(id);
-      await db.rates.remove(existing);
-    } catch (e) {}
-    await offlineService.queueTask('DELETE_RATE', id);
-    return { data: { success: true } };
+      },
+      async () => {
+        await db.rates.remove({ id });
+        return { success: true };
+      },
+      { type: 'DELETE_RATE', payload: id }
+    );
   },
   getSettings: async () => {
     const settings = await offlineService.getRateSettings();
     return { data: settings };
   },
   saveSettings: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/rates/settings', data);
-        try {
-          const existing = await db.rateSettings.get('current');
-          await db.rateSettings.put({ ...data, _id: 'current', _rev: existing._rev });
-        } catch (e) {
-          await db.rateSettings.put({ ...data, _id: 'current' });
-        }
+        if (isNativeApp()) await db.rateSettings.put({ ...data, id: 'current' });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online rate settings saving, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.rateSettings.get('current');
-      await db.rateSettings.put({ ...data, _id: 'current', _rev: existing._rev });
-    } catch (e) {
-      await db.rateSettings.put({ ...data, _id: 'current' });
-    }
-    await offlineService.queueTask('SAVE_RATE_SETTINGS', data);
-    return { data };
+      },
+      async () => {
+        await db.rateSettings.put({ ...data, id: 'current' });
+        return data;
+      },
+      { type: 'SAVE_RATE_SETTINGS', payload: data }
+    );
   },
 };
 
 export const paymentApi = {
   getLedger: async () => {
+    if (!isNativeApp()) return api.get('/ledger');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -560,31 +427,25 @@ export const paymentApi = {
     return { data: docs };
   },
   getLedgerByFarmerId: async (farmerInternalId: string) => {
+    if (!isNativeApp()) return api.get(`/ledger/farmer/${farmerInternalId}`);
     const docs = await offlineService.getLedgerByFarmerId(farmerInternalId);
     return { data: docs };
   },
   recordPayment: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/payments', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.ledgers.put(savedItem);
+        if (isNativeApp()) await db.ledgers.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online payment recording, falling back to offline queue:', e);
-      }
-    }
-
-    const doc = await offlineService.recordPaymentOffline(data);
-    return { data: doc };
+      },
+      async () => await offlineService.recordPaymentOffline(data)
+    );
   },
 };
 
 export const userApi = {
   getAll: async (role?: string) => {
+    if (!isNativeApp()) return api.get('/users', { params: { role } });
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -593,78 +454,56 @@ export const userApi = {
     return { data: filtered };
   },
   create: async (data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.post('/users', data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id };
-        await db.users.put(savedItem);
+        if (isNativeApp()) await db.users.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online user creation, falling back to offline queue:', e);
-      }
-    }
-
-    const tempId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    const doc = { ...data, id: tempId, _id: tempId };
-    await db.users.put(doc);
-    await offlineService.queueTask('CREATE_USER', doc);
-    return { data: doc };
+      },
+      async () => {
+        const tempId = 'user_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.users.put(doc);
+        return doc;
+      },
+      { type: 'CREATE_USER', payload: data }
+    );
   },
   update: async (id: string, data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.put(`/users/${id}`, data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id || id };
-        await db.users.put(savedItem);
+        if (isNativeApp()) await db.users.put({ ...res.data, id: res.data.id || res.data._id || id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online user update, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.users.get(id);
-      await db.users.put({ ...existing, ...data });
-    } catch (e) {
-      await db.users.put({ ...data, _id: id, id });
-    }
-    await offlineService.queueTask('UPDATE_USER', { id, data });
-    return { data: { ...data, id } };
+      },
+      async () => {
+        const existing = await db.users.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.users.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_USER', payload: { id, data } }
+    );
   },
   delete: async (id: string) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.delete(`/users/${id}`);
-        try {
-          const existing = await db.users.get(id);
-          await db.users.remove(existing);
-        } catch (e) {}
+        if (isNativeApp()) await db.users.remove({ id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online user deletion, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.users.get(id);
-      await db.users.remove(existing);
-    } catch (e) {}
-    await offlineService.queueTask('DELETE_USER', id);
-    return { data: { success: true } };
+      },
+      async () => {
+        await db.users.remove({ id });
+        return { success: true };
+      },
+      { type: 'DELETE_USER', payload: id }
+    );
   },
 };
 
 export const dairyApi = {
   getAll: async () => {
+    if (!isNativeApp()) return api.get('/dairies');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -672,27 +511,19 @@ export const dairyApi = {
     return { data: docs };
   },
   update: async (id: string, data: any) => {
-    if (offlineService.isOnline) {
-      try {
+    return withFallback(
+      async () => {
         const res = await api.put(`/dairies/${id}`, data);
-        const savedItem = { ...res.data, id: res.data.id || res.data._id || id };
-        await db.dairies.put(savedItem);
+        if (isNativeApp()) await db.dairies.put({ ...res.data, id: res.data.id || res.data._id || id });
         return res;
-      } catch (e: any) {
-        if (e?.status >= 400 && e?.status < 500) {
-          throw e;
-        }
-        console.warn('Failed online dairy update, falling back to offline queue:', e);
-      }
-    }
-
-    try {
-      const existing = await db.dairies.get(id);
-      await db.dairies.put({ ...existing, ...data });
-    } catch (e) {
-      await db.dairies.put({ ...data, _id: id, id });
-    }
-    await offlineService.queueTask('UPDATE_DAIRY', { id, data });
-    return { data: { ...data, id } };
+      },
+      async () => {
+        const existing = await db.dairies.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.dairies.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_DAIRY', payload: { id, data } }
+    );
   },
 };
