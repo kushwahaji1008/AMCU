@@ -110,10 +110,7 @@ export default function Login() {
                   required
                   placeholder="operator@dairy.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (error) setError('');
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
                 />
               </div>
@@ -127,10 +124,7 @@ export default function Login() {
                   required
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (error) setError('');
-                  }}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
                 />
               </div>
