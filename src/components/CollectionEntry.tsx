@@ -261,12 +261,21 @@ export default function CollectionEntry() {
       return;
     }
 
-    // Relaxed validation: Allow most realistic milk quality ranges
-    const isValid = fatVal >= 0.5 && fatVal <= 15.0 && snfVal >= 5.0 && snfVal <= 12.0;
+    // Specialized Fat and SNF validation
+    let isValid = false;
+    if (fatVal >= 3.0 && fatVal <= 5.9) {
+      if (snfVal >= 8.0 && snfVal <= 8.5) {
+        isValid = true;
+      }
+    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
+      if (snfVal >= 8.3 && snfVal <= 9.0) {
+        isValid = true;
+      }
+    }
 
     if (!isValid) {
-      toast.error('Outside realistic quality range. Please verify FAT and SNF values.');
-      setError('Unusual quality detected (FAT: 0.5-15, SNF: 5-12 required)');
+      toast.error('Invalid fat snf input');
+      setError('Invalid fat snf input');
       return;
     }
 

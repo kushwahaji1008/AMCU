@@ -364,11 +364,20 @@ class OfflineService {
     const fatVal = parseFloat(payload.fat);
     const snfVal = parseFloat(payload.snf);
 
-    // Relaxed validation: Allow most realistic milk quality ranges
-    const isValid = fatVal >= 0.5 && fatVal <= 15.0 && snfVal >= 5.0 && snfVal <= 12.0;
+    // Specialized Fat and SNF validation
+    let isValid = false;
+    if (fatVal >= 3.0 && fatVal <= 5.9) {
+      if (snfVal >= 8.0 && snfVal <= 8.5) {
+        isValid = true;
+      }
+    } else if (fatVal >= 6.0 && fatVal <= 10.0) {
+      if (snfVal >= 8.3 && snfVal <= 9.0) {
+        isValid = true;
+      }
+    }
 
     if (!isValid) {
-      throw new Error('Unusual quality detected (FAT: 0.5-15, SNF: 5-12 required)');
+      throw new Error('Invalid fat snf input');
     }
 
     const id = 'coll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
