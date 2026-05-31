@@ -46,21 +46,23 @@ export class ReportingService {
 
     todayCollections.forEach(c => {
       todayQty += c.quantity;
-      if (c.shift === 'Morning') morningQty += c.quantity;
-      else eveningQty += c.quantity;
+      if (c.shift?.toLowerCase() === 'morning') morningQty += c.quantity;
+      else if (c.shift?.toLowerCase() === 'evening') eveningQty += c.quantity;
+      
       todayAmount += c.amount;
-      fatSum += c.fat;
-      snfSum += c.snf;
+      // Use weighted sums for more accurate averages
+      fatSum += (c.fat || 0) * (c.quantity || 0);
+      snfSum += (c.snf || 0) * (c.quantity || 0);
     });
 
     return {
-      todayQty,
-      morningQty,
-      eveningQty,
-      todayAmount,
+      todayQty: Math.round(todayQty * 100) / 100,
+      morningQty: Math.round(morningQty * 100) / 100,
+      eveningQty: Math.round(eveningQty * 100) / 100,
+      todayAmount: Math.round(todayAmount * 100) / 100,
       totalFarmers,
-      avgFat: todayCollections.length > 0 ? fatSum / todayCollections.length : 0,
-      avgSnf: todayCollections.length > 0 ? snfSum / todayCollections.length : 0,
+      avgFat: todayQty > 0 ? Math.round((fatSum / todayQty) * 100) / 100 : 0,
+      avgSnf: todayQty > 0 ? Math.round((snfSum / todayQty) * 100) / 100 : 0,
       recentTxns,
       trendData
     };
@@ -127,14 +129,12 @@ export class ReportingService {
       // Skip farmers who haven't provided milk in this period
       if (farmerCollections.length === 0) continue;
       
-      const totalQuantity = farmerCollections.reduce((sum, c) => sum + c.quantity, 0);
-      const amount = farmerCollections.reduce((sum, c) => sum + c.amount, 0);
-      const avgFat = farmerCollections.length > 0 
-        ? farmerCollections.reduce((sum, c) => sum + c.fat, 0) / farmerCollections.length 
-        : 0;
-      const avgSnf = farmerCollections.length > 0 
-        ? farmerCollections.reduce((sum, c) => sum + c.snf, 0) / farmerCollections.length 
-        : 0;
+      const totalQuantity = farmerCollections.reduce((sum, c) => sum + (c.quantity || 0), 0);
+      const amount = farmerCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
+      const fatSum = farmerCollections.reduce((sum, c) => sum + ((c.fat || 0) * (c.quantity || 0)), 0);
+      const snfSum = farmerCollections.reduce((sum, c) => sum + ((c.snf || 0) * (c.quantity || 0)), 0);
+      const avgFat = totalQuantity > 0 ? fatSum / totalQuantity : 0;
+      const avgSnf = totalQuantity > 0 ? snfSum / totalQuantity : 0;
 
       bills.push({
         id: internalId,
@@ -144,10 +144,10 @@ export class ReportingService {
         village: farmer.village || '',
         startDate,
         endDate,
-        totalQuantity,
-        amount,
-        avgFat,
-        avgSnf,
+        totalQuantity: Math.round(totalQuantity * 100) / 100,
+        amount: Math.round(amount * 100) / 100,
+        avgFat: Math.round(avgFat * 100) / 100,
+        avgSnf: Math.round(avgSnf * 100) / 100,
         collections: farmerCollections.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       });
     }

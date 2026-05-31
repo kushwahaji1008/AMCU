@@ -111,8 +111,9 @@ export default function Dashboard() {
       if (dailyMap.has(dateStr)) {
         const current = dailyMap.get(dateStr)!;
         current.qty += txn.quantity;
-        if (txn.shift === 'Morning') current.morning += txn.quantity;
-        else current.evening += txn.quantity;
+        const shift = txn.shift?.toLowerCase();
+        if (shift === 'morning') current.morning += txn.quantity;
+        else if (shift === 'evening') current.evening += txn.quantity;
         
         if (txn.milkType === 'Cow') current.cow += txn.quantity;
         else if (txn.milkType === 'Buffalo') current.buffalo += txn.quantity;

@@ -304,7 +304,7 @@ export const saleApi = {
 
 export const reportApi = {
   getDashboard: async () => {
-    if (!isNativeApp()) return api.get('/reporting/dashboard');
+    if (!isNativeApp()) return api.get('/reports/dashboard');
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -312,7 +312,7 @@ export const reportApi = {
     return { data };
   },
   getDaily: async (date: string) => {
-    if (!isNativeApp()) return api.get('/reporting/daily', { params: { date } });
+    if (!isNativeApp()) return api.get('/reports/daily', { params: { date } });
     const collections = await offlineService.getCollectionsByDate(date);
     const totalQty = collections.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const totalAmt = collections.reduce((sum, c) => sum + (c.amount || 0), 0);
@@ -321,7 +321,7 @@ export const reportApi = {
     };
   },
   getFarmer: async (id: string) => {
-    if (!isNativeApp()) return api.get(`/reporting/farmer/${id}`);
+    if (!isNativeApp()) return api.get(`/reports/farmer/${id}`);
     const result = await db.collections.allDocs();
     const fCollections = result.rows
       .map(r => r.doc as any)
@@ -329,7 +329,7 @@ export const reportApi = {
     return { data: fCollections };
   },
   getBills: async (year: number, month: number, period: number, farmerId?: string) => {
-    if (!isNativeApp()) return api.get('/reporting/bills', { params: { year, month, period, farmerId } });
+    if (!isNativeApp()) return api.get('/reports/bills', { params: { year, month, period, farmerId } });
     const bills = await offlineService.getBillsOffline(year, month, period, farmerId);
     return { data: bills };
   },
