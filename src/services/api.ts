@@ -308,7 +308,12 @@ export const saleApi = {
   getCustomers: async () => {
     if (!isNativeApp()) return api.get('/customers');
     if (offlineService.isOnline && isNativeApp()) {
-      offlineService.syncFromServer().catch(console.error);
+      // Sync sales customers explicitly to ensure fresh data
+      try {
+        await offlineService.syncCollection('sales_customers', '/customers');
+      } catch (err) {
+        console.error('Failed to quick-sync sales customers:', err);
+      }
     }
     const docs = await offlineService.getSalesCustomers();
     return { data: docs };

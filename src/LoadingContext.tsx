@@ -8,13 +8,7 @@ interface LoadingContextType {
 const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
 
 export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    return onLoadingChange((loading) => {
-      setIsLoading(loading);
-    });
-  }, []);
+  const isLoading = false;
 
   return (
     <LoadingContext.Provider value={{ isLoading }}>

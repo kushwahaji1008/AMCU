@@ -29,9 +29,6 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  activeRequests++;
-  notifyLoading();
-
   const token = localStorage.getItem('token');
   const databaseId = localStorage.getItem('databaseId');
   
@@ -48,13 +45,9 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
-    activeRequests = Math.max(0, activeRequests - 1);
-    notifyLoading();
     return response;
   },
   (error) => {
-    activeRequests = Math.max(0, activeRequests - 1);
-    notifyLoading();
     let message = 'An unexpected error occurred';
     
     if (error.response?.data) {

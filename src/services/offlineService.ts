@@ -284,7 +284,7 @@ class OfflineService {
       await this.syncCollection('farmers', '/farmers');
       await this.syncCollection('collections', '/collections');
       await this.syncCollection('shifts', '/shifts/recent?limit=30');
-      await this.syncCollection('sales_customers', '/sales/customers');
+      await this.syncCollection('sales_customers', '/customers');
       await this.syncCollection('sales_records', '/sales');
       await this.syncCollection('rates', '/rates');
       await this.syncSettings();

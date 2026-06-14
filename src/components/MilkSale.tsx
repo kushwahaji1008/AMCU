@@ -96,8 +96,8 @@ export const MilkSale: React.FC = () => {
   };
 
   const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.mobile.includes(searchTerm)
+    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.mobile || '').includes(searchTerm)
   );
 
   const handleSaleSubmit = async (e: React.FormEvent) => {
@@ -132,13 +132,17 @@ export const MilkSale: React.FC = () => {
       };
 
       await saleApi.recordSale(payload);
-      toast.success('Sale recorded successfully! Message sent.');
+      toast.success('Sale recorded successfully!');
       
-      // Send SMS
-      if (selectedCustomer.mobile) {
-        const smsMsg = `Dear ${selectedCustomer.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Mode: ${payload.paymentMode}. - DugdhaSetu`;
-        smsService.sendDirectSMS(selectedCustomer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
-      }
+      const customerForSms = selectedCustomer;
+      // Send SMS - Using a small timeout to ensure state/ui responsiveness isn't blocked 
+      // even if something happens with the underlying plugin
+      setTimeout(() => {
+        if (customerForSms && customerForSms.mobile) {
+          const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Mode: ${payload.paymentMode}. - DugdhaSetu`;
+          smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+        }
+      }, 500);
       
       // Reset form
       setQuantity('');
@@ -180,11 +184,14 @@ export const MilkSale: React.FC = () => {
       });
       toast.success('Payment recorded and balance updated!');
       
+      const customerForSms = selectedCustomer;
       // Send SMS
-      if (selectedCustomer.mobile) {
-        const smsMsg = `Dear ${selectedCustomer.name}, We have received your payment of Rs.${paymentAmount}. Your updated balance is Rs.${(selectedCustomer.balance - parseFloat(paymentAmount)).toFixed(2)}. Thank you. - DugdhaSetu`;
-        smsService.sendDirectSMS(selectedCustomer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
-      }
+      setTimeout(() => {
+        if (customerForSms && customerForSms.mobile) {
+          const smsMsg = `Dear ${customerForSms.name}, We have received your payment of Rs.${paymentAmount}. Your updated balance is Rs.${(customerForSms.balance - parseFloat(paymentAmount)).toFixed(2)}. Thank you. - DugdhaSetu`;
+          smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+        }
+      }, 500);
 
       setPaymentAmount('');
       setSelectedCustomer(null);

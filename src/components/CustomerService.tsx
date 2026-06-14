@@ -23,7 +23,7 @@ import { cn } from '../lib/utils';
 import { useLanguage } from '../LanguageContext';
 import { smsService } from '../services/smsService';
 
-export default function DueManagement() {
+export default function CustomerService() {
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -75,8 +75,8 @@ export default function DueManagement() {
   };
 
   const filteredDues = customers.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         c.mobile.includes(searchTerm);
+    const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (c.mobile || '').includes(searchTerm);
     
     if (filterType === 'High') return matchesSearch && (c.balance || 0) > 1000;
     if (filterType === 'Low') return matchesSearch && (c.balance || 0) <= 1000;
