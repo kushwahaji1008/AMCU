@@ -59,17 +59,25 @@ export default function CustomerService() {
 
     try {
       setSendingSms(customer.id);
-      const message = `Dear ${customer.name}, this is a reminder regarding your outstanding milk due of Rs.${(customer.balance || 0).toFixed(2)}. Please settle the payment at your earliest convenience. Thank you. - DugdhaSetu`;
       
-      const res = await smsService.sendDirectSMS(customer.mobile, message);
-      if (res.success) {
-        toast.success(`Request sent to ${customer.name}`);
-      } else {
-        toast.error(`Failed to send SMS: ${res.message}`);
-      }
+      // Use setTimeout to ensure UI updates before Native plugin call
+      setTimeout(async () => {
+        try {
+          const message = `Dear ${customer.name}, your milk due is Rs.${(customer.balance || 0).toFixed(2)}. Please settle this soon. Thank you. - DugdhaSetu`;
+          const res = await smsService.sendDirectSMS(customer.mobile, message);
+          if (res.success) {
+            toast.success(`Request sent to ${customer.name}`);
+          } else {
+            toast.error(`Failed to send SMS: ${res.message}`);
+          }
+        } catch (err) {
+          toast.error('Message delivery failed');
+        } finally {
+          setSendingSms(null);
+        }
+      }, 100);
     } catch (err) {
-      toast.error('Message delivery failed');
-    } finally {
+      toast.error('Failed to initiate message delivery');
       setSendingSms(null);
     }
   };

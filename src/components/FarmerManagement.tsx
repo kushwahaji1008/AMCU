@@ -268,8 +268,8 @@ export default function FarmerManagement() {
   };
 
   const filteredFarmers = farmers.filter(f => 
-    f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    f.farmerId.includes(searchTerm)
+    (f.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (f.farmerId || '').includes(searchTerm)
   );
 
   const closeAdding = () => {

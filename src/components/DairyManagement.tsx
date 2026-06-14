@@ -96,8 +96,8 @@ export default function DairyManagement() {
   };
 
   const filteredDairies = dairies.filter(d => 
-    d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    d.databaseId.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (d.databaseId || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

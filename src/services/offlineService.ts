@@ -305,7 +305,7 @@ class OfflineService {
     } catch (e) {}
   }
 
-  private async syncCollection(schemaName: string, endpoint: string) {
+  public async syncCollection(schemaName: string, endpoint: string) {
     try {
       const res = await api.get(endpoint);
       const data = res.data?.data || res.data;

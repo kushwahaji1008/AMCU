@@ -105,8 +105,8 @@ export default function PaymentProcessing() {
   };
 
   const filteredFarmers = farmers.filter(f => 
-    f.name.toLowerCase().includes(searchCode.toLowerCase()) || 
-    f.farmerId.includes(searchCode)
+    (f.name || '').toLowerCase().includes(searchCode.toLowerCase()) || 
+    (f.farmerId || '').includes(searchCode)
   ).filter(f => (f.balance || 0) > 0 || searchCode !== '');
 
   return (

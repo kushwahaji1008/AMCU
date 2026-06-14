@@ -77,14 +77,14 @@ export default function AuditLog() {
 
   const filteredLogs = activeTab === 'login' 
     ? loginLogs.filter(log => 
-        log.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (log.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (log.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (log.device?.model?.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : activityLogs.filter(log =>
-        log.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.targetType?.toLowerCase().includes(searchQuery.toLowerCase())
+        (log.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (log.action || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (log.targetType || '').toLowerCase().includes(searchQuery.toLowerCase())
       );
 
   const getDeviceIcon = (type?: string) => {

@@ -151,16 +151,17 @@ export default function Dashboard() {
       const dateStr = format(toDate(txn.date || txn.timestamp), 'yyyy-MM-dd');
       if (dailyMap.has(dateStr)) {
         const current = dailyMap.get(dateStr)!;
-        current.qty += txn.quantity;
-        const shift = txn.shift?.toLowerCase();
-        if (shift === 'morning') current.morning += txn.quantity;
-        else if (shift === 'evening') current.evening += txn.quantity;
+        current.qty += txn.quantity || 0;
+        const shift = (txn.shift || '').toLowerCase();
+        if (shift === 'morning') current.morning += txn.quantity || 0;
+        else if (shift === 'evening') current.evening += txn.quantity || 0;
         
-        if (txn.milkType === 'Cow') current.cow += txn.quantity;
-        else if (txn.milkType === 'Buffalo') current.buffalo += txn.quantity;
+        const milkType = txn.milkType || '';
+        if (milkType === 'Cow') current.cow += txn.quantity || 0;
+        else if (milkType === 'Buffalo') current.buffalo += txn.quantity || 0;
         
-        current.fatSum += txn.fat;
-        current.snfSum += txn.snf;
+        current.fatSum += txn.fat || 0;
+        current.snfSum += txn.snf || 0;
         current.count += 1;
       }
     });

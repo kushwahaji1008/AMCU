@@ -47,8 +47,8 @@ export default function Ledger() {
   const filteredEntries = entries.filter(entry => {
     const farmerName = farmers[entry.farmerId] || 'Unknown Farmer';
     const matchesSearch = farmerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         entry.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'All' || entry.type.toLowerCase() === filterType.toLowerCase();
+                         (entry.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterType === 'All' || (entry.type || '').toLowerCase() === filterType.toLowerCase();
     return matchesSearch && matchesFilter;
   });
 
@@ -155,9 +155,9 @@ export default function Ledger() {
                     <td className="px-6 py-4 text-right">
                       <div className={cn(
                         "flex items-center justify-end gap-1 font-medium",
-                        entry.type.toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                        (entry.type || '').toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                       )}>
-                        {entry.type.toLowerCase() === 'credit' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
+                        {(entry.type || '').toLowerCase() === 'credit' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
                         <span>₹{(entry.amount || 0).toLocaleString()}</span>
                       </div>
                     </td>

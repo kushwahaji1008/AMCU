@@ -203,7 +203,7 @@ export default function FarmerProfile() {
     // Calculate current balance from ledger entries
     // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
     const currentBalance = ledger.reduce((sum, entry) => {
-      if (entry.type.toLowerCase() === 'credit') {
+      if ((entry.type || '').toLowerCase() === 'credit') {
         return sum + (entry.amount || 0);
       } else {
         return sum - (entry.amount || 0);
@@ -509,9 +509,9 @@ export default function FarmerProfile() {
                         </td>
                         <td className={cn(
                           "px-6 py-4 text-sm font-bold text-right",
-                          entry.type.toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                          (entry.type || '').toLowerCase() === 'credit' ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                         )}>
-                          {entry.type.toLowerCase() === 'credit' ? '+' : '-'} ₹{(entry.amount || 0).toFixed(2)}
+                          {(entry.type || '').toLowerCase() === 'credit' ? '+' : '-'} ₹{(entry.amount || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-sm font-mono font-medium text-stone-900 dark:text-white text-right">
                           ₹{(entry.balanceAfter || 0).toFixed(2)}

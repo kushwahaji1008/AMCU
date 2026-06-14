@@ -49,11 +49,12 @@ export class ReportingService {
     let snfSum = 0;
 
     todayCollections.forEach(c => {
-      todayQty += c.quantity;
-      if (c.shift?.toLowerCase() === 'morning') morningQty += c.quantity;
-      else if (c.shift?.toLowerCase() === 'evening') eveningQty += c.quantity;
+      todayQty += c.quantity || 0;
+      const shift = (c.shift || '').toLowerCase();
+      if (shift === 'morning') morningQty += c.quantity || 0;
+      else if (shift === 'evening') eveningQty += c.quantity || 0;
       
-      todayAmount += c.amount;
+      todayAmount += c.amount || 0;
       // Use weighted sums for more accurate averages
       fatSum += (c.fat || 0) * (c.quantity || 0);
       snfSum += (c.snf || 0) * (c.quantity || 0);

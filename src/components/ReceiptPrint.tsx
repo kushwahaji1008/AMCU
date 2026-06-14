@@ -27,8 +27,8 @@ export default function ReceiptPrint() {
 
         if (searchId) {
           data = data.filter((d: any) => 
-            d.farmerId.includes(searchId) || 
-            d.farmerName.toLowerCase().includes(searchId.toLowerCase())
+            (d.farmerId || '').includes(searchId) || 
+            (d.farmerName || '').toLowerCase().includes(searchId.toLowerCase())
           );
         }
 
