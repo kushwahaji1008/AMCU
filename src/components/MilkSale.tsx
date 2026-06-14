@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../LanguageContext';
+import { smsService } from '../services/smsService';
 
 export const MilkSale: React.FC = () => {
   const { profile } = useAuth();
@@ -133,6 +134,12 @@ export const MilkSale: React.FC = () => {
       await saleApi.recordSale(payload);
       toast.success('Sale recorded successfully! Message sent.');
       
+      // Send SMS
+      if (selectedCustomer.mobile) {
+        const smsMsg = `Dear ${selectedCustomer.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Mode: ${payload.paymentMode}. - DugdhaSetu`;
+        smsService.sendDirectSMS(selectedCustomer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+      }
+      
       // Reset form
       setQuantity('');
       setSelectedCustomer(null);
@@ -172,6 +179,13 @@ export const MilkSale: React.FC = () => {
         dairyId: profile?.dairyId
       });
       toast.success('Payment recorded and balance updated!');
+      
+      // Send SMS
+      if (selectedCustomer.mobile) {
+        const smsMsg = `Dear ${selectedCustomer.name}, We have received your payment of Rs.${paymentAmount}. Your updated balance is Rs.${(selectedCustomer.balance - parseFloat(paymentAmount)).toFixed(2)}. Thank you. - DugdhaSetu`;
+        smsService.sendDirectSMS(selectedCustomer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+      }
+
       setPaymentAmount('');
       setSelectedCustomer(null);
       setNotes('');
