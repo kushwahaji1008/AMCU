@@ -18,6 +18,7 @@ export interface IFarmerRepository {
   delete(id: string): Promise<void>;
   getSummary(farmerInternalId: string): Promise<FarmerSummary>;
   getCount(): Promise<number>;
+  getTotalBalance(): Promise<number>;
 }
 
 export interface ICollectionRepository {
@@ -65,6 +66,7 @@ export interface ICustomerRepository {
   getAll(): Promise<Customer[]>;
   getById(id: string): Promise<Customer | null>;
   updateBalance(id: string, amount: number): Promise<void>;
+  getTotalBalance(): Promise<number>;
 }
 
 export interface ICustomerPaymentRepository {

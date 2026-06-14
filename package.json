@@ -10,6 +10,8 @@
     "build:android": "vite build && npx cap sync android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:blackbox": "tsx scripts/black-box-test.ts",
     "lint": "tsc --noEmit",
     "postinstall": "node scripts/fix-sms-plugin.js"
   },
@@ -27,7 +29,8 @@
     "@types/qrcode": "^1.5.6",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.4",
-    "axios": "^1.14.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "axios": "^1.17.0",
     "bcryptjs": "^3.0.3",
     "capacitor-sms-sender": "^1.1.0",
     "clsx": "^2.1.1",
@@ -66,6 +69,7 @@
     "tsx": "^4.21.0",
     "uuid": "^13.0.0",
     "vite": "^6.2.0",
+    "vitest": "^4.1.8",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {

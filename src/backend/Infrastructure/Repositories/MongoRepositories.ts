@@ -123,6 +123,14 @@ export class MongoFarmerRepository implements IFarmerRepository {
     const model = await dbManager.getFarmerModel(getDatabaseId());
     return model.countDocuments();
   }
+
+  async getTotalBalance(): Promise<number> {
+    const model = await dbManager.getFarmerModel(getDatabaseId());
+    const result = await model.aggregate([
+      { $group: { _id: null, total: { $sum: "$balance" } } }
+    ]);
+    return result[0]?.total || 0;
+  }
 }
 
 // --- Collection Repository ---
@@ -359,6 +367,14 @@ export class MongoCustomerRepository implements ICustomerRepository {
         [field]: Math.abs(amount)
       } 
     });
+  }
+
+  async getTotalBalance(): Promise<number> {
+    const model = await dbManager.getCustomerModel(getDatabaseId());
+    const result = await model.aggregate([
+      { $group: { _id: null, total: { $sum: "$balance" } } }
+    ]);
+    return result[0]?.total || 0;
   }
 }
 

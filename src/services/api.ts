@@ -52,6 +52,22 @@ export const authApi = {
   resendOTP: (data: { userId: string }) => api.post('/auth/resend-otp', data),
 };
 
+// Lightweight client-side cache to reduce network latency for frequent reads
+const apiCache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 30000; // 30 seconds
+
+const getCachedData = (key: string) => {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedData = (key: string, data: any) => {
+  apiCache.set(key, { data, timestamp: Date.now() });
+};
+
 // Helper for CRUD operations to handle standard platform-aware offline fallback
 const withFallback = async (
   onlineCall: () => Promise<any>,
@@ -62,19 +78,25 @@ const withFallback = async (
     try {
       const res = await onlineCall();
       if (isNativeApp() && res.data) {
-        // Sync back to local Realm if native
-        // (Assuming individual APIs handle their specific DB put logic for now to stay compatible)
+        // Successful online call, clear corresponding cache if any
+        if (onlineQueueTask?.type) {
+           // Clear relevant caches on writes (simplistic implementation)
+           apiCache.clear(); 
+        }
       }
       return res;
     } catch (e: any) {
-      // If it's a validation error (4xx), don't fallback, just throw
-      if (e?.status >= 400 && e?.status < 500) throw e;
+      // If it's a validation error (400-499), don't fallback to offline, just throw
+      if (e?.response?.status >= 400 && e?.response?.status < 500) throw e;
       
+      // If server is definitely unreachable or 5xx, or network is flaky
+      console.warn('Online call failed or server unreachable:', e.message);
+
       // If not native, web users get an error when online call fails and they are offline or server is down
       if (!isNativeApp()) throw e;
       
       // Native fallback
-      console.warn('Online sync failed, using native offline fallback');
+      console.info('Using native offline fallback for robustness');
     }
   }
 
@@ -86,7 +108,7 @@ const withFallback = async (
   if (onlineQueueTask) {
     await offlineService.queueTask(onlineQueueTask.type, onlineQueueTask.payload);
   }
-  return { data: res };
+  return { data: res, isOffline: true };
 };
 
 export const adminApi = {
@@ -97,7 +119,13 @@ export const adminApi = {
 
 export const farmerApi = {
   getAll: async () => {
-    if (!isNativeApp()) return api.get('/farmers');
+    if (!isNativeApp()) {
+      const cached = getCachedData('farmers_all');
+      if (cached) return { data: cached, fromCache: true };
+      const res = await api.get('/farmers');
+      setCachedData('farmers_all', res.data);
+      return res;
+    }
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -211,7 +239,14 @@ export const collectionApi = {
     );
   },
   getDailyReport: async (date: string, endDate?: string) => {
-    if (!isNativeApp()) return api.get('/collections/daily', { params: { date, endDate } });
+    if (!isNativeApp()) {
+      const cacheKey = `collections_report_${date}_${endDate || ''}`;
+      const cached = getCachedData(cacheKey);
+      if (cached) return { data: cached, fromCache: true };
+      const res = await api.get('/collections/report', { params: { date, endDate } });
+      setCachedData(cacheKey, res.data);
+      return res;
+    }
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -328,7 +363,14 @@ export const saleApi = {
 
 export const reportApi = {
   getDashboard: async (days: number = 7) => {
-    if (!isNativeApp()) return api.get('/reports/dashboard', { params: { days } });
+    if (!isNativeApp()) {
+      const cacheKey = `dashboard_${days}`;
+      const cached = getCachedData(cacheKey);
+      if (cached) return { data: cached, fromCache: true };
+      const res = await api.get('/reports/dashboard', { params: { days } });
+      setCachedData(cacheKey, res.data);
+      return res;
+    }
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }
@@ -368,7 +410,13 @@ export const reportApi = {
 
 export const rateApi = {
   getAll: async () => {
-    if (!isNativeApp()) return api.get('/rates');
+    if (!isNativeApp()) {
+      const cached = getCachedData('rates_all');
+      if (cached) return { data: cached, fromCache: true };
+      const res = await api.get('/rates');
+      setCachedData('rates_all', res.data);
+      return res;
+    }
     if (offlineService.isOnline) {
       offlineService.syncFromServer().catch(console.error);
     }

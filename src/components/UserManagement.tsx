@@ -29,7 +29,7 @@ export default function UserManagement() {
       const role = activeTab === 'Admins' ? 'admin' : 'operator';
       const response = await userApi.getAll(role);
       // Filter by dairyId on frontend if not super_admin
-      let filtered = response.data;
+      let filtered = Array.isArray(response.data) ? response.data : [];
       if (profile.role !== 'super_admin') {
         filtered = filtered.filter((u: any) => u.dairyId === profile.dairyId);
       }

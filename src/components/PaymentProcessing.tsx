@@ -31,9 +31,10 @@ export default function PaymentProcessing() {
         paymentApi.getLedger()
       ]);
       
-      setFarmers(farmersRes.data);
+      setFarmers(Array.isArray(farmersRes.data) ? farmersRes.data : []);
       // Filter ledger for debit entries (payments)
-      const paymentEntries = ledgerRes.data.filter((entry: LedgerEntry) => entry.type.toLowerCase() === 'debit');
+      const ledgerData = Array.isArray(ledgerRes.data) ? ledgerRes.data : [];
+      const paymentEntries = ledgerData.filter((entry: LedgerEntry) => entry.type.toLowerCase() === 'debit');
       setPayments(paymentEntries);
     } catch (err) {
       handleError(err, 'Failed to load data');

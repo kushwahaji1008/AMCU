@@ -2,11 +2,31 @@ import axios from 'axios';
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
 
+// Loading tracker for axios
+let activeRequests = 0;
+const _loadingListeners: Array<(isLoading: boolean) => void> = [];
+
+export const onLoadingChange = (listener: (isLoading: boolean) => void) => {
+  _loadingListeners.push(listener);
+  return () => {
+    const index = _loadingListeners.indexOf(listener);
+    if (index > -1) _loadingListeners.splice(index, 1);
+  };
+};
+
+const notifyLoading = () => {
+  const isLoading = activeRequests > 0;
+  _loadingListeners.forEach(l => l(isLoading));
+};
+
 const api = axios.create({
   baseURL,
 });
 
 api.interceptors.request.use((config) => {
+  activeRequests++;
+  notifyLoading();
+
   const token = localStorage.getItem('token');
   const databaseId = localStorage.getItem('databaseId');
   
@@ -22,8 +42,14 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    activeRequests = Math.max(0, activeRequests - 1);
+    notifyLoading();
+    return response;
+  },
   (error) => {
+    activeRequests = Math.max(0, activeRequests - 1);
+    notifyLoading();
     let message = 'An unexpected error occurred';
     
     if (error.response?.data) {

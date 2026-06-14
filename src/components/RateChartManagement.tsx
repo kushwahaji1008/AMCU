@@ -44,9 +44,7 @@ export default function RateChartManagement() {
       if (activeTab === 'Formula') return;
       try {
         const response = await rateApi.getAll();
-        // Filter by milkType if needed, but backend currently returns all
-        // Let's assume we might need to filter client-side if backend doesn't support it yet
-        const allRates = response.data;
+        const allRates = Array.isArray(response.data) ? response.data : [];
         setRates(allRates.filter((r: any) => r.milkType === activeTab));
       } catch (err) {
         handleError(err, "Failed to fetch rates");
@@ -110,7 +108,8 @@ export default function RateChartManagement() {
       
       // Refresh list
       const response = await rateApi.getAll();
-      setRates(response.data.filter((r: any) => r.milkType === activeTab));
+      const allRates = Array.isArray(response.data) ? response.data : [];
+      setRates(allRates.filter((r: any) => r.milkType === activeTab));
     } catch (err) {
       handleError(err, 'Failed to add rate');
     } finally {

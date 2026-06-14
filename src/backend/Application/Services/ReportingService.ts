@@ -32,10 +32,13 @@ export class ReportingService {
 
   async getDashboardStats(days: number = 7): Promise<DashboardStats> {
     const today = new Date();
-    const todayCollections = await this.collectionRepo.getDailyReport(today);
-    const totalFarmers = await this.farmerRepo.getCount();
-    const recentTxns = await this.collectionRepo.getRecent(5);
-    const trendData = await this.collectionRepo.getTrend(days);
+    const [todayCollections, totalFarmers, recentTxns, trendData, pendingPayments] = await Promise.all([
+      this.collectionRepo.getDailyReport(today),
+      this.farmerRepo.getCount(),
+      this.collectionRepo.getRecent(10),
+      this.collectionRepo.getTrend(days),
+      this.farmerRepo.getTotalBalance()
+    ]);
 
     let todayQty = 0;
     let morningQty = 0;
@@ -63,6 +66,7 @@ export class ReportingService {
       totalFarmers,
       avgFat: todayQty > 0 ? Math.round((fatSum / todayQty) * 100) / 100 : 0,
       avgSnf: todayQty > 0 ? Math.round((snfSum / todayQty) * 100) / 100 : 0,
+      pendingPayments: Math.round(pendingPayments * 100) / 100,
       recentTxns,
       trendData
     };

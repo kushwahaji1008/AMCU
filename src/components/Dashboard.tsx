@@ -36,65 +36,102 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { profile } = useAuth();
   const { handleError } = useErrorHandler();
-  const [stats, setStats] = useState({
-    todayQty: 0,
-    morningQty: 0,
-    eveningQty: 0,
-    todayAmount: 0,
-    totalFarmers: 0,
-    avgFat: 0,
-    avgSnf: 0,
-    pendingPayments: 0,
+  const [stats, setStats] = useState(() => {
+    const cached = localStorage.getItem('dashboard_stats');
+    return cached ? JSON.parse(cached) : {
+      todayQty: 0,
+      morningQty: 0,
+      eveningQty: 0,
+      todayAmount: 0,
+      totalFarmers: 0,
+      avgFat: 0,
+      avgSnf: 0,
+      pendingPayments: 0,
+    };
   });
-  const [recentTxns, setRecentTxns] = useState<CollectionTransaction[]>([]);
+  const [recentTxns, setRecentTxns] = useState<CollectionTransaction[]>(() => {
+    const cached = localStorage.getItem('dashboard_recent_txns');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [trendData, setTrendData] = useState<any[]>(() => {
+    const cached = localStorage.getItem('dashboard_trend_data');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [topFarmers, setTopFarmers] = useState<{name: string, qty: number}[]>([]);
-  const [trendData, setTrendData] = useState<any[]>([]);
-  const [timeRange, setTimeRange] = useState(7); // Default to 7 days
-  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState(7); 
+  const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(() => {
+    const cached = localStorage.getItem('dashboard_last_sync');
+    return cached ? new Date(cached) : null;
+  });
+
+  const fetchStats = async (isBackground = false) => {
+    try {
+      if (!isBackground) setLoading(true);
+      else setIsRefreshing(true);
+
+      const response = await reportApi.getDashboard(timeRange);
+      const data = response?.data || {};
+      
+      const newStats = {
+        todayQty: data.todayQty || 0,
+        morningQty: data.morningQty || 0,
+        eveningQty: data.eveningQty || 0,
+        todayAmount: data.todayAmount || 0,
+        totalFarmers: data.totalFarmers || 0,
+        avgFat: data.avgFat || 0,
+        avgSnf: data.avgSnf || 0,
+        pendingPayments: data.pendingPayments || 0,
+      };
+
+      setStats(newStats);
+      setRecentTxns(data.recentTxns || []);
+      setTrendData(data.trendData || []);
+      setLastSynced(new Date());
+
+      // Persist to cache
+      localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
+      localStorage.setItem('dashboard_recent_txns', JSON.stringify(data.recentTxns || []));
+      localStorage.setItem('dashboard_trend_data', JSON.stringify(data.trendData || []));
+      localStorage.setItem('dashboard_last_sync', new Date().toISOString());
+
+    } catch (error) {
+      if (!isBackground) handleError(error, "Failed to fetch dashboard stats");
+      console.error('Background refresh failed:', error);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const response = await reportApi.getDashboard(timeRange);
-        const data = response?.data || {};
-        
-        setStats(prev => ({
-          ...prev,
-          todayQty: data.todayQty || 0,
-          morningQty: data.morningQty || 0,
-          eveningQty: data.eveningQty || 0,
-          todayAmount: data.todayAmount || 0,
-          totalFarmers: data.totalFarmers || 0,
-          avgFat: data.avgFat || 0,
-          avgSnf: data.avgSnf || 0,
-        }));
-        
-        setRecentTxns(data.recentTxns || []);
-        setTrendData(data.trendData || []);
-        
-        // Calculate top farmers from trend data
-        const farmerMap = new Map<string, number>();
-        (data.trendData || []).forEach((txn: any) => {
-          if (txn.farmerName) {
-            farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + (txn.quantity || 0));
-          }
-        });
-        const sorted = Array.from(farmerMap.entries())
-          .map(([name, qty]) => ({ name, qty }))
-          .sort((a, b) => b.qty - a.qty)
-          .slice(0, 5);
-        setTopFarmers(sorted);
-
-      } catch (error) {
-        handleError(error, "Failed to fetch dashboard stats");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchStats();
-  }, [profile?.uid, timeRange]); // Use profile.uid to trigger on user change
+
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchStats(true);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [profile?.uid, timeRange]);
+
+  useEffect(() => {
+    // Calculate top farmers when trendData changes
+    const farmerMap = new Map<string, number>();
+    trendData.forEach((txn: any) => {
+      if (txn.farmerName) {
+        farmerMap.set(txn.farmerName, (farmerMap.get(txn.farmerName) || 0) + (txn.quantity || 0));
+      }
+    });
+    const sorted = Array.from(farmerMap.entries())
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+    setTopFarmers(sorted);
+  }, [trendData]);
 
   const processedChartData = useMemo(() => {
     const dailyMap = new Map<string, { qty: number; morning: number; evening: number; fatSum: number; snfSum: number; count: number; cow: number; buffalo: number }>();
@@ -154,13 +191,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10">
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-white/50 dark:bg-stone-950/50 backdrop-blur-[2px] z-[100] flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-4">
-            <RefreshCw className="w-10 h-10 text-stone-900 dark:text-white animate-spin" />
-            <p className="text-sm font-bold text-stone-900 dark:text-white uppercase tracking-widest">Updating Dashboard...</p>
-          </div>
+      {/* Top Loading Progress Bar */}
+      {(loading || isRefreshing) && (
+        <div className="fixed top-0 left-0 right-0 h-1 z-[101] bg-stone-100 dark:bg-stone-800 overflow-hidden">
+          <motion.div 
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+            className="h-full w-1/3 bg-stone-900 dark:bg-white"
+          />
         </div>
       )}
 
@@ -171,9 +210,14 @@ export default function Dashboard() {
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-2xl text-xs font-medium text-stone-500 dark:text-stone-400">
-            <RefreshCw size={14} className="text-emerald-500 animate-spin-slow" />
-            Synced: Just now
+          <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-2xl text-xs font-semibold text-stone-500 dark:text-stone-400">
+            <RefreshCw 
+              size={14} 
+              className={cn("text-emerald-500", (loading || isRefreshing) && "animate-spin")} 
+            />
+            <span>
+              Synced: {lastSynced ? format(lastSynced, 'hh:mm a') : 'Never'}
+            </span>
           </div>
           <div className="flex items-center gap-2 glass-card p-1 rounded-2xl">
             {[7, 15].map((days) => (

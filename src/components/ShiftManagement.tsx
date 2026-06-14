@@ -33,9 +33,15 @@ export default function ShiftManagement() {
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
       
-      // Fetch collections for today's shift
-      const collectionsRes = await collectionApi.getDailyReport(today);
-      const shiftCollections = collectionsRes.data.filter((c: any) => c.shift === currentShift);
+      // Parallelize data fetching for better performance
+      const [collectionsRes, summaryRes, recentRes] = await Promise.all([
+        collectionApi.getDailyReport(today),
+        shiftApi.getSummary(today, currentShift),
+        shiftApi.getRecent(10)
+      ]);
+      
+      const collectionsData = Array.isArray(collectionsRes.data) ? collectionsRes.data : [];
+      const shiftCollections = collectionsData.filter((c: any) => c.shift === currentShift);
       
       let qty = 0;
       let amt = 0;
@@ -60,11 +66,9 @@ export default function ShiftManagement() {
       });
 
       // Check if shift is summarized
-      const summaryRes = await shiftApi.getSummary(today, currentShift);
       setIsShiftSummarized(!!summaryRes.data);
 
       // Fetch past summaries
-      const recentRes = await shiftApi.getRecent(10);
       setPastSummaries(recentRes.data);
 
     } catch (err) {

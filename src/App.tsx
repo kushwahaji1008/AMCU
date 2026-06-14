@@ -82,51 +82,55 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+import { LoadingProvider } from './LoadingContext';
+
 function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-            {/* Standardized toast notifications */}
-            <Toaster position="top-right" richColors />
-            
-            <Router>
-              <BackButtonHandler />
-              <Layout>
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+      <LoadingProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              {/* Standardized toast notifications */}
+              <Toaster position="top-right" richColors />
+              
+              <Router>
+                <BackButtonHandler />
+                <Layout>
+                  <Routes>
+                    {/* Public Routes */}
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
 
-                  {/* Protected User Routes */}
-                  <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/collection" element={<ProtectedRoute><CollectionEntry /></ProtectedRoute>} />
-                  <Route path="/sales" element={<ProtectedRoute><MilkSale /></ProtectedRoute>} />
-                  <Route path="/farmers" element={<ProtectedRoute><FarmerManagement /></ProtectedRoute>} />
-                  <Route path="/farmers/:id" element={<ProtectedRoute><FarmerProfile /></ProtectedRoute>} />
-                  <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-                  <Route path="/shifts" element={<ProtectedRoute><ShiftManagement /></ProtectedRoute>} />
-                  <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
-                  <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
-                  <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
-                  <Route path="/help" element={<ProtectedRoute><HelpAbout /></ProtectedRoute>} />
-                  <Route path="/mobile" element={<ProtectedRoute><MobileApp /></ProtectedRoute>} />
+                    {/* Protected User Routes */}
+                    <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/collection" element={<ProtectedRoute><CollectionEntry /></ProtectedRoute>} />
+                    <Route path="/sales" element={<ProtectedRoute><MilkSale /></ProtectedRoute>} />
+                    <Route path="/farmers" element={<ProtectedRoute><FarmerManagement /></ProtectedRoute>} />
+                    <Route path="/farmers/:id" element={<ProtectedRoute><FarmerProfile /></ProtectedRoute>} />
+                    <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+                    <Route path="/shifts" element={<ProtectedRoute><ShiftManagement /></ProtectedRoute>} />
+                    <Route path="/receipts" element={<ProtectedRoute><ReceiptPrint /></ProtectedRoute>} />
+                    <Route path="/ledger" element={<ProtectedRoute><Ledger /></ProtectedRoute>} />
+                    <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+                    <Route path="/help" element={<ProtectedRoute><HelpAbout /></ProtectedRoute>} />
+                    <Route path="/mobile" element={<ProtectedRoute><MobileApp /></ProtectedRoute>} />
 
-                  {/* Admin-Only Routes */}
-                  <Route path="/rates" element={<AdminRoute><RateChartManagement /></AdminRoute>} />
-                  <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
-                  <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
-                  <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
-                  <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
-                  <Route path="/audit" element={<SuperAdminRoute><AuditLog /></SuperAdminRoute>} />
-                  <Route path="/dairies" element={<SuperAdminRoute><DairyManagement /></SuperAdminRoute>} />
-                </Routes>
-              </Layout>
-            </Router>
-          </LanguageProvider>
-        </ThemeProvider>
-      </AuthProvider>
+                    {/* Admin-Only Routes */}
+                    <Route path="/rates" element={<AdminRoute><RateChartManagement /></AdminRoute>} />
+                    <Route path="/payments" element={<AdminRoute><PaymentProcessing /></AdminRoute>} />
+                    <Route path="/devices" element={<AdminRoute><DeviceIntegration /></AdminRoute>} />
+                    <Route path="/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+                    <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
+                    <Route path="/audit" element={<SuperAdminRoute><AuditLog /></SuperAdminRoute>} />
+                    <Route path="/dairies" element={<SuperAdminRoute><DairyManagement /></SuperAdminRoute>} />
+                  </Routes>
+                </Layout>
+              </Router>
+            </LanguageProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </LoadingProvider>
     </ErrorBoundary>
   );
 }

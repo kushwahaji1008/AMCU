@@ -184,6 +184,15 @@ const reportingController = new ReportingController(reportingService);
  */
 
 // Authentication Routes
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
+  });
+});
+
 app.post('/api/auth/register', validateRegistration, async (req, res, next) => {
   try {
     const { username, email, password, role, dairyData, dairyId, databaseId } = req.body;
