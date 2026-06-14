@@ -358,6 +358,18 @@ export class MongoCustomerRepository implements ICustomerRepository {
     return doc ? mapDoc<Customer>(doc) : null;
   }
 
+  async update(id: string, customer: Partial<Customer>): Promise<Customer> {
+    const model = await dbManager.getCustomerModel(getDatabaseId());
+    const doc = await model.findByIdAndUpdate(id, customer, { new: true });
+    if (!doc) throw new Error('Customer not found');
+    return mapDoc<Customer>(doc);
+  }
+
+  async delete(id: string): Promise<void> {
+    const model = await dbManager.getCustomerModel(getDatabaseId());
+    await model.findByIdAndDelete(id);
+  }
+
   async updateBalance(id: string, amount: number): Promise<void> {
     const model = await dbManager.getCustomerModel(getDatabaseId());
     const field = amount > 0 ? 'totalSales' : 'totalPaid';

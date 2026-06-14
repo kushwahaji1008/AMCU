@@ -360,6 +360,8 @@ app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionContro
 // Sales & Customer Routes
 app.get('/api/customers', authenticate, (req, res, next) => saleController.getAllCustomers(req, res).catch(next));
 app.post('/api/customers', authenticate, authorize(['admin', 'super_admin', 'operator']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
+app.put('/api/customers/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => saleController.updateCustomer(req, res).catch(next));
+app.delete('/api/customers/:id', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => saleController.deleteCustomer(req, res).catch(next));
 app.get('/api/sales', authenticate, (req, res, next) => saleController.getAllSales(req, res).catch(next));
 app.get('/api/sales/recent', authenticate, (req, res, next) => saleController.getRecentSales(req, res).catch(next));
 app.get('/api/sales/daily', authenticate, (req, res, next) => saleController.getDailySales(req, res).catch(next));

@@ -39,7 +39,7 @@ export const MilkSale: React.FC = () => {
   const [milkType, setMilkType] = useState<'Cow' | 'Buffalo' | 'Mixed'>('Mixed');
   const [quantity, setQuantity] = useState('');
   const [rate, setRate] = useState('');
-  const [paymentMode, setPaymentMode] = useState<'Cash' | 'Credit' | 'UPI'>('Cash');
+  const [paymentMode, setPaymentMode] = useState<'Cash' | 'Credit' | 'UPI'>('Credit');
   const [notes, setNotes] = useState('');
 
   // Payment Form State
@@ -294,6 +294,7 @@ export const MilkSale: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 setSelectedCustomer(c);
+                                if (c.defaultSaleRate) setRate(c.defaultSaleRate.toString());
                                 setSearchTerm('');
                               }}
                               className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
@@ -369,6 +370,11 @@ export const MilkSale: React.FC = () => {
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Rate (₹/L)</label>
                     <input type="number" step="0.5" required className="w-full px-6 py-4 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl" value={rate} onChange={e => setRate(e.target.value)} />
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Short Note (Optional)</label>
+                  <input type="text" maxLength={10} placeholder="Max 10 chars" className="w-full px-6 py-4 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl" value={notes} onChange={e => setNotes(e.target.value)} />
                 </div>
 
                 {quantity && rate && (

@@ -13,6 +13,16 @@ export class SaleController {
     res.status(201).json(customer);
   }
 
+  async updateCustomer(req: Request, res: Response) {
+    const customer = await this.customerService.updateCustomer(req.params.id, req.body);
+    res.json(customer);
+  }
+
+  async deleteCustomer(req: Request, res: Response) {
+    await this.customerService.deleteCustomer(req.params.id);
+    res.status(204).send();
+  }
+
   async getAllCustomers(req: Request, res: Response) {
     const customers = await this.customerService.getAllCustomers();
     res.json(customers);

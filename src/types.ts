@@ -131,6 +131,7 @@ export interface Customer {
   totalPaid: number;
   totalSales: number;
   dairyId: string;
+  defaultSaleRate?: number;
 }
 
 export interface MilkSale {

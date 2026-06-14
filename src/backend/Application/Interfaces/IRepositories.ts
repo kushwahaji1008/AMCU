@@ -72,6 +72,8 @@ export interface ICustomerRepository {
   create(customer: Omit<Customer, 'id' | 'createdAt'>): Promise<Customer>;
   getAll(): Promise<Customer[]>;
   getById(id: string): Promise<Customer | null>;
+  update(id: string, customer: Partial<Customer>): Promise<Customer>;
+  delete(id: string): Promise<void>;
   updateBalance(id: string, amount: number): Promise<void>;
   getTotalBalance(): Promise<number>;
 }

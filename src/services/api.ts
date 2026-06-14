@@ -325,8 +325,43 @@ export const saleApi = {
         if (isNativeApp()) await db.salesCustomers.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
       },
-      async () => await offlineService.addCustomerOffline(data),
+      async () => {
+        const tempId = 'temp_cust_' + Date.now();
+        const doc = { ...data, id: tempId, _id: tempId };
+        await db.salesCustomers.put(doc);
+        return doc;
+      },
       { type: 'CREATE_SALE_CUSTOMER', payload: data }
+    );
+  },
+  updateCustomer: async (id: string, data: any) => {
+    return withFallback(
+      async () => {
+        const res = await api.put(`/customers/${id}`, data);
+        if (isNativeApp()) await db.salesCustomers.put({ ...res.data, id: res.data.id || res.data._id || id });
+        return res;
+      },
+      async () => {
+        const existing = await db.salesCustomers.get(id).catch(() => ({}));
+        const updated = { ...existing, ...data, id };
+        await db.salesCustomers.put(updated);
+        return updated;
+      },
+      { type: 'UPDATE_CUSTOMER', payload: { id, data } }
+    );
+  },
+  deleteCustomer: async (id: string) => {
+    return withFallback(
+      async () => {
+        const res = await api.delete(`/customers/${id}`);
+        if (isNativeApp()) await db.salesCustomers.remove({ id });
+        return res;
+      },
+      async () => {
+        await db.salesCustomers.remove({ id });
+        return { success: true };
+      },
+      { type: 'DELETE_CUSTOMER', payload: id }
     );
   },
   recordSale: async (data: any) => {

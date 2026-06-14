@@ -72,6 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Due Management', path: '/service', icon: DollarSign },
     { name: t('shifts'), path: '/shifts', icon: Clock },
     { name: t('farmers'), path: '/farmers', icon: Users },
+    { name: 'Customers', path: '/customers', icon: Users },
     { name: t('rateCharts'), path: '/rates', icon: Settings2, adminOnly: true },
     { name: t('receipts'), path: '/receipts', icon: Printer },
     { name: t('payments'), path: '/payments', icon: DollarSign, adminOnly: true },

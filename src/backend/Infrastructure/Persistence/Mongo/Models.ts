@@ -109,6 +109,7 @@ export const CustomerSchema = new Schema({
   totalSales: { type: Number, default: 0 },
   dairyId: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
+  defaultSaleRate: { type: Number },
 });
 
 // --- Customer Payment Schema ---

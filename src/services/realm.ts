@@ -519,7 +519,8 @@ export const schemas: RealmSchema[] = [
       totalPaid: 'double',
       totalSales: 'double',
       dairyId: 'string',
-      createdAt: 'string'
+      createdAt: 'string',
+      defaultSaleRate: 'double?'
     }
   },
   {

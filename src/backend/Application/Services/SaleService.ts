@@ -18,6 +18,14 @@ export class CustomerService {
       totalSales: 0
     });
   }
+
+  async updateCustomer(id: string, dto: Partial<CreateCustomerDTO>): Promise<Customer> {
+    return this.customerRepo.update(id, dto);
+  }
+
+  async deleteCustomer(id: string): Promise<void> {
+    return this.customerRepo.delete(id);
+  }
 }
 
 export class SaleService {
