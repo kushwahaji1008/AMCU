@@ -49,6 +49,14 @@ const translations: Translations = {
   approve: { en: 'Approve', hi: 'स्वीकार करें' },
   reject: { en: 'Reject', hi: 'अस्वीकार करें' },
   milkSales: { en: 'Milk Sales', hi: 'दूध बिक्री' },
+  recordSale: { en: 'Record Sale', hi: 'बिक्री दर्ज करें' },
+  collectPayment: { en: 'Collect Payment', hi: 'भुगतान प्राप्त करें' },
+  customerName: { en: 'Customer Name', hi: 'ग्राहक का नाम' },
+  mobileNumber: { en: 'Mobile Number', hi: 'मोबाइल नंबर' },
+  village: { en: 'Village', hi: 'गाँव' },
+  paymentMode: { en: 'Payment Mode', hi: 'भुगतान का तरीका' },
+  milkType: { en: 'Milk Type', hi: 'दूध का प्रकार' },
+  totalAmount: { en: 'Total Amount', hi: 'कुल राशि' },
 };
 
 interface LanguageContextType {

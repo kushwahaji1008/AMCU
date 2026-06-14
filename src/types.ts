@@ -1,3 +1,7 @@
+declare global {
+  const APP_VERSION: string;
+}
+
 export interface Farmer {
   id: string;
   farmerId: string;

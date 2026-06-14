@@ -322,6 +322,12 @@ export class MongoSaleRepository implements ISaleRepository {
     const docs = await model.find().sort({ date: -1 }).limit(limit);
     return docs.map(doc => mapDoc<MilkSale>(doc));
   }
+
+  async getByCustomerId(customerId: string): Promise<MilkSale[]> {
+    const model = await dbManager.getSaleModel(getDatabaseId());
+    const docs = await model.find({ customerId }).sort({ date: -1 });
+    return docs.map(doc => mapDoc<MilkSale>(doc));
+  }
 }
 
 // --- Customer Repository ---
@@ -367,6 +373,12 @@ export class MongoCustomerPaymentRepository implements ICustomerPaymentRepositor
   async getRecent(limit: number): Promise<CustomerPayment[]> {
     const model = await dbManager.getCustomerPaymentModel(getDatabaseId());
     const docs = await model.find().sort({ date: -1 }).limit(limit);
+    return docs.map(doc => mapDoc<CustomerPayment>(doc));
+  }
+
+  async getByCustomerId(customerId: string): Promise<CustomerPayment[]> {
+    const model = await dbManager.getCustomerPaymentModel(getDatabaseId());
+    const docs = await model.find({ customerId }).sort({ date: -1 });
     return docs.map(doc => mapDoc<CustomerPayment>(doc));
   }
 }

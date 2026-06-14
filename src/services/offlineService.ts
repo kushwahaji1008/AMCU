@@ -59,6 +59,7 @@ export const db = {
   shifts: createCollectionWrapper('shifts'),
   salesCustomers: createCollectionWrapper('sales_customers'),
   salesRecords: createCollectionWrapper('sales_records'),
+  customerPayments: createCollectionWrapper('customer_payments'),
   rates: createCollectionWrapper('rates'),
   rateSettings: createCollectionWrapper('rate_settings'),
   payments: createCollectionWrapper('payments'),
@@ -209,13 +210,18 @@ class OfflineService {
         break;
       }
       case 'CREATE_SALE_CUSTOMER': {
-        const res = await api.post('/sales/customers', task.payload);
+        const res = await api.post('/customers', task.payload);
         await this.handleCreateSyncResult('sales_customers', task.payload.id, res.data);
         break;
       }
       case 'RECORD_SALE': {
         const res = await api.post('/sales', task.payload);
         await this.handleCreateSyncResult('sales_records', task.payload.id, res.data);
+        break;
+      }
+      case 'RECORD_CUSTOMER_PAYMENT': {
+        const res = await api.post('/customer-payments', task.payload);
+        await this.handleCreateSyncResult('customer_payments', task.payload.id, res.data);
         break;
       }
       case 'CREATE_RATE': {
@@ -533,6 +539,22 @@ class OfflineService {
     };
     await realmInstance.write(() => realmInstance.create('ledgers', doc, 'all'));
     await this.queueTask('RECORD_PAYMENT', doc);
+    return doc;
+  }
+
+  async recordCustomerPaymentOffline(payload: any) {
+    if (!isNativeApp()) throw new Error('Offline mode not available on web');
+    const id = 'cust_pay_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const roundedAmount = Math.round((payload.amount || 0) * 100) / 100;
+    const doc = {
+      ...payload,
+      id,
+      amount: roundedAmount,
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    await realmInstance.write(() => realmInstance.create('customer_payments', doc, 'all'));
+    await this.queueTask('RECORD_CUSTOMER_PAYMENT', doc);
     return doc;
   }
 

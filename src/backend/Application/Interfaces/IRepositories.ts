@@ -57,6 +57,7 @@ export interface ISaleRepository {
   getDailyReport(date: Date): Promise<MilkSale[]>;
   getAll(): Promise<MilkSale[]>;
   getRecent(limit: number): Promise<MilkSale[]>;
+  getByCustomerId(customerId: string): Promise<MilkSale[]>;
 }
 
 export interface ICustomerRepository {
@@ -69,6 +70,7 @@ export interface ICustomerRepository {
 export interface ICustomerPaymentRepository {
   create(payment: Omit<CustomerPayment, 'id' | 'createdAt'>): Promise<CustomerPayment>;
   getRecent(limit: number): Promise<CustomerPayment[]>;
+  getByCustomerId(customerId: string): Promise<CustomerPayment[]>;
 }
 
 export interface IUserRepository {

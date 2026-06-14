@@ -178,7 +178,7 @@ export default function Login() {
           </p>
           <div className="flex justify-center">
             <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-0.5 rounded-full border border-orange-200/50 dark:border-orange-900/35">
-              v1.2.5
+              v{APP_VERSION}
             </span>
           </div>
         </div>

@@ -512,9 +512,13 @@ export const schemas: RealmSchema[] = [
     properties: {
       id: 'string',
       name: 'string',
-      phone: 'string',
-      email: 'string?',
+      mobile: 'string',
+      village: 'string?',
       status: 'string',
+      balance: 'double',
+      totalPaid: 'double',
+      totalSales: 'double',
+      dairyId: 'string',
       createdAt: 'string'
     }
   },
@@ -525,13 +529,33 @@ export const schemas: RealmSchema[] = [
       id: 'string',
       customerId: 'string',
       customerName: 'string',
+      customerMobile: 'string',
       quantity: 'double',
       milkType: 'string',
       rate: 'double',
       amount: 'double',
+      paymentMode: 'string',
+      notes: 'string?',
       date: 'string',
       shift: 'string',
-      operatorId: 'string'
+      operatorId: 'string',
+      messageStatus: 'string',
+      createdAt: 'string'
+    }
+  },
+  {
+    name: 'customer_payments',
+    primaryKey: 'id',
+    properties: {
+      id: 'string',
+      customerId: 'string',
+      customerName: 'string',
+      amount: 'double',
+      paymentMethod: 'string',
+      date: 'string',
+      timestamp: 'string',
+      operatorId: 'string',
+      createdAt: 'string'
     }
   },
   {

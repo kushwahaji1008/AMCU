@@ -308,11 +308,21 @@ export const saleApi = {
     const docs = await offlineService.getSalesByDate(date);
     return { data: docs };
   },
+  getCustomerHistory: async (customerId: string) => {
+    if (!isNativeApp()) return api.get(`/sales/customer/${customerId}`);
+    // Combine sales and payments for comprehensive ledger in offline mode if possible
+    return api.get(`/sales/customer/${customerId}`);
+  },
   recordPayment: async (data: any) => {
-    if (!isNativeApp()) return api.post('/customer-payments', data);
-    // Offline payment not fully implemented in offlineService yet, but we'll proxy if needed
-    // For now, let's assume online for simplicity in this turn or add to offlineService next
-    return api.post('/customer-payments', data);
+    return withFallback(
+      async () => {
+        const res = await api.post('/customer-payments', data);
+        if (isNativeApp()) await db.customerPayments.put({ ...res.data, id: res.data.id || res.data._id });
+        return res;
+      },
+      async () => await offlineService.recordCustomerPaymentOffline(data),
+      { type: 'RECORD_CUSTOMER_PAYMENT', payload: data }
+    );
   }
 };
 

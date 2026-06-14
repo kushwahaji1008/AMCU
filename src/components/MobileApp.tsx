@@ -16,7 +16,7 @@ export default function MobileApp() {
     deviceModel: 'Android Device (Generic)',
     hostPlatform: 'Capacitor Native Android Bridge',
     androidApi: 'API 34 (Android 14)',
-    appVersion: 'v1.2.5 - Enterprise AMCU Release',
+    appVersion: `v${APP_VERSION} - Enterprise AMCU Release`,
     storageFreeSpace: '14.2 GB Available',
     ramStatus: '4.8 GB Cores Active',
     buildId: 'DS-20260530-X86_64-RELEASE'

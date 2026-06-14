@@ -209,7 +209,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
             <div className="px-4 py-3 text-center border-t border-stone-100 dark:border-stone-800/80 mt-2">
               <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 block">
-                v1.2.5
+                v{APP_VERSION}
               </span>
             </div>
           </div>

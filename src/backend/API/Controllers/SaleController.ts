@@ -57,6 +57,15 @@ export class SaleController {
       res.status(500).json({ message: error.message });
     }
   }
+
+  async getCustomerHistory(req: Request, res: Response) {
+    try {
+      const history = await this.saleService.getCustomerHistory(req.params.customerId);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 export class ReportingController {

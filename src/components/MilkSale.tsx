@@ -11,7 +11,8 @@ import {
   ArrowRight,
   TrendingUp,
   User,
-  Plus
+  Plus,
+  X
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { saleApi } from '../services/api';
@@ -30,6 +31,8 @@ export const MilkSale: React.FC = () => {
   const [recentSales, setRecentSales] = useState<MilkSaleType[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerHistory, setCustomerHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Sale Form State
   const [milkType, setMilkType] = useState<'Cow' | 'Buffalo' | 'Mixed'>('Mixed');
@@ -54,6 +57,26 @@ export const MilkSale: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchCustomerHistory(selectedCustomer.id);
+    } else {
+      setCustomerHistory([]);
+    }
+  }, [selectedCustomer]);
+
+  const fetchCustomerHistory = async (id: string) => {
+    try {
+      setLoadingHistory(true);
+      const res = await saleApi.getCustomerHistory(id);
+      setCustomerHistory(res.data || []);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -174,8 +197,10 @@ export const MilkSale: React.FC = () => {
       setShowNewCustomerModal(false);
       setNewCustomer({ name: '', mobile: '', village: '', type: 'Individual' });
       fetchData();
-    } catch (err) {
-      toast.error('Failed to add customer');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(errorMsg);
+      console.error('Add customer error:', err);
     } finally {
       setLoading(false);
     }
@@ -197,7 +222,7 @@ export const MilkSale: React.FC = () => {
                 activeTab === 'sale' ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-sm" : "text-stone-400"
               )}
             >
-              RECORD SALE
+              {t('recordSale').toUpperCase()}
             </button>
             <button 
               onClick={() => setActiveTab('payment')}
@@ -206,7 +231,7 @@ export const MilkSale: React.FC = () => {
                 activeTab === 'payment' ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-sm" : "text-stone-400"
               )}
             >
-              COLLECT PAYMENT
+              {t('collectPayment').toUpperCase()}
             </button>
           </div>
           <button 
@@ -230,48 +255,70 @@ export const MilkSale: React.FC = () => {
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Select Customer for Sale</label>
                   {!selectedCustomer ? (
                     <div className="relative group">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-300 group-focus-within:text-stone-900 transition-colors" />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-300 group-focus-within:text-stone-900 dark:group-focus-within:text-white transition-colors">
+                        <Search className="w-4 h-4" />
+                      </div>
                       <input
                         type="text"
-                        placeholder="Search by name or mobile..."
-                        className="w-full pl-12 pr-4 py-4 bg-stone-50 dark:bg-stone-800/50 border border-stone-100 dark:border-stone-700 rounded-2xl focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white"
+                        placeholder="Search by name, mobile or village..."
+                        className="w-full pl-14 pr-4 py-5 bg-stone-50 dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white font-medium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
-                      {searchTerm && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                      {searchTerm && filteredCustomers.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[2rem] shadow-2xl z-50 max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2">
                           {filteredCustomers.map(c => (
                             <button
                               key={c.id}
                               type="button"
-                              onClick={() => setSelectedCustomer(c)}
-                              className="w-full px-6 py-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors text-left border-b border-stone-50 dark:border-stone-800"
+                              onClick={() => {
+                                setSelectedCustomer(c);
+                                setSearchTerm('');
+                              }}
+                              className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
                             >
-                              <div>
-                                <span className="block font-bold">{c.name}</span>
-                                <span className="text-xs text-stone-400">{c.mobile}</span>
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center font-serif font-bold text-stone-900 dark:text-white group-hover:bg-stone-200 dark:group-hover:bg-stone-700 transition-colors">
+                                  {c.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <span className="block font-bold text-stone-900 dark:text-white">{c.name}</span>
+                                  <span className="text-xs text-stone-400 font-medium">{c.mobile} • {c.village}</span>
+                                </div>
                               </div>
-                              <ArrowRight className="w-4 h-4 text-stone-300" />
+                              <div className="text-right">
+                                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Balance</span>
+                                <span className="font-serif font-bold text-stone-900 dark:text-white">₹{c.balance?.toFixed(2)}</span>
+                              </div>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between p-4 bg-stone-900 dark:bg-white rounded-2xl text-white dark:text-stone-900">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-white/10 dark:bg-stone-900/10 flex items-center justify-center">
-                          <User className="w-5 h-5" />
+                    <div className="flex items-center justify-between p-6 bg-stone-900 dark:bg-white rounded-[2rem] text-white dark:text-stone-900 shadow-xl animate-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 rounded-2xl bg-stone-800 dark:bg-stone-100 flex items-center justify-center font-serif font-bold text-xl text-stone-200 dark:text-stone-900">
+                          {selectedCustomer.name.charAt(0)}
                         </div>
                         <div>
-                          <span className="block font-bold">{selectedCustomer.name}</span>
-                          <div className="flex items-center gap-2">
-                             <span className="text-xs opacity-70">{selectedCustomer.mobile}</span>
-                             <span className="text-xs font-bold bg-white/20 dark:bg-stone-900/10 px-2 py-0.5 rounded">₹{selectedCustomer.balance?.toFixed(2)}</span>
-                          </div>
+                          <h3 className="font-bold text-lg leading-none mb-1">{selectedCustomer.name}</h3>
+                          <p className="opacity-60 text-xs font-medium">{selectedCustomer.mobile} • {selectedCustomer.village}</p>
                         </div>
                       </div>
-                      <button onClick={() => setSelectedCustomer(null)} className="text-xs font-bold uppercase tracking-widest px-4 py-2 bg-white/10 dark:bg-stone-900/10 rounded-lg">Change</button>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right px-4 border-r border-white/10 dark:border-stone-100">
+                          <span className="block text-[10px] font-bold opacity-40 uppercase tracking-widest">Selected Balance</span>
+                          <span className="font-serif font-bold text-lg">₹{selectedCustomer.balance?.toFixed(2)}</span>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setSelectedCustomer(null)} 
+                          className="p-3 hover:bg-white/10 dark:hover:bg-stone-100 rounded-full transition-colors text-white/40 dark:text-stone-900/40 hover:text-white dark:hover:text-stone-900"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -330,35 +377,70 @@ export const MilkSale: React.FC = () => {
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Select Customer to Pay</label>
                   {!selectedCustomer ? (
                     <div className="relative group">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-300 transition-colors" />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-300 group-focus-within:text-stone-900 dark:group-focus-within:text-white transition-colors">
+                        <Search className="w-4 h-4" />
+                      </div>
                       <input
                         type="text"
                         placeholder="Search for customer paying dues..."
-                        className="w-full pl-12 pr-4 py-4 bg-stone-50 dark:bg-stone-800/50 border border-stone-100 dark:border-stone-700 rounded-2xl"
+                        className="w-full pl-14 pr-4 py-5 bg-stone-50 dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white font-medium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
-                      {searchTerm && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-stone-900 border rounded-2xl shadow-xl z-50">
+                      {searchTerm && filteredCustomers.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[2rem] shadow-2xl z-50 max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2">
                           {filteredCustomers.map(c => (
-                            <button key={c.id} type="button" onClick={() => setSelectedCustomer(c)} className="w-full px-6 py-4 flex justify-between items-center border-b hover:bg-stone-50">
-                              <div>
-                                <span className="block font-bold">{c.name}</span>
-                                <span className="text-xs text-orange-500 font-bold">Balance: ₹{c.balance?.toFixed(2)}</span>
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCustomer(c);
+                                setSearchTerm('');
+                              }}
+                              className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center font-serif font-bold text-stone-900 dark:text-white group-hover:bg-stone-200 dark:group-hover:bg-stone-700 transition-colors">
+                                  {c.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <span className="block font-bold text-stone-900 dark:text-white">{c.name}</span>
+                                  <span className="text-xs text-stone-400 font-medium">{c.mobile} • {c.village}</span>
+                                </div>
                               </div>
-                              <ArrowRight className="w-4 h-4" />
+                              <div className="text-right">
+                                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Balance</span>
+                                <span className="font-serif font-bold text-orange-600 dark:text-orange-400">₹{c.balance?.toFixed(2)}</span>
+                              </div>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between p-4 bg-green-600 rounded-2xl text-white">
-                      <div>
-                        <span className="block font-bold">{selectedCustomer.name}</span>
-                        <span className="text-xs opacity-80">Current Debt: ₹{selectedCustomer.balance?.toFixed(2)}</span>
+                    <div className="flex items-center justify-between p-6 bg-emerald-600 rounded-[2rem] text-white shadow-xl animate-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center font-serif font-bold text-xl text-white">
+                          {selectedCustomer.name.charAt(0)}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg leading-none mb-1">{selectedCustomer.name}</h3>
+                          <p className="opacity-70 text-xs font-medium">{selectedCustomer.mobile} • {selectedCustomer.village}</p>
+                        </div>
                       </div>
-                      <button onClick={() => setSelectedCustomer(null)} className="text-xs font-bold uppercase opacity-70">Change</button>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right px-4 border-r border-white/20">
+                          <span className="block text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none mb-1">Current Debt</span>
+                          <span className="font-serif font-bold text-lg leading-none">₹{selectedCustomer.balance?.toFixed(2)}</span>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setSelectedCustomer(null)} 
+                          className="p-3 hover:bg-white/10 rounded-full transition-colors text-white/40 hover:text-white"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -392,6 +474,72 @@ export const MilkSale: React.FC = () => {
               </form>
             )}
           </div>
+
+          {/* Customer History Ledger (Shown when customer selected) */}
+          {selectedCustomer && (
+            <div className="glass-card rounded-[2.5rem] p-8 animate-in slide-in-from-bottom-5 duration-300">
+               <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-900 dark:text-white">
+                    <History className="w-5 h-5" />
+                  </div>
+                  <h2 className="font-serif font-bold text-xl text-stone-900 dark:text-white">{selectedCustomer.name}'s Ledger</h2>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Outsanding Dues</span>
+                  <span className="text-xl font-serif font-bold text-orange-600 dark:text-orange-400">₹{selectedCustomer.balance?.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {loadingHistory ? (
+                  <div className="py-12 flex justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-stone-300" />
+                  </div>
+                ) : customerHistory.length > 0 ? (
+                  <div className="divide-y divide-stone-50 dark:divide-stone-800">
+                    {customerHistory.map((item, idx) => (
+                      <div key={idx} className="py-4 flex justify-between items-center group">
+                        <div className="flex gap-4 items-center">
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                            item.entryType === 'sale' 
+                              ? "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300" 
+                              : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
+                          )}>
+                            {item.entryType === 'sale' ? <ShoppingCart size={18} /> : <ArrowRight size={18} className="rotate-90" />}
+                          </div>
+                          <div>
+                            <span className="block font-bold text-sm text-stone-900 dark:text-white">
+                              {item.entryType === 'sale' ? `${item.quantity}L ${item.milkType} Milk` : `Debt Payment (${item.paymentMode})`}
+                            </span>
+                            <span className="text-[10px] text-stone-400 font-medium">
+                              {format(new Date(item.date), 'dd MMM yyyy, hh:mm a')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={cn(
+                            "block font-serif font-bold text-base",
+                            item.entryType === 'sale' ? "text-stone-900 dark:text-white" : "text-emerald-600 dark:text-emerald-400"
+                          )}>
+                            {item.entryType === 'sale' ? `+ ₹${item.amount.toFixed(2)}` : `- ₹${item.amount.toFixed(2)}`}
+                          </span>
+                          <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">
+                            {item.entryType === 'sale' ? item.paymentStatus : 'Settled'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-stone-400">
+                    <p className="text-sm">No transaction history found for this customer.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Recent Side Panel */}

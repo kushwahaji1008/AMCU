@@ -238,7 +238,7 @@ export default function HelpAbout() {
               <div className="space-y-2">
                 <button className="w-full flex items-center gap-3 px-4 py-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
                   <BookOpen size={18} />
-                  Amcu User Manual (v1.2)
+                  Amcu User Manual (v{APP_VERSION.split('.').slice(0, 2).join('.')})
                 </button>
                 <button className="w-full flex items-center gap-3 px-4 py-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
                   <Info size={18} />
@@ -258,7 +258,7 @@ export default function HelpAbout() {
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-xl font-serif font-medium text-stone-900 dark:text-white">v1.2.5 - Stable Native Release</h3>
+                <h3 className="text-xl font-serif font-medium text-stone-900 dark:text-white">v{APP_VERSION} - Stable Native Release</h3>
                 <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200/50 dark:border-orange-900/35">
                   Offline Enabled
                 </span>

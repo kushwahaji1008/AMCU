@@ -81,4 +81,19 @@ export class SaleService {
   async getRecentSales(limit: number): Promise<MilkSale[]> {
     return this.saleRepo.getRecent(limit);
   }
+
+  async getCustomerHistory(customerId: string): Promise<any[]> {
+    const [sales, payments] = await Promise.all([
+      this.saleRepo.getByCustomerId(customerId),
+      this.paymentRepo.getByCustomerId(customerId)
+    ]);
+
+    // Merge and sort by date descending
+    const history = [
+      ...sales.map(s => ({ ...s, entryType: 'sale' })),
+      ...payments.map(p => ({ ...p, entryType: 'payment' }))
+    ];
+
+    return history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
 }

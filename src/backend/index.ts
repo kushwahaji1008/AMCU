@@ -338,6 +338,7 @@ app.post('/api/customers', authenticate, authorize(['admin', 'super_admin', 'ope
 app.get('/api/sales', authenticate, (req, res, next) => saleController.getAllSales(req, res).catch(next));
 app.get('/api/sales/recent', authenticate, (req, res, next) => saleController.getRecentSales(req, res).catch(next));
 app.get('/api/sales/daily', authenticate, (req, res, next) => saleController.getDailySales(req, res).catch(next));
+app.get('/api/sales/customer/:customerId', authenticate, (req, res, next) => saleController.getCustomerHistory(req, res).catch(next));
 app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSale(req, res).catch(next));
 app.post('/api/customer-payments', authenticate, (req, res, next) => saleController.recordPayment(req, res).catch(next));
 
