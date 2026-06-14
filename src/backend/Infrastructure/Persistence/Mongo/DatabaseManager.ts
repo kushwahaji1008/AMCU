@@ -18,11 +18,12 @@ import {
   DairySchema,
   ShiftSummarySchema,
   LoginAuditSchema,
-  SettingsSchema
+  SettingsSchema,
+  CustomerPaymentSchema
 } from './Models';
 import { Farmer } from '../../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../../Core/Entities/Collection';
-import { MilkSale, Customer, User } from '../../../Core/Entities/Sale';
+import { MilkSale, Customer, User, CustomerPayment } from '../../../Core/Entities/Sale';
 import { LoginAudit } from '../../../Core/Entities/Audit';
 
 class DatabaseManager {
@@ -93,6 +94,10 @@ class DatabaseManager {
 
   async getCustomerModel(databaseId: string) {
     return this.getModel<Customer & Document>(databaseId, 'Customer', CustomerSchema);
+  }
+
+  async getCustomerPaymentModel(databaseId: string) {
+    return this.getModel<CustomerPayment & Document>(databaseId, 'CustomerPayment', CustomerPaymentSchema);
   }
 
   async getUserModel(databaseId: string) {

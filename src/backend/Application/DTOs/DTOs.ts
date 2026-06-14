@@ -22,17 +22,26 @@ export interface CreateCollectionDTO {
 // --- Sale DTOs ---
 export interface CreateSaleDTO {
   customerId: string;
+  customerName: string;
+  customerMobile: string;
   date: string;
-  shift: 'Morning' | 'Evening';
+  milkType: 'Cow' | 'Buffalo' | 'Mixed';
   quantity: number;
   rate: number;
+  paymentMode: 'Cash' | 'Credit' | 'UPI';
+  notes?: string;
+  operatorId: string;
+  dairyId: string;
 }
 
 // --- Customer DTOs ---
 export interface CreateCustomerDTO {
   name: string;
-  phone: string;
-  address: string;
+  mobile: string;
+  village?: string;
+  address?: string;
+  type: 'Individual' | 'Commercial';
+  dairyId: string;
 }
 
 // --- Payment DTOs ---

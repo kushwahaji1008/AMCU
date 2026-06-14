@@ -6,10 +6,10 @@
  * based on the current request's 'databaseId'.
  */
 
-import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository, ILoginAuditRepository } from '../../Application/Interfaces/IRepositories';
+import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository, ILoginAuditRepository, ICustomerPaymentRepository } from '../../Application/Interfaces/IRepositories';
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
-import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
+import { MilkSale, Customer, User, CustomerPayment } from '../../Core/Entities/Sale';
 import { LoginAudit } from '../../Core/Entities/Audit';
 import { dbManager } from '../Persistence/Mongo/DatabaseManager';
 import { getDatabaseId } from '../../Core/RequestContext';
@@ -316,6 +316,12 @@ export class MongoSaleRepository implements ISaleRepository {
     const docs = await model.find().sort({ date: -1 });
     return docs.map(doc => mapDoc<MilkSale>(doc));
   }
+
+  async getRecent(limit: number): Promise<MilkSale[]> {
+    const model = await dbManager.getSaleModel(getDatabaseId());
+    const docs = await model.find().sort({ date: -1 }).limit(limit);
+    return docs.map(doc => mapDoc<MilkSale>(doc));
+  }
 }
 
 // --- Customer Repository ---
@@ -330,6 +336,38 @@ export class MongoCustomerRepository implements ICustomerRepository {
     const model = await dbManager.getCustomerModel(getDatabaseId());
     const docs = await model.find();
     return docs.map(doc => mapDoc<Customer>(doc));
+  }
+
+  async getById(id: string): Promise<Customer | null> {
+    const model = await dbManager.getCustomerModel(getDatabaseId());
+    const doc = await model.findById(id);
+    return doc ? mapDoc<Customer>(doc) : null;
+  }
+
+  async updateBalance(id: string, amount: number): Promise<void> {
+    const model = await dbManager.getCustomerModel(getDatabaseId());
+    const field = amount > 0 ? 'totalSales' : 'totalPaid';
+    await model.findByIdAndUpdate(id, { 
+      $inc: { 
+        balance: amount,
+        [field]: Math.abs(amount)
+      } 
+    });
+  }
+}
+
+export class MongoCustomerPaymentRepository implements ICustomerPaymentRepository {
+  async create(payment: Omit<CustomerPayment, 'id' | 'createdAt'>): Promise<CustomerPayment> {
+    const model = await dbManager.getCustomerPaymentModel(getDatabaseId());
+    const doc = new model(payment);
+    await doc.save();
+    return mapDoc<CustomerPayment>(doc);
+  }
+
+  async getRecent(limit: number): Promise<CustomerPayment[]> {
+    const model = await dbManager.getCustomerPaymentModel(getDatabaseId());
+    const docs = await model.find().sort({ date: -1 }).limit(limit);
+    return docs.map(doc => mapDoc<CustomerPayment>(doc));
   }
 }
 

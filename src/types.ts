@@ -113,3 +113,50 @@ export interface LedgerEntry {
   reference?: string;
   operatorId?: string;
 }
+
+export interface Customer {
+  id: string;
+  name: string;
+  mobile: string;
+  village?: string;
+  address?: string;
+  type: 'Individual' | 'Commercial';
+  status: 'Active' | 'Inactive';
+  createdAt: string;
+  balance: number; // Total Due (Owed to Dairy)
+  totalPaid: number;
+  totalSales: number;
+  dairyId: string;
+}
+
+export interface MilkSale {
+  id: string;
+  timestamp: string | any;
+  date: string | Date;
+  customerId: string;
+  customerName: string;
+  customerMobile: string;
+  milkType: 'Cow' | 'Buffalo' | 'Mixed';
+  quantity: number;
+  rate: number;
+  amount: number;
+  paymentMode: 'Cash' | 'Credit' | 'UPI';
+  paymentStatus: 'Paid' | 'Due';
+  notes?: string;
+  operatorId: string;
+  dairyId: string;
+  messageStatus?: 'Sent' | 'Failed' | 'Pending';
+}
+
+export interface CustomerPayment {
+  id: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  date: string;
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer';
+  notes?: string;
+  operatorId: string;
+  dairyId: string;
+  createdAt: string;
+}

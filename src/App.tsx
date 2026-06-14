@@ -35,6 +35,7 @@ import Billing from './components/Billing';
 import DairyManagement from './components/DairyManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 import BackButtonHandler from './components/BackButtonHandler';
+import { MilkSale } from './components/MilkSale';
 import { offlineService } from './services/offlineService';
 
 /**
@@ -101,6 +102,7 @@ function App() {
                   {/* Protected User Routes */}
                   <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/collection" element={<ProtectedRoute><CollectionEntry /></ProtectedRoute>} />
+                  <Route path="/sales" element={<ProtectedRoute><MilkSale /></ProtectedRoute>} />
                   <Route path="/farmers" element={<ProtectedRoute><FarmerManagement /></ProtectedRoute>} />
                   <Route path="/farmers/:id" element={<ProtectedRoute><FarmerProfile /></ProtectedRoute>} />
                   <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />

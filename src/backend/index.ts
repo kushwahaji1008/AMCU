@@ -24,6 +24,7 @@ import {
   MongoUserRepository,
   MongoSaleRepository,
   MongoCustomerRepository,
+  MongoCustomerPaymentRepository,
   MongoDairyRepository,
   MongoSettingsRepository,
   MongoShiftSummaryRepository,
@@ -157,6 +158,7 @@ const ledgerRepo = new MongoLedgerRepository();
 const userRepo = new MongoUserRepository();
 const saleRepo = new MongoSaleRepository();
 const customerRepo = new MongoCustomerRepository();
+const paymentRepo = new MongoCustomerPaymentRepository();
 const dairyRepo = new MongoDairyRepository();
 const settingsRepo = new MongoSettingsRepository();
 const shiftSummaryRepo = new MongoShiftSummaryRepository();
@@ -167,7 +169,7 @@ const farmerService = new FarmerService(farmerRepo);
 const collectionService = new CollectionService(collectionRepo, rateChartRepo, ledgerRepo, farmerRepo, shiftSummaryRepo);
 const paymentService = new PaymentService(ledgerRepo, farmerRepo);
 const authService = new AuthService(userRepo, dairyRepo, auditRepo);
-const saleService = new SaleService(saleRepo, customerRepo);
+const saleService = new SaleService(saleRepo, customerRepo, paymentRepo);
 const customerService = new CustomerService(customerRepo);
 const reportingService = new ReportingService(collectionRepo, saleRepo, farmerRepo, ledgerRepo);
 
@@ -332,9 +334,12 @@ app.get('/api/shifts/recent', authenticate, (req, res, next) => collectionContro
 
 // Sales & Customer Routes
 app.get('/api/customers', authenticate, (req, res, next) => saleController.getAllCustomers(req, res).catch(next));
-app.post('/api/customers', authenticate, authorize(['admin', 'super_admin']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
+app.post('/api/customers', authenticate, authorize(['admin', 'super_admin', 'operator']), (req, res, next) => saleController.createCustomer(req, res).catch(next));
 app.get('/api/sales', authenticate, (req, res, next) => saleController.getAllSales(req, res).catch(next));
+app.get('/api/sales/recent', authenticate, (req, res, next) => saleController.getRecentSales(req, res).catch(next));
+app.get('/api/sales/daily', authenticate, (req, res, next) => saleController.getDailySales(req, res).catch(next));
 app.post('/api/sales', authenticate, (req, res, next) => saleController.recordSale(req, res).catch(next));
+app.post('/api/customer-payments', authenticate, (req, res, next) => saleController.recordPayment(req, res).catch(next));
 
 // Reporting & Analytics Routes
 app.get('/api/reports/dashboard', authenticate, (req, res, next) => reportingController.getDashboardStats(req, res).catch(next));

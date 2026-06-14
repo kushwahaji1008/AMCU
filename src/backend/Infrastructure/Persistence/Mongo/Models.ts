@@ -79,20 +79,48 @@ export const ShiftSummarySchema = new Schema({
 
 // --- Sale Schema ---
 export const SaleSchema = new Schema({
-  customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
+  customerId: { type: String, required: true },
+  customerName: { type: String, required: true },
+  customerMobile: { type: String, required: true },
   date: { type: Date, required: true },
-  shift: { type: String, enum: ['Morning', 'Evening'], required: true },
+  milkType: { type: String, enum: ['Cow', 'Buffalo', 'Mixed'], required: true },
   quantity: { type: Number, required: true },
   rate: { type: Number, required: true },
   amount: { type: Number, required: true },
+  paymentMode: { type: String, enum: ['Cash', 'Credit', 'UPI'], required: true },
+  paymentStatus: { type: String, enum: ['Paid', 'Due'], required: true },
+  notes: { type: String },
+  operatorId: { type: String, required: true },
+  dairyId: { type: String, required: true },
+  messageStatus: { type: String, enum: ['Sent', 'Failed', 'Pending'], default: 'Pending' },
   createdAt: { type: Date, default: Date.now },
 });
 
 // --- Customer Schema ---
 export const CustomerSchema = new Schema({
   name: { type: String, required: true },
-  phone: { type: String, required: true },
-  address: { type: String, required: true },
+  mobile: { type: String, required: true },
+  village: { type: String },
+  address: { type: String },
+  type: { type: String, enum: ['Individual', 'Commercial'], default: 'Individual' },
+  status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+  balance: { type: Number, default: 0 },
+  totalPaid: { type: Number, default: 0 },
+  totalSales: { type: Number, default: 0 },
+  dairyId: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
+// --- Customer Payment Schema ---
+export const CustomerPaymentSchema = new Schema({
+  customerId: { type: String, required: true },
+  customerName: { type: String, required: true },
+  amount: { type: Number, required: true },
+  date: { type: Date, required: true },
+  paymentMode: { type: String, enum: ['Cash', 'UPI', 'Bank Transfer'], required: true },
+  notes: { type: String },
+  operatorId: { type: String, required: true },
+  dairyId: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
 });
 

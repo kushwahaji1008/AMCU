@@ -431,21 +431,63 @@ class OfflineService {
     return await realmInstance.objects('sales_customers');
   }
 
+  async addCustomerOffline(payload: any) {
+    if (!isNativeApp()) throw new Error('Offline mode not available on web');
+    const id = 'cust_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const doc = {
+      ...payload,
+      id,
+      createdAt: new Date().toISOString(),
+      balance: 0
+    };
+    await realmInstance.write(() => realmInstance.create('sales_customers', doc, 'all'));
+    await this.queueTask('CREATE_SALE_CUSTOMER', doc);
+    return doc;
+  }
+
   async recordSaleOffline(payload: any) {
     if (!isNativeApp()) throw new Error('Offline mode not available on web');
     const id = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const roundedRate = Math.round((payload.rate || 0) * 100) / 100;
     const roundedAmount = Math.round((payload.amount || payload.quantity * roundedRate || 0) * 100) / 100;
+    
+    // Simulate message sending
+    const messageStatus = await this.sendSaleMessage(payload.customerMobile, payload.customerName, payload.quantity, roundedAmount, payload.notes);
+    
     const doc = {
       ...payload,
       id,
       rate: roundedRate,
       amount: roundedAmount,
-      createdAt: new Date().toISOString()
+      date: payload.date || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      messageStatus
     };
+    
     await realmInstance.write(() => realmInstance.create('sales_records', doc, 'all'));
     await this.queueTask('RECORD_SALE', doc);
     return doc;
+  }
+
+  private async sendSaleMessage(mobile: string, name: string, qty: number, amount: number, notes?: string) {
+    console.log(`[SIMULATED SMS] To: ${mobile} (${name}), Msg: Your milk purchase of ${qty}L for ₹${amount} has been recorded. Note: ${notes || 'N/A'}`);
+    return 'Sent';
+  }
+
+  async getRecentSales(limit: number = 20): Promise<any[]> {
+    if (!isNativeApp()) return [];
+    const items = await realmInstance.objects<any>('sales_records');
+    return items.slice(0, limit).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getSalesByDate(dateStr: string) {
+    if (!isNativeApp()) return [];
+    const docs = await realmInstance.objects<any>('sales_records');
+    const target = dateStr.split('T')[0];
+    return docs.filter(doc => {
+      const d = typeof doc.date === 'string' ? doc.date.split('T')[0] : new Date(doc.date).toISOString().split('T')[0];
+      return d === target;
+    });
   }
 
   async getRates(): Promise<any[]> {

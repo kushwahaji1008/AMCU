@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Milk, FileText, LogOut, LogIn, Menu, X, Clock, 
   Settings2, Printer, DollarSign, Cpu, Shield, Database, HelpCircle, RefreshCw, Smartphone, BookOpen, Building2,
-  Sun, Moon, Languages, ChevronLeft, WifiOff
+  Sun, Moon, Languages, ChevronLeft, WifiOff, ShoppingCart
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { dairyApi } from '../services/api';
@@ -65,6 +65,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { name: t('dashboard'), path: '/', icon: LayoutDashboard },
     { name: t('collection'), path: '/collection', icon: Milk },
+    { name: t('milkSales'), path: '/sales', icon: ShoppingCart },
     { name: t('shifts'), path: '/shifts', icon: Clock },
     { name: t('farmers'), path: '/farmers', icon: Users },
     { name: t('rateCharts'), path: '/rates', icon: Settings2, adminOnly: true },

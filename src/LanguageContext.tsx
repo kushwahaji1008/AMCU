@@ -48,6 +48,7 @@ const translations: Translations = {
   cancel: { en: 'Cancel', hi: 'रद्द करें' },
   approve: { en: 'Approve', hi: 'स्वीकार करें' },
   reject: { en: 'Reject', hi: 'अस्वीकार करें' },
+  milkSales: { en: 'Milk Sales', hi: 'दूध बिक्री' },
 };
 
 interface LanguageContextType {

@@ -1,6 +1,6 @@
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
-import { MilkSale, Customer, User } from '../../Core/Entities/Sale';
+import { MilkSale, Customer, User, CustomerPayment } from '../../Core/Entities/Sale';
 import { LoginAudit } from '../../Core/Entities/Audit';
 
 export interface ILoginAuditRepository {
@@ -56,11 +56,19 @@ export interface ISaleRepository {
   create(sale: Omit<MilkSale, 'id' | 'createdAt'>): Promise<MilkSale>;
   getDailyReport(date: Date): Promise<MilkSale[]>;
   getAll(): Promise<MilkSale[]>;
+  getRecent(limit: number): Promise<MilkSale[]>;
 }
 
 export interface ICustomerRepository {
   create(customer: Omit<Customer, 'id' | 'createdAt'>): Promise<Customer>;
   getAll(): Promise<Customer[]>;
+  getById(id: string): Promise<Customer | null>;
+  updateBalance(id: string, amount: number): Promise<void>;
+}
+
+export interface ICustomerPaymentRepository {
+  create(payment: Omit<CustomerPayment, 'id' | 'createdAt'>): Promise<CustomerPayment>;
+  getRecent(limit: number): Promise<CustomerPayment[]>;
 }
 
 export interface IUserRepository {
