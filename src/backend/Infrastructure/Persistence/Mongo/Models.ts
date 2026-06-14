@@ -182,6 +182,19 @@ export const LoginAuditSchema = new Schema({
   databaseId: { type: String, required: true },
 });
 
+// --- ActivityLog Schema ---
+export const ActivityLogSchema = new Schema({
+  userId: { type: String, required: true },
+  username: { type: String, required: true },
+  action: { type: String, required: true },
+  targetId: { type: String },
+  targetType: { type: String },
+  details: { type: Schema.Types.Mixed },
+  ipAddress: { type: String },
+  timestamp: { type: Date, default: Date.now },
+  databaseId: { type: String, required: true },
+});
+
 // Default Models (for Registry/Default DB)
 export const FarmerModel = mongoose.model<Farmer & Document>('Farmer', FarmerSchema);
 export const CollectionModel = mongoose.model<MilkCollection & Document>('Collection', CollectionSchema);

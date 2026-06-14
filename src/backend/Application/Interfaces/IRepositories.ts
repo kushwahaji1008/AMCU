@@ -1,12 +1,19 @@
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User, CustomerPayment } from '../../Core/Entities/Sale';
-import { LoginAudit } from '../../Core/Entities/Audit';
+import { LoginAudit, ActivityLog } from '../../Core/Entities/Audit';
 
 export interface ILoginAuditRepository {
   create(audit: Omit<LoginAudit, 'id'>): Promise<LoginAudit>;
   getAll(): Promise<LoginAudit[]>;
   getByUserId(userId: string): Promise<LoginAudit[]>;
+}
+
+export interface IActivityLogRepository {
+  create(log: Omit<ActivityLog, 'id'>): Promise<ActivityLog>;
+  getAll(limit?: number): Promise<ActivityLog[]>;
+  getByUserId(userId: string): Promise<ActivityLog[]>;
+  getByAction(action: string): Promise<ActivityLog[]>;
 }
 
 export interface IFarmerRepository {

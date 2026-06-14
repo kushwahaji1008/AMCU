@@ -47,7 +47,8 @@ describe('SaleService White-Box Tests', () => {
         paymentMode: 'Credit' as const,
         date: '2023-10-10',
         shift: 'Morning' as const,
-        operatorId: 'op1'
+        operatorId: 'op1',
+        dairyId: 'dairy1'
       };
 
       await saleService.recordSale(dto);
@@ -71,7 +72,8 @@ describe('SaleService White-Box Tests', () => {
         paymentMode: 'Cash' as const,
         date: '2023-10-10',
         shift: 'Morning' as const,
-        operatorId: 'op1'
+        operatorId: 'op1',
+        dairyId: 'dairy1'
       };
 
       await saleService.recordSale(dto);

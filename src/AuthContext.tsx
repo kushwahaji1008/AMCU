@@ -101,10 +101,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (email: string, pass: string) => {
     const deviceName = await getDeviceName();
     const response = await authApi.login({ username: email, password: pass, deviceName });
-    const { token, user: userData, requiresOTP } = response?.data || {};
+    
+    // Validate response structure
+    if (!response || !response.data) {
+      throw new Error('No response from authentication server');
+    }
+
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+      throw new Error('Authentication server returned an invalid format (HTML). Please check your API URL configuration.');
+    }
+
+    const { token, user: userData, requiresOTP } = response.data;
     
     if (!token && !requiresOTP) {
-      throw new Error('Invalid response from authentication server');
+      console.error('Invalid Auth Response Format:', response.data);
+      throw new Error('Invalid response from authentication server: Missing token/OTP session');
     }
 
     // Note: OTP is currently disabled in the backend, but kept here for structural compatibility
@@ -149,10 +160,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInSuperAdmin = async (email: string, pass: string) => {
     const deviceName = await getDeviceName();
     const response = await authApi.verifyAdmin({ email, password: pass, deviceName });
-    const { token, user: userData, requiresOTP } = response?.data || {};
+    
+    // Validate response structure
+    if (!response || !response.data) {
+      throw new Error('No response from administrative server');
+    }
+
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+      throw new Error('Administrative server returned an invalid format (HTML). Please check your configuration.');
+    }
+
+    const { token, user: userData, requiresOTP } = response.data;
     
     if (!token && !requiresOTP) {
-      throw new Error('Invalid response from administrative server');
+      console.error('Invalid Admin Auth Response Format:', response.data);
+      throw new Error('Invalid response from administrative server: Missing token/OTP session');
     }
 
     if (requiresOTP) {

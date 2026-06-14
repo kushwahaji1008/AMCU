@@ -18,6 +18,7 @@ export interface DashboardStats {
   totalFarmers: number;
   avgFat: number;
   avgSnf: number;
+  pendingPayments: number;
   recentTxns: any[];
   trendData: any[];
 }

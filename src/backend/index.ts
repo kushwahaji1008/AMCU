@@ -28,7 +28,8 @@ import {
   MongoDairyRepository,
   MongoSettingsRepository,
   MongoShiftSummaryRepository,
-  MongoLoginAuditRepository
+  MongoLoginAuditRepository,
+  MongoActivityLogRepository
 } from './Infrastructure/Repositories/MongoRepositories';
 
 // Services
@@ -38,6 +39,7 @@ import { PaymentService } from './Application/Services/PaymentService';
 import { AuthService } from './Application/Services/AuthService';
 import { SaleService, CustomerService } from './Application/Services/SaleService';
 import { ReportingService } from './Application/Services/ReportingService';
+import { ActivityLogService } from './Application/Services/ActivityLogService';
 
 // Controllers
 import { FarmerController } from './API/Controllers/FarmerController';
@@ -48,6 +50,7 @@ import { SaleController, ReportingController } from './API/Controllers/SaleContr
 import { authenticate, authorize, AuthRequest } from './API/Middleware/AuthMiddleware';
 import { ErrorMiddleware } from './API/Middleware/ErrorMiddleware';
 import { validateRegistration, validateLogin, validateFarmer, validateCollection } from './API/Middleware/ValidationMiddleware';
+import { activityLogger } from './API/Middleware/ActivityLogger';
 import * as useragent from 'express-useragent';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './API/Config/Swagger';
@@ -163,6 +166,7 @@ const dairyRepo = new MongoDairyRepository();
 const settingsRepo = new MongoSettingsRepository();
 const shiftSummaryRepo = new MongoShiftSummaryRepository();
 const auditRepo = new MongoLoginAuditRepository();
+const activityRepo = new MongoActivityLogRepository();
 
 // Services (Application Layer)
 const farmerService = new FarmerService(farmerRepo);
@@ -172,6 +176,10 @@ const authService = new AuthService(userRepo, dairyRepo, auditRepo);
 const saleService = new SaleService(saleRepo, customerRepo, paymentRepo);
 const customerService = new CustomerService(customerRepo);
 const reportingService = new ReportingService(collectionRepo, saleRepo, farmerRepo, ledgerRepo);
+const activityLogService = new ActivityLogService(activityRepo);
+
+// Middlewares application
+app.use(activityLogger(activityLogService));
 
 // Controllers (API Layer)
 const farmerController = new FarmerController(farmerService);
@@ -265,6 +273,14 @@ app.post('/api/admin/verify', async (req, res, next) => {
 app.get('/api/admin/login-logs', authenticate, authorize(['super_admin']), async (req, res, next) => {
   try {
     const logs = await auditRepo.getAll();
+    res.json(logs);
+  } catch (error) { next(error); }
+});
+
+// General Activity Logs (Super Admin only)
+app.get('/api/admin/activity-logs', authenticate, authorize(['super_admin']), async (req, res, next) => {
+  try {
+    const logs = await activityLogService.getAllLogs(200);
     res.json(logs);
   } catch (error) { next(error); }
 });

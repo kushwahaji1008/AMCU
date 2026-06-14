@@ -99,25 +99,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 flex flex-col md:flex-row transition-colors">
-      {/* Global Loading Progress Bar */}
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed top-0 left-0 right-0 h-1 z-[9999] bg-stone-100 dark:bg-stone-800 overflow-hidden"
-          >
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: '100%' }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-              className="h-full w-1/3 bg-stone-900 dark:bg-white"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 transform transition-transform duration-300 md:relative md:translate-x-0",

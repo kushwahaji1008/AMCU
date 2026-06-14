@@ -19,12 +19,13 @@ import {
   ShiftSummarySchema,
   LoginAuditSchema,
   SettingsSchema,
-  CustomerPaymentSchema
+  CustomerPaymentSchema,
+  ActivityLogSchema
 } from './Models';
 import { Farmer } from '../../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../../Core/Entities/Collection';
 import { MilkSale, Customer, User, CustomerPayment } from '../../../Core/Entities/Sale';
-import { LoginAudit } from '../../../Core/Entities/Audit';
+import { LoginAudit, ActivityLog } from '../../../Core/Entities/Audit';
 
 class DatabaseManager {
   // Cache of active database connections
@@ -114,6 +115,10 @@ class DatabaseManager {
 
   async getLoginAuditModel(databaseId: string) {
     return this.getModel<LoginAudit & Document>(databaseId, 'LoginAudit', LoginAuditSchema);
+  }
+
+  async getActivityLogModel(databaseId: string) {
+    return this.getModel<ActivityLog & Document>(databaseId, 'ActivityLog', ActivityLogSchema);
   }
 }
 

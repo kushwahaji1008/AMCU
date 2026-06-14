@@ -29,3 +29,16 @@ export interface LoginAudit {
   failureReason?: string;
   databaseId: string;
 }
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  username: string;
+  action: string;
+  targetId?: string;
+  targetType?: string;
+  details?: any;
+  ipAddress?: string;
+  timestamp: Date;
+  databaseId: string;
+}

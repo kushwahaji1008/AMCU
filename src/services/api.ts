@@ -113,6 +113,7 @@ const withFallback = async (
 
 export const adminApi = {
   getLoginLogs: () => api.get('/admin/login-logs'),
+  getActivityLogs: () => api.get('/admin/activity-logs'),
   getSwaggerStatus: () => api.get('/admin/swagger-status'),
   toggleSwagger: (enabled: boolean) => api.post('/admin/swagger-toggle', { enabled }),
 };

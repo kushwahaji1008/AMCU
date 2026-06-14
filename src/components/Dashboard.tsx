@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [timeRange, setTimeRange] = useState(7); 
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState<'live' | 'cache' | 'offline'>('live');
   const [lastSynced, setLastSynced] = useState<Date | null>(() => {
     const cached = localStorage.getItem('dashboard_last_sync');
     return cached ? new Date(cached) : null;
@@ -71,9 +72,13 @@ export default function Dashboard() {
       if (!isBackground) setLoading(true);
       else setIsRefreshing(true);
 
-      const response = await reportApi.getDashboard(timeRange);
+      const response = await reportApi.getDashboard(timeRange) as any;
       const data = response?.data || {};
       
+      if (response?.fromCache) setDataSource('cache');
+      else if (response?.isOffline) setDataSource('offline');
+      else setDataSource('live');
+
       const newStats = {
         todayQty: data.todayQty || 0,
         morningQty: data.morningQty || 0,
@@ -191,18 +196,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10">
-      {/* Top Loading Progress Bar */}
-      {(loading || isRefreshing) && (
-        <div className="fixed top-0 left-0 right-0 h-1 z-[101] bg-stone-100 dark:bg-stone-800 overflow-hidden">
-          <motion.div 
-            initial={{ x: '-100%' }}
-            animate={{ x: '100%' }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-            className="h-full w-1/3 bg-stone-900 dark:bg-white"
-          />
-        </div>
-      )}
-
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl font-serif font-bold text-stone-900 dark:text-white tracking-tight">{t('dashboard')}</h1>
@@ -210,14 +203,25 @@ export default function Dashboard() {
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-2xl text-xs font-semibold text-stone-500 dark:text-stone-400">
-            <RefreshCw 
-              size={14} 
-              className={cn("text-emerald-500", (loading || isRefreshing) && "animate-spin")} 
-            />
-            <span>
-              Synced: {lastSynced ? format(lastSynced, 'hh:mm a') : 'Never'}
-            </span>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-2xl text-xs font-semibold text-stone-500 dark:text-stone-400">
+              <RefreshCw 
+                size={14} 
+                className={cn(
+                  dataSource === 'live' ? "text-emerald-500" : dataSource === 'cache' ? "text-amber-500" : "text-rose-500", 
+                  (loading || isRefreshing) && "animate-spin"
+                )} 
+              />
+              <span className="flex items-center gap-1.5">
+                {dataSource === 'live' ? <Wifi size={12} className="text-emerald-500" /> : <Activity size={12} className={dataSource === 'cache' ? "text-amber-500" : "text-rose-500"} />}
+                {dataSource === 'live' ? 'Live' : dataSource === 'cache' ? 'Cached' : 'Offline'}: {lastSynced ? format(lastSynced, 'hh:mm a') : 'Never'}
+              </span>
+            </div>
+            {dataSource !== 'live' && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-2">
+                Showing {dataSource} data. Refresh when online.
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 glass-card p-1 rounded-2xl">
             {[7, 15].map((days) => (

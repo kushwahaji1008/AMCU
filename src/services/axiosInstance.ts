@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL || '/api';
+const getBaseURL = () => {
+  // Hardcoded for now per user request
+  return 'https://amcu.onrender.com/api';
+};
+
+const baseURL = getBaseURL();
 
 // Loading tracker for axios
 let activeRequests = 0;

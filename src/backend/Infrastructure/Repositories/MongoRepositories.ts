@@ -6,11 +6,11 @@
  * based on the current request's 'databaseId'.
  */
 
-import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository, ILoginAuditRepository, ICustomerPaymentRepository } from '../../Application/Interfaces/IRepositories';
+import { IFarmerRepository, ICollectionRepository, IRateChartRepository, ILedgerRepository, ISaleRepository, ICustomerRepository, IUserRepository, IDairyRepository, ISettingsRepository, IShiftSummaryRepository, ILoginAuditRepository, ICustomerPaymentRepository, IActivityLogRepository } from '../../Application/Interfaces/IRepositories';
 import { Farmer, FarmerSummary } from '../../Core/Entities/Farmer';
 import { MilkCollection, RateChart, LedgerEntry, ShiftSummary } from '../../Core/Entities/Collection';
 import { MilkSale, Customer, User, CustomerPayment } from '../../Core/Entities/Sale';
-import { LoginAudit } from '../../Core/Entities/Audit';
+import { LoginAudit, ActivityLog } from '../../Core/Entities/Audit';
 import { dbManager } from '../Persistence/Mongo/DatabaseManager';
 import { getDatabaseId } from '../../Core/RequestContext';
 
@@ -499,5 +499,34 @@ export class MongoLoginAuditRepository implements ILoginAuditRepository {
     const model = await dbManager.getLoginAuditModel(this.SUPERADMIN_DB);
     const docs = await model.find({ userId }).sort({ loginAt: -1 });
     return docs.map(doc => mapDoc<LoginAudit>(doc));
+  }
+}
+
+// --- Activity Log Repository ---
+export class MongoActivityLogRepository implements IActivityLogRepository {
+  private readonly SUPERADMIN_DB = 'dugdhaset.superadmin';
+
+  async create(log: Omit<ActivityLog, 'id'>): Promise<ActivityLog> {
+    const model = await dbManager.getActivityLogModel(this.SUPERADMIN_DB);
+    const doc = await model.create(log);
+    return mapDoc<ActivityLog>(doc);
+  }
+
+  async getAll(limit: number = 100): Promise<ActivityLog[]> {
+    const model = await dbManager.getActivityLogModel(this.SUPERADMIN_DB);
+    const docs = await model.find().sort({ timestamp: -1 }).limit(limit);
+    return docs.map(doc => mapDoc<ActivityLog>(doc));
+  }
+
+  async getByUserId(userId: string): Promise<ActivityLog[]> {
+    const model = await dbManager.getActivityLogModel(this.SUPERADMIN_DB);
+    const docs = await model.find({ userId }).sort({ timestamp: -1 });
+    return docs.map(doc => mapDoc<ActivityLog>(doc));
+  }
+
+  async getByAction(action: string): Promise<ActivityLog[]> {
+    const model = await dbManager.getActivityLogModel(this.SUPERADMIN_DB);
+    const docs = await model.find({ action }).sort({ timestamp: -1 });
+    return docs.map(doc => mapDoc<ActivityLog>(doc));
   }
 }

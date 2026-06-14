@@ -336,16 +336,6 @@ export default function CollectionEntry() {
 
   return (
     <div className="space-y-8">
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-white/50 dark:bg-stone-950/50 backdrop-blur-[2px] z-[100] flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-4">
-            <RefreshCw className="w-10 h-10 text-stone-900 dark:text-white animate-spin" />
-            <p className="text-sm font-bold text-stone-900 dark:text-white uppercase tracking-widest">Processing...</p>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>

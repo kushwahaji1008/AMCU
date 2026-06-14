@@ -98,13 +98,23 @@ The application uses a `databaseId` to isolate data between different dairies.
 
 If you see the error `535-5.7.8 Username and Password not accepted`, it means Google is rejecting your login.
 
-### Solution: Use a Google App Password
+### solution: Use a Google App Password
 1.  **Enable 2-Step Verification** in your [Google Account Security settings](https://myaccount.google.com/security).
 2.  Go to [App Passwords](https://myaccount.google.com/apppasswords).
 3.  Select **Mail** and **Other (DugdhaSetu)**, then click **Generate**.
 4.  Copy the **16-character code** (e.g. `abcd efgh ijkl mnop`).
 5.  Go to **Settings > Secrets** in AI Studio and update `EMAIL_PASS` with this code (remove spaces).
 6.  Ensure `EMAIL_USER` is your full Gmail address.
+
+## 📱 Mobile App (Android)
+
+When building or running the Android app, the backend API URL must be explicitly defined because relative paths (like `/api`) do not work on native devices.
+
+1.  Go to **Settings > Secrets** in AI Studio.
+2.  Add a secret named `VITE_API_URL`.
+3.  Set the value to your **Shared App URL** followed by `/api`.
+    - Example: `https://ais-pre-your-app-id.asia-east1.run.app/api`
+4.  Re-build your Android app.
 
 ### Diagnostic Tool
 You can test your email configuration by visiting:
