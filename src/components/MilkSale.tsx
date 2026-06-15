@@ -139,7 +139,10 @@ export const MilkSale: React.FC = () => {
       // even if something happens with the underlying plugin
       setTimeout(() => {
         if (customerForSms && customerForSms.mobile) {
-          const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Mode: ${payload.paymentMode}. - DugdhaSetu`;
+          const todayDue = payload.paymentMode === 'Credit' ? payload.amount : 0;
+          const totalDue = (customerForSms.balance || 0) + todayDue;
+          const notesStr = payload.notes ? ` (Note: ${payload.notes})` : '';
+          const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Today Due: Rs.${todayDue.toFixed(2)}, Total Due: Rs.${totalDue.toFixed(2)}.${notesStr} - DugdhaSetu`;
           smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
         }
       }, 500);

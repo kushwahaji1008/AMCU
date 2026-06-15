@@ -106,7 +106,11 @@ const withFallback = async (
 
   const res = await offlineCall();
   if (onlineQueueTask) {
-    await offlineService.queueTask(onlineQueueTask.type, onlineQueueTask.payload);
+    const tempId = res?.id || res?._id || res?.data?.id || res?.data?._id;
+    const enrichedPayload = (tempId && onlineQueueTask.payload && typeof onlineQueueTask.payload === 'object')
+      ? { ...onlineQueueTask.payload, id: tempId }
+      : onlineQueueTask.payload;
+    await offlineService.queueTask(onlineQueueTask.type, enrichedPayload);
   }
   return { data: res, isOffline: true };
 };
@@ -386,8 +390,8 @@ export const saleApi = {
   },
   getCustomerHistory: async (customerId: string) => {
     if (!isNativeApp()) return api.get(`/sales/customer/${customerId}`);
-    // Combine sales and payments for comprehensive ledger in offline mode if possible
-    return api.get(`/sales/customer/${customerId}`);
+    const docs = await offlineService.getCustomerHistoryOffline(customerId);
+    return { data: docs };
   },
   recordPayment: async (data: any) => {
     return withFallback(
@@ -396,8 +400,7 @@ export const saleApi = {
         if (isNativeApp()) await db.customerPayments.put({ ...res.data, id: res.data.id || res.data._id });
         return res;
       },
-      async () => await offlineService.recordCustomerPaymentOffline(data),
-      { type: 'RECORD_CUSTOMER_PAYMENT', payload: data }
+      async () => await offlineService.recordCustomerPaymentOffline(data)
     );
   }
 };

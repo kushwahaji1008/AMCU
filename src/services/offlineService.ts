@@ -286,6 +286,7 @@ class OfflineService {
       await this.syncCollection('shifts', '/shifts/recent?limit=30');
       await this.syncCollection('sales_customers', '/customers');
       await this.syncCollection('sales_records', '/sales');
+      await this.syncCollection('customer_payments', '/customer-payments');
       await this.syncCollection('rates', '/rates');
       await this.syncSettings();
       await this.syncCollection('ledgers', '/ledger');
@@ -457,8 +458,32 @@ class OfflineService {
     const roundedRate = Math.round((payload.rate || 0) * 100) / 100;
     const roundedAmount = Math.round((payload.amount || payload.quantity * roundedRate || 0) * 100) / 100;
     
-    // Simulate message sending
-    const messageStatus = await this.sendSaleMessage(payload.customerMobile, payload.customerName, payload.quantity, roundedAmount, payload.notes);
+    let totalDue = roundedAmount;
+    let todayDue = payload.paymentMode === 'Credit' ? roundedAmount : 0;
+    
+    try {
+      const customer = await realmInstance.objectForPrimaryKey<any>('sales_customers', payload.customerId);
+      if (customer) {
+        const currentBalance = customer.balance || 0;
+        const updatedBalance = currentBalance + todayDue;
+        totalDue = updatedBalance;
+        await realmInstance.write(() => {
+          customer.balance = updatedBalance;
+        });
+      }
+    } catch (err) {
+      console.warn('Could not update customer offline balance:', err);
+    }
+
+    // Simulate message sending with today's due, total due, and short notes
+    const messageStatus = await this.sendSaleMessage(
+      payload.customerMobile,
+      payload.customerName,
+      payload.quantity,
+      todayDue,
+      totalDue,
+      payload.notes
+    );
     
     const doc = {
       ...payload,
@@ -475,8 +500,9 @@ class OfflineService {
     return doc;
   }
 
-  private async sendSaleMessage(mobile: string, name: string, qty: number, amount: number, notes?: string) {
-    console.log(`[SIMULATED SMS] To: ${mobile} (${name}), Msg: Your milk purchase of ${qty}L for ₹${amount} has been recorded. Note: ${notes || 'N/A'}`);
+  private async sendSaleMessage(mobile: string, name: string, qty: number, todayDue: number, totalDue: number, notes?: string) {
+    const notesStr = notes ? ` (${notes})` : '';
+    console.log(`[SIMULATED SMS] To: ${mobile} (${name}), Msg: Milk Purchase: ${qty}L recorded. Today Due: ₹${todayDue}, Total Due: ₹${totalDue}${notesStr}. Thank you!`);
     return 'Sent';
   }
 
@@ -556,6 +582,32 @@ class OfflineService {
     await realmInstance.write(() => realmInstance.create('customer_payments', doc, 'all'));
     await this.queueTask('RECORD_CUSTOMER_PAYMENT', doc);
     return doc;
+  }
+
+  async getCustomerHistoryOffline(customerId: string): Promise<any[]> {
+    if (!isNativeApp()) return [];
+    try {
+      const sales = await realmInstance.objects<any>('sales_records');
+      const payments = await realmInstance.objects<any>('customer_payments');
+      
+      const filteredSales = sales.filter(s => s.customerId === customerId);
+      const filteredPayments = payments.filter(p => p.customerId === customerId);
+
+      const history = [
+        ...filteredSales.map(s => ({ ...s, entryType: 'sale' })),
+        ...filteredPayments.map(p => ({ 
+          ...p, 
+          entryType: 'payment',
+          // Ensure we have a date field for sorting
+          date: p.date || p.timestamp || p.createdAt 
+        }))
+      ];
+
+      return history.sort((a, b) => new Date(b.date || b.timestamp || b.createdAt).getTime() - new Date(a.date || a.timestamp || a.createdAt).getTime());
+    } catch (e) {
+      console.error('Failed to get customer offline history', e);
+      return [];
+    }
   }
 
   async getUsers(): Promise<any[]> {
