@@ -74,35 +74,10 @@ const withFallback = async (
   offlineCall: () => Promise<any>,
   onlineQueueTask?: { type: any, payload: any }
 ) => {
-  if (offlineService.isOnline) {
-    try {
-      const res = await onlineCall();
-      if (isNativeApp() && res.data) {
-        // Successful online call, clear corresponding cache if any
-        if (onlineQueueTask?.type) {
-           // Clear relevant caches on writes (simplistic implementation)
-           apiCache.clear(); 
-        }
-      }
-      return res;
-    } catch (e: any) {
-      // If it's a validation error (400-499), don't fallback to offline, just throw
-      if (e?.response?.status >= 400 && e?.response?.status < 500) throw e;
-      
-      // If server is definitely unreachable or 5xx, or network is flaky
-      console.warn('Online call failed or server unreachable:', e.message);
-
-      // If not native, web users get an error when online call fails and they are offline or server is down
-      if (!isNativeApp()) throw e;
-      
-      // Native fallback
-      console.info('Using native offline fallback for robustness');
-    }
-  }
-
   if (!isNativeApp()) {
-    throw new Error(PLATFORM_ERRORS.OFFLINE_WEB);
+    return await onlineCall();
   }
+
 
   const res = await offlineCall();
   if (onlineQueueTask) {
@@ -194,6 +169,23 @@ export const farmerApi = {
     );
   },
   getSummary: async (id: string) => {
+    if (!isNativeApp()) {
+      const summaryRes = await api.get(`/reports/farmer/${id}`);
+      const collectionsRes = await api.get(`/collections/farmer/${id}`).catch(() => ({ data: [] }));
+      const fCollections = collectionsRes.data || [];
+      const totalMilk = summaryRes.data?.totalMilkSupplied || 0;
+      const totalAmount = summaryRes.data?.totalEarnings || 0;
+      const avgFat = fCollections.length ? fCollections.reduce((sum: number, c: any) => sum + (c.fat || 0) * (c.quantity || 0), 0) / (totalMilk || 1) : 0;
+      return {
+        data: {
+          totalMilk,
+          totalAmount,
+          avgFat,
+          collectionsCount: fCollections.length,
+          recentCollections: fCollections.slice(0, 5)
+        }
+      };
+    }
     // Summary is largely computed from local collections for speed/capability
     const collections = await db.collections.allDocs();
     const fCollections = collections.rows
@@ -514,6 +506,7 @@ export const rateApi = {
     );
   },
   getSettings: async () => {
+    if (!isNativeApp()) return api.get('/rates/settings');
     const settings = await offlineService.getRateSettings();
     return { data: settings };
   },
