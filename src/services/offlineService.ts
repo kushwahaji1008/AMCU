@@ -214,6 +214,12 @@ class OfflineService {
         await this.handleCreateSyncResult('sales_customers', task.payload.id, res.data);
         break;
       }
+      case 'UPDATE_CUSTOMER':
+        await api.put(`/customers/${task.payload.id}`, task.payload.data);
+        break;
+      case 'DELETE_CUSTOMER':
+        await api.delete(`/customers/${task.payload}`);
+        break;
       case 'RECORD_SALE': {
         const res = await api.post('/sales', task.payload);
         await this.handleCreateSyncResult('sales_records', task.payload.id, res.data);
@@ -408,7 +414,9 @@ class OfflineService {
   async getRecentShifts(limit: number = 10): Promise<any[]> {
     if (!isNativeApp()) return [];
     const items = await realmInstance.objects<any>('shifts');
-    return items.slice(0, limit);
+    return [...items]
+      .sort((a, b) => new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime())
+      .slice(0, limit);
   }
 
   async getShiftSummaryOffline(dateStr: string, shift: string) {
@@ -475,12 +483,11 @@ class OfflineService {
       console.warn('Could not update customer offline balance:', err);
     }
 
-    // Simulate message sending with today's due, total due, and short notes
+    // Simulate message sending with total due and short notes
     const messageStatus = await this.sendSaleMessage(
       payload.customerMobile,
       payload.customerName,
       payload.quantity,
-      todayDue,
       totalDue,
       payload.notes
     );
@@ -500,16 +507,18 @@ class OfflineService {
     return doc;
   }
 
-  private async sendSaleMessage(mobile: string, name: string, qty: number, todayDue: number, totalDue: number, notes?: string) {
+  private async sendSaleMessage(mobile: string, name: string, qty: number, totalDue: number, notes?: string) {
     const notesStr = notes ? ` (${notes})` : '';
-    console.log(`[SIMULATED SMS] To: ${mobile} (${name}), Msg: Milk Purchase: ${qty}L recorded. Today Due: ₹${todayDue}, Total Due: ₹${totalDue}${notesStr}. Thank you!`);
+    console.log(`[SIMULATED SMS] To: ${mobile} (${name}), Msg: Milk Purchase: ${qty}L recorded. Total Due: ₹${totalDue}${notesStr}. Thank you!`);
     return 'Sent';
   }
 
   async getRecentSales(limit: number = 20): Promise<any[]> {
     if (!isNativeApp()) return [];
     const items = await realmInstance.objects<any>('sales_records');
-    return items.slice(0, limit).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return [...items]
+      .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
+      .slice(0, limit);
   }
 
   async getSalesByDate(dateStr: string) {

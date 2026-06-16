@@ -54,10 +54,9 @@ export class SaleService {
     
     const customer = await this.customerRepo.getById(dto.customerId);
     const newBalance = customer?.balance || 0;
-    const todayDue = dto.paymentMode === 'Credit' ? amount : 0;
     const notesStr = dto.notes ? ` (${dto.notes})` : '';
 
-    console.log(`[BACKEND SMS SIMULATION] To: ${dto.customerMobile}, Msg: Hello ${dto.customerName}, milk purchase of ${dto.quantity}L recorded. Today Due: ₹${todayDue}, Total Due: ₹${newBalance}${notesStr}. Thank you!`);
+    console.log(`[BACKEND SMS SIMULATION] To: ${dto.customerMobile}, Msg: Hello ${dto.customerName}, milk purchase of ${dto.quantity}L recorded. Total Due: ₹${newBalance}${notesStr}. Thank you!`);
 
     return this.saleRepo.create({
       ...dto,

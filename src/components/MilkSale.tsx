@@ -142,7 +142,7 @@ export const MilkSale: React.FC = () => {
           const todayDue = payload.paymentMode === 'Credit' ? payload.amount : 0;
           const totalDue = (customerForSms.balance || 0) + todayDue;
           const notesStr = payload.notes ? ` (Note: ${payload.notes})` : '';
-          const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Today Due: Rs.${todayDue.toFixed(2)}, Total Due: Rs.${totalDue.toFixed(2)}.${notesStr} - DugdhaSetu`;
+          const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Total Due: Rs.${totalDue.toFixed(2)}.${notesStr} - DugdhaSetu`;
           smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
         }
       }, 500);
@@ -377,7 +377,7 @@ export const MilkSale: React.FC = () => {
 
                 <div className="space-y-4">
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Short Note (Optional)</label>
-                  <input type="text" maxLength={10} placeholder="Max 10 chars" className="w-full px-6 py-4 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl" value={notes} onChange={e => setNotes(e.target.value)} />
+                  <input type="text" maxLength={25} placeholder="Max 25 chars" className="w-full px-6 py-4 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl" value={notes} onChange={e => setNotes(e.target.value)} />
                 </div>
 
                 {quantity && rate && (
