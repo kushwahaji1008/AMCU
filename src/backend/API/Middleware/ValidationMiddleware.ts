@@ -19,7 +19,7 @@ export const validateRegistration = [
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
     .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
     .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
-    .matches(/[0-9]/).withMessage('Password contain at least one number')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
   body('role').isIn(['admin', 'operator']).withMessage('Invalid role'),
   (req: Request, res: Response, next: NextFunction) => {
@@ -55,6 +55,30 @@ export const validateLogin = [
 ];
 
 /**
+ * Validation rules for password updates.
+ * Ensures strong password policy for security.
+ */
+export const validatePasswordUpdate = [
+  body('password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.warn(`[VALIDATION ERROR] Password Update:`, errors.array());
+      return res.status(400).json({ 
+        message: errors.array()[0].msg, 
+        errors: errors.array() 
+      });
+    }
+    next();
+  }
+];
+
+/**
  * Validation rules for creating/updating farmer records.
  */
 export const validateFarmer = [
@@ -78,12 +102,13 @@ export const validateFarmer = [
 
 /**
  * Validation rules for milk collection entry.
+ * Includes FAT and SNF range validation based on milk quality standards.
  */
 export const validateCollection = [
   body('farmerInternalId').notEmpty().withMessage('Farmer record is required'),
-  body('quantity').isFloat({ min: 0.1, max: 1000 }).withMessage('Quantity must be between 0.1 and 1000 kg'),
-  body('fat').isFloat().withMessage('FAT must be a number'),
-  body('snf').isFloat().withMessage('SNF must be a number'),
+  body('quantity').isFloat({ min: 0.1, max: 1000 }).withMessage('Quantity must be between 0.1 and 1000 liters'),
+  body('fat').isFloat({ min: 0, max: 20 }).withMessage('FAT must be a valid number between 0 and 20'),
+  body('snf').isFloat({ min: 0, max: 15 }).withMessage('SNF must be a valid number between 0 and 15'),
   body('shift').isIn(['Morning', 'Evening']).withMessage('Shift must be Morning or Evening'),
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -94,6 +119,7 @@ export const validateCollection = [
     const fat = parseFloat(req.body.fat);
     const snf = parseFloat(req.body.snf);
 
+    // Validate FAT and SNF ranges according to milk quality standards
     let isValid = false;
     if (fat >= 3.0 && fat <= 5.9) {
       if (snf >= 8.0 && snf <= 8.5) {
@@ -106,7 +132,9 @@ export const validateCollection = [
     }
 
     if (!isValid) {
-      return res.status(400).json({ message: 'Invalid fat snf input' });
+      return res.status(400).json({ 
+        message: 'Invalid FAT/SNF combination. FAT must be 3.0-5.9 with SNF 8.0-8.5, OR FAT 6.0-10.0 with SNF 8.3-9.0' 
+      });
     }
 
     next();

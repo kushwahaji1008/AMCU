@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Search, Trash2, Shield, UserCheck, UserX, Mail, Key } from 'lucide-react';
+import { Users, Plus, Search, Trash2, Shield, UserCheck, UserX, Mail, Key, AlertCircle } from 'lucide-react';
 import { useAuth, UserProfile } from '../AuthContext';
 import { userApi } from '../services/api';
 import { cn } from '../lib/utils';
@@ -25,20 +25,53 @@ export default function UserManagement() {
   const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
   const [resetPassValue, setResetPassValue] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+  /**
+   * Validates password strength according to requirements.
+   * Returns array of validation errors (empty if valid).
+   */
+  const validatePassword = (password: string): string[] => {
+    const errors: string[] = [];
+    
+    if (password.length < 8) {
+      errors.push('Password must be at least 8 characters long');
+    }
+    if (!/[A-Z]/.test(password)) {
+      errors.push('Password must contain at least one uppercase letter');
+    }
+    if (!/[a-z]/.test(password)) {
+      errors.push('Password must contain at least one lowercase letter');
+    }
+    if (!/[0-9]/.test(password)) {
+      errors.push('Password must contain at least one number');
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push('Password must contain at least one special character');
+    }
+    
+    return errors;
+  };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetPasswordUser) return;
-    if (resetPassValue.length < 4) {
-      toast.error('Password must be at least 4 characters long.');
+    
+    // Validate password strength
+    const errors = validatePassword(resetPassValue);
+    if (errors.length > 0) {
+      setPasswordErrors(errors);
+      toast.error('Password does not meet requirements');
       return;
     }
+
     setResetLoading(true);
     try {
       await userApi.update(resetPasswordUser.uid, { password: resetPassValue });
       toast.success(`Password for ${resetPasswordUser.displayName} reset successfully!`);
       setResetPasswordUser(null);
       setResetPassValue('');
+      setPasswordErrors([]);
     } catch (err) {
       handleError(err, 'Failed to reset password');
     } finally {
@@ -89,12 +122,24 @@ export default function UserManagement() {
       return;
     }
 
+    // Validate password strength
+    if (!newUser.password) {
+      toast.error('Password is required');
+      return;
+    }
+
+    const passwordErrors = validatePassword(newUser.password);
+    if (passwordErrors.length > 0) {
+      toast.error('Password does not meet requirements: ' + passwordErrors[0]);
+      return;
+    }
+
     setLoading(true);
     try {
       const userData = {
         username: newUser.username,
         email: newUser.username,
-        password: newUser.password || 'User@123', // Default password
+        password: newUser.password, // Require password - no default
         role: profile.role === 'super_admin' && activeTab === 'Admins' ? 'admin' : 'operator',
         dairyId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '') : profile.dairyId,
         databaseId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '(default)') : profile.databaseId,
@@ -196,7 +241,7 @@ export default function UserManagement() {
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wider">Password</label>
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wider">Password *</label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                 <input
@@ -208,6 +253,7 @@ export default function UserManagement() {
                   placeholder="••••••••"
                 />
               </div>
+              <p className="text-xs text-stone-400 mt-1">Min 8 chars: uppercase, lowercase, number, special char</p>
             </div>
             {profile?.role === 'super_admin' && activeTab === 'Admins' && (
               <div className="space-y-1">
@@ -357,7 +403,7 @@ export default function UserManagement() {
                 ))}
                 {filteredUsers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-stone-400 dark:text-stone-500 italic text-sm">
+                    <td colSpan={5} className="py-12 text-center text-stone-400 dark:text-stone-500 italic text-sm">
                       No users found
                     </td>
                   </tr>
@@ -377,7 +423,7 @@ export default function UserManagement() {
               </div>
               <button 
                 type="button"
-                onClick={() => { setResetPasswordUser(null); setResetPassValue(''); }} 
+                onClick={() => { setResetPasswordUser(null); setResetPassValue(''); setPasswordErrors([]); }} 
                 className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 transition-colors"
                 title="Close"
               >
@@ -386,7 +432,7 @@ export default function UserManagement() {
             </div>
             
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-6">
-              Set a new password for <strong className="text-stone-800 dark:text-white">{resetPasswordUser.displayName}</strong> ({resetPasswordUser.email}). The user will need to use this new password during their next login.
+              Set a new password for <strong className="text-stone-800 dark:text-white">{resetPasswordUser.displayName}</strong> ({resetPasswordUser.email}). The user will need to use this new password on their next login.
             </p>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
@@ -396,29 +442,78 @@ export default function UserManagement() {
                   <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                   <input
                     required
-                    minLength={4}
-                    type="text"
+                    type="password"
                     value={resetPassValue}
-                    onChange={(e) => setResetPassValue(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white focus:border-stone-300 dark:focus:border-stone-600"
+                    onChange={(e) => {
+                      setResetPassValue(e.target.value);
+                      // Real-time validation as user types
+                      if (e.target.value) {
+                        setPasswordErrors(validatePassword(e.target.value));
+                      } else {
+                        setPasswordErrors([]);
+                      }
+                    }}
+                    className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white focus:border-stone-300"
                     placeholder="Enter new strong password"
                   />
                 </div>
               </div>
 
+              {/* Password Requirements Display */}
+              {resetPassValue && (
+                <div className="bg-stone-50 dark:bg-stone-800/50 p-4 rounded-lg border border-stone-200 dark:border-stone-700 space-y-2">
+                  <p className="text-xs font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-2">
+                    <AlertCircle size={14} />
+                    Password Requirements:
+                  </p>
+                  <ul className="text-xs space-y-1">
+                    <li className={cn(
+                      "flex items-center gap-2",
+                      resetPassValue.length >= 8 ? "text-green-600 dark:text-green-400" : "text-stone-500 dark:text-stone-400"
+                    )}>
+                      {resetPassValue.length >= 8 ? '✓' : '○'} At least 8 characters
+                    </li>
+                    <li className={cn(
+                      "flex items-center gap-2",
+                      /[A-Z]/.test(resetPassValue) ? "text-green-600 dark:text-green-400" : "text-stone-500 dark:text-stone-400"
+                    )}>
+                      {/[A-Z]/.test(resetPassValue) ? '✓' : '○'} One uppercase letter (A-Z)
+                    </li>
+                    <li className={cn(
+                      "flex items-center gap-2",
+                      /[a-z]/.test(resetPassValue) ? "text-green-600 dark:text-green-400" : "text-stone-500 dark:text-stone-400"
+                    )}>
+                      {/[a-z]/.test(resetPassValue) ? '✓' : '○'} One lowercase letter (a-z)
+                    </li>
+                    <li className={cn(
+                      "flex items-center gap-2",
+                      /[0-9]/.test(resetPassValue) ? "text-green-600 dark:text-green-400" : "text-stone-500 dark:text-stone-400"
+                    )}>
+                      {/[0-9]/.test(resetPassValue) ? '✓' : '○'} One number (0-9)
+                    </li>
+                    <li className={cn(
+                      "flex items-center gap-2",
+                      /[!@#$%^&*(),.?":{}|<>]/.test(resetPassValue) ? "text-green-600 dark:text-green-400" : "text-stone-500 dark:text-stone-400"
+                    )}>
+                      {/[!@#$%^&*(),.?":{}|<>]/.test(resetPassValue) ? '✓' : '○'} One special character (!@#$%^&*...)
+                    </li>
+                  </ul>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setResetPasswordUser(null); setResetPassValue(''); }}
+                  onClick={() => { setResetPasswordUser(null); setResetPassValue(''); setPasswordErrors([]); }}
                   disabled={resetLoading}
-                  className="px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-medium hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors text-sm"
+                  className="px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-medium hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={resetLoading || !resetPassValue}
-                  className="px-5 py-2.5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors text-sm flex items-center gap-2"
+                  disabled={resetLoading || passwordErrors.length > 0}
+                  className="px-5 py-2.5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {resetLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
