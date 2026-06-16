@@ -487,7 +487,13 @@ app.post('/api/users', authenticate, authorize(['admin', 'super_admin']), async 
 
 app.put('/api/users/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res, next) => {
   try {
-    const user = await userRepo.update(req.params.id, req.body);
+    const updateData = { ...req.body };
+    if (updateData.password) {
+      const bcrypt = await import('bcryptjs');
+      updateData.passwordHash = await bcrypt.default.hash(updateData.password, 10);
+      delete updateData.password;
+    }
+    const user = await userRepo.update(req.params.id, updateData);
     res.json(user);
   } catch (error) { next(error); }
 });

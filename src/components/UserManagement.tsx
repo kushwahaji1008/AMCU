@@ -22,6 +22,30 @@ export default function UserManagement() {
     databaseId: '', // For SuperAdmin to assign a specific database
   });
 
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
+  const [resetPassValue, setResetPassValue] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordUser) return;
+    if (resetPassValue.length < 4) {
+      toast.error('Password must be at least 4 characters long.');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await userApi.update(resetPasswordUser.uid, { password: resetPassValue });
+      toast.success(`Password for ${resetPasswordUser.displayName} reset successfully!`);
+      setResetPasswordUser(null);
+      setResetPassValue('');
+    } catch (err) {
+      handleError(err, 'Failed to reset password');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   const fetchUsers = async () => {
     if (!profile) return;
     setLoading(true);
@@ -300,7 +324,16 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex justify-end gap-2">
+                        {profile?.role === 'super_admin' && (
+                          <button 
+                            onClick={() => setResetPasswordUser(user)}
+                            className="p-2 text-stone-400 hover:text-amber-500 transition-colors"
+                            title="Reset Password"
+                          >
+                            <Key size={18} />
+                          </button>
+                        )}
                         <button 
                           onClick={() => toggleUserStatus(user)}
                           className={cn(
@@ -334,6 +367,66 @@ export default function UserManagement() {
           </div>
         </div>
       </div>
+      {resetPasswordUser && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-md p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <Key className="text-amber-500 w-5 h-5 animate-pulse" />
+                <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Reset Password</h2>
+              </div>
+              <button 
+                type="button"
+                onClick={() => { setResetPasswordUser(null); setResetPassValue(''); }} 
+                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 transition-colors"
+                title="Close"
+              >
+                <UserX size={20} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-stone-500 dark:text-stone-400 mb-6">
+              Set a new password for <strong className="text-stone-800 dark:text-white">{resetPasswordUser.displayName}</strong> ({resetPasswordUser.email}). The user will need to use this new password during their next login.
+            </p>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-1">New Password</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                  <input
+                    required
+                    minLength={4}
+                    type="text"
+                    value={resetPassValue}
+                    onChange={(e) => setResetPassValue(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white focus:border-stone-300 dark:focus:border-stone-600"
+                    placeholder="Enter new strong password"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setResetPasswordUser(null); setResetPassValue(''); }}
+                  disabled={resetLoading}
+                  className="px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl font-medium hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !resetPassValue}
+                  className="px-5 py-2.5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors text-sm flex items-center gap-2"
+                >
+                  {resetLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
