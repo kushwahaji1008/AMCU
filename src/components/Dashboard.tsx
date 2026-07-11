@@ -244,14 +244,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      
-    {/* ===== AD BANNER START ===== */}
-    <div className="glass-card p-4 rounded-[2.5rem]">
-      <script async="async" data-cfasync="false" src="https://pl30309571.effectivecpmnetwork.com/0b7814dca1ed78231bc3fdb19b121245/invoke.js"></script>
-      <div id="container-0b7814dca1ed78231bc3fdb19b121245" className="flex justify-center min-h-[90px]"></div>
-    </div>
-    {/* ===== AD BANNER END ===== */}
-
       {/* Primary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div 
@@ -570,13 +562,7 @@ export default function Dashboard() {
             <Link to="/reports" className="block w-full py-4 text-center text-xs font-bold text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors uppercase tracking-[0.2em]">
               View Collection Report
             </Link>
-            
-    {/* ===== AD BANNER START ===== */}
-    <div className="glass-card p-4 rounded-[2.5rem]">
-      <script async="async" data-cfasync="false" src="https://pl30309571.effectivecpmnetwork.com/0b7814dca1ed78231bc3fdb19b121245/invoke.js"></script>
-      <div id="container-0b7814dca1ed78231bc3fdb19b121245" className="flex justify-center min-h-[90px]"></div>
-    </div>
-    {/* ===== AD BANNER END ===== */}
+
           </div>
         </div>
       </div>
