@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import AdBanner from './AdBanner';
 import { collectionApi, farmerApi, rateApi } from '../services/api';
 import { useAuth } from '../AuthContext';
 import { Farmer, CollectionTransaction, RateChart, RateSettings } from '../types';
@@ -341,7 +342,7 @@ export default function CollectionEntry() {
           <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Milk Collection</h1>
           <p className="text-stone-500 dark:text-stone-400">Record a new milk pour</p>
         </div>
-        
+        <AdBanner/>
         <div className="flex items-center gap-3 bg-white dark:bg-stone-900 p-2 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm">
           <div className="flex flex-col">
             <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider px-2">Date</label>
