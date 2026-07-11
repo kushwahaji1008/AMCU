@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import AdBanner from './AdBanner';
 import { useLanguage } from '../LanguageContext';
 import { useAuth } from '../AuthContext';
 import { CollectionTransaction } from '../types';
@@ -243,7 +244,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
+      
+      <AdBanner/>
+      
       {/* Primary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div 
