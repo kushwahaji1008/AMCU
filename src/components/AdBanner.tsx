@@ -23,6 +23,11 @@ export default function AdBanner() {
 
   return (
     <div className="w-full h-[50px] bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.05)] overflow-hidden">
+      
+      <div className="text-center text-[12px] text-gray-500 font-medium py-1 bg-gray-50 border-b border-gray-200">
+        --- Advertisement ---
+      </div>
+      
       <div
         id={CONTAINER_ID}
         className="w-full h-full flex items-center justify-center"
