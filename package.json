@@ -9,6 +9,7 @@
     "build": "vite build",
     "appflow:build": "vite build && npx cap add android && npx cap sync android ",
     "build:android": "vite build && npx cap sync android",
+    "postbuild": "echo Sitemap generated",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "test": "vitest run",
