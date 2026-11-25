@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
-    "appflow:build": "vite build && npx cap add android && node scripts/configure-android.js && npx cap sync android",
+    "appflow:build": "vite build && node scripts/configure-android.js && npx cap sync android",
     "build:android": "vite build && node scripts/configure-android.js && npx cap sync android",
     "postbuild": "echo Sitemap generated",
     "preview": "vite preview",
