@@ -1,108 +1,127 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  HelpCircle, Info, BookOpen, MessageCircle, Mail, Globe, Milk, 
-  Database, RefreshCw, Smartphone, Cpu, ShieldCheck, Wifi, WifiOff,
-  Server, Layers, CheckCircle, Play, AlertTriangle
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  HelpCircle,
+  BookOpen,
+  Milk,
+  Database,
+  RefreshCw,
+  Smartphone,
+  Cpu,
+  Wifi,
+  WifiOff,
+  CheckCircle,
+  Play,
+  AlertTriangle,
+  MessageSquare,
+  GitMerge,
+  Trash2,
+  X,
+  Globe,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { db, offlineService } from '../services/offlineService';
+import { offlineService } from '../services/offlineService';
 import { realmInstance } from '../services/realm';
+import { isNativeApp } from '../services/platform';
+import {
+  LocalSyncConflict,
+  PersistedSmsRecord,
+  PersistedSyncTask,
+  sqliteDb,
+} from '../services/sqliteDatabase';
+import { SimInfo, smsService } from '../services/smsService';
 import { toast } from 'sonner';
 
 export default function HelpAbout() {
+  const isNative = isNativeApp();
   const [activeTab, setActiveTab] = useState<'support' | 'diagnostics'>('support');
   const [dbStats, setDbStats] = useState({
     farmers: 0,
     collections: 0,
     shifts: 0,
     payments: 0,
-    queuedTasks: 0
+    queuedTasks: 0,
+    failedTasks: 0,
+    conflicts: 0,
+    queuedSms: 0,
+    pendingAudit: 0,
   });
-  const [queuedItems, setQueuedItems] = useState<any[]>([]);
+  const [queuedItems, setQueuedItems] = useState<PersistedSyncTask[]>([]);
+  const [conflicts, setConflicts] = useState<LocalSyncConflict[]>([]);
+  const [smsHistory, setSmsHistory] = useState<PersistedSmsRecord[]>([]);
+  const [availableSims, setAvailableSims] = useState<SimInfo[]>([]);
+  const [preferredSim, setPreferredSim] = useState<number>(() => smsService.getPreferredSimSlot());
+  const [mergingConflict, setMergingConflict] = useState<LocalSyncConflict | null>(null);
+  const [mergedJson, setMergedJson] = useState('');
   const [loading, setLoading] = useState(false);
   const [networkState, setNetworkState] = useState(offlineService.isOnline);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const triggerWebBackupRestore = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (event: any) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
+  const fetchDbStats = useCallback(async () => {
+    if (!sqliteDb.isEnabled()) {
+      setLoading(false);
+      return;
+    }
 
-      const toastId = toast.loading('Reading and importing backup JSON file...');
-      try {
-        const reader = new FileReader();
-        reader.onload = async (e: any) => {
-          try {
-            const content = e.target.result;
-            const success = await realmInstance.restoreBackupFromJSON(content);
-            if (success) {
-              await fetchDbStats();
-              toast.success('Database restored successfully from local file backup!', { id: toastId });
-            } else {
-              toast.error('Failed to parse the backup JSON file.', { id: toastId });
-            }
-          } catch (err: any) {
-            toast.error(`Restore error: ${err.message || String(err)}`, { id: toastId });
-          }
-        };
-        reader.readAsText(file);
-      } catch (err: any) {
-        toast.error(`Failed to read backup file: ${err.message || String(err)}`, { id: toastId });
-      }
-    };
-    input.click();
-  };
-
-  const fetchDbStats = async () => {
     try {
       setLoading(true);
-      const farmersRes = await db.farmers.allDocs();
-      const collectionsRes = await db.collections.allDocs();
-      const shiftsRes = await db.shifts.allDocs();
-      const paymentsRes = await db.payments.allDocs();
-      const queueRes = await db.syncQueue.allDocs();
+      await sqliteDb.init();
+      const [stats, tasks, unresolvedConflicts, smsRows, sims] = await Promise.all([
+        sqliteDb.getDiagnosticsStats(),
+        sqliteDb.getAllSyncTasks(),
+        sqliteDb.getConflicts('unresolved'),
+        sqliteDb.getSmsQueue(40),
+        smsService.getAvailableSims(),
+      ]);
 
       setDbStats({
-        farmers: farmersRes.rows.length,
-        collections: collectionsRes.rows.length,
-        shifts: shiftsRes.rows.length,
-        payments: paymentsRes.rows.length,
-        queuedTasks: queueRes.rows.length
+        farmers: stats.counts.farmers || 0,
+        collections: stats.counts.collections || 0,
+        shifts: stats.counts.shifts || 0,
+        payments: (stats.counts.ledgers || 0) + (stats.counts.payments || 0),
+        queuedTasks: stats.pendingSyncCount,
+        failedTasks: stats.failedSyncCount,
+        conflicts: stats.conflictCount,
+        queuedSms: stats.queuedSmsCount + stats.failedSmsCount,
+        pendingAudit: stats.pendingAuditCount,
       });
-
-      setQueuedItems(queueRes.rows.map(r => r.doc));
+      setQueuedItems(tasks);
+      setConflicts(unresolvedConflicts);
+      setSmsHistory(smsRows);
+      setAvailableSims(sims);
     } catch (err) {
-      console.error('Failed to query local database metrics:', err);
+      console.error('Failed to query local SQLite diagnostics:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDbStats();
-    
-    // Check network state periodically
-    const interval = setInterval(() => {
-      setNetworkState(offlineService.isOnline);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    return offlineService.subscribeSyncState((snap) => {
+      setNetworkState(snap.isOnline);
+      setIsSyncing(snap.isSyncing);
+    });
+  }, [fetchDbStats]);
 
   const handleProcessSync = async () => {
     if (!offlineService.isOnline) {
-      toast.error('Cannot sync: Device is currently ofline. Connect to internet and try again.');
+      toast.error('Cannot sync: Device is currently offline. Connect to internet and try again.');
       return;
     }
-    
+
     setIsSyncing(true);
-    toast.loading('Processing pending sync tasks...', { id: 'sync-progress' });
+    toast.loading('Synchronizing pending queues and logs...', { id: 'sync-progress' });
     try {
-      await offlineService.processSyncQueue();
+      const res = await offlineService.triggerSyncCycle('manual');
       await fetchDbStats();
-      toast.success('Sync queue processed successfully', { id: 'sync-progress' });
+      if (res.conflicts > 0) {
+        toast.warning(
+          `Synced ${res.synced} item(s). ${res.conflicts} conflict(s) require manual resolution below.`,
+          { id: 'sync-progress' }
+        );
+      } else {
+        toast.success(`Sync completed (${res.synced} pushed, ${res.failed} remaining).`, { id: 'sync-progress' });
+      }
     } catch (e: any) {
       toast.error(`Sync failed: ${e.message || String(e)}`, { id: 'sync-progress' });
     } finally {
@@ -117,11 +136,11 @@ export default function HelpAbout() {
     }
 
     setIsSyncing(true);
-    toast.loading('Downloading fresh database schemas from server...', { id: 'resync-progress' });
+    toast.loading('Refreshing local SQLite cache from server...', { id: 'resync-progress' });
     try {
-      await offlineService.syncFromServer();
+      await offlineService.syncFromServer(true);
       await fetchDbStats();
-      toast.success('Localized database is completely up to date with server!', { id: 'resync-progress' });
+      toast.success('Local SQLite storage updated cleanly from server!', { id: 'resync-progress' });
     } catch (e: any) {
       toast.error(`Download sync failed: ${e.message || String(e)}`, { id: 'resync-progress' });
     } finally {
@@ -129,27 +148,63 @@ export default function HelpAbout() {
     }
   };
 
+  const handleResolveConflict = async (
+    conflict: LocalSyncConflict,
+    resolution: 'keep_server' | 'apply_local' | 'merged',
+    mergedData?: Record<string, any>
+  ) => {
+    try {
+      await offlineService.resolveConflictOffline(conflict.id, resolution, mergedData);
+      toast.success(`Conflict resolved (${resolution.replace('_', ' ')}).`);
+      setMergingConflict(null);
+      await fetchDbStats();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to resolve conflict');
+    }
+  };
+
+  const handleDiscardTask = async (taskId: string) => {
+    if (!window.confirm('Discard this failed sync item? It has not been saved to the server.')) return;
+    await sqliteDb.removeSyncTask(taskId);
+    await offlineService.refreshSyncStatus();
+    await fetchDbStats();
+    toast.success('Sync queue task removed.');
+  };
+
+  const handleRetrySms = async () => {
+    try {
+      const count = await smsService.retryQueuedSms(true);
+      await fetchDbStats();
+      toast.success(count > 0 ? `Processed ${count} queued SMS item(s).` : 'No pending SMS items to retry.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to retry SMS queue');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Help, About & Diagnostics</h1>
-          <p className="text-stone-500 dark:text-stone-400">View app version, check support, and manage local native storage</p>
+          <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">
+            Help, About &amp; Diagnostics
+          </h1>
+          <p className="text-stone-500 dark:text-stone-400">
+            View app version, platform architecture, SQLite sync queue, conflicts &amp; SMS logs
+          </p>
         </div>
 
-        {/* Tab Switching controls */}
         <div className="flex bg-stone-100 dark:bg-stone-800 p-1 rounded-2xl border border-stone-200/50 dark:border-stone-700/50 self-start">
           <button
             onClick={() => setActiveTab('support')}
             className={cn(
-              "px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
-              activeTab === 'support' 
-                ? "bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-sm" 
-                : "text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white"
+              'px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2',
+              activeTab === 'support'
+                ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-sm'
+                : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white'
             )}
           >
             <HelpCircle size={16} />
-            Support & FAQs
+            Support &amp; FAQs
           </button>
           <button
             onClick={() => {
@@ -157,14 +212,14 @@ export default function HelpAbout() {
               fetchDbStats();
             }}
             className={cn(
-              "px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
-              activeTab === 'diagnostics' 
-                ? "bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-sm" 
-                : "text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white"
+              'px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2',
+              activeTab === 'diagnostics'
+                ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-sm'
+                : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white'
             )}
           >
             <Database size={16} />
-            Version & Diagnostics
+            Sync &amp; Diagnostics
           </button>
         </div>
       </div>
@@ -178,34 +233,60 @@ export default function HelpAbout() {
                   <Milk className="text-white dark:text-stone-900" size={24} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">DugdhaSetu Enterprise</h2>
-                  <p className="text-sm text-stone-500 dark:text-stone-400">Capacitor Android Support Edition</p>
+                  <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
+                    DugdhaSetu Enterprise
+                  </h2>
+                  <p className="text-sm text-stone-500 dark:text-stone-400">
+                    {isNative ? 'Capacitor Android Offline-First APK' : 'Online Web Application'}
+                  </p>
                 </div>
               </div>
               <p className="text-sm text-stone-600 dark:text-stone-400 leading-relaxed">
-                DugdhaSetu is a modern, high-precision, and offline-first milk collection unit management application designed specifically for rural societies. Running natively on Android via Capacitor, it includes SQLite emulation via Dexie schemas, allowing operators to fully process collections with absolute local reliability without continuous internet access.
+                DugdhaSetu is built specifically for automated milk collection units. The Android APK runs with a real persistent Capacitor SQLite database, atomic transactions, idempotent WorkManager background synchronization, and SIM SMS queue handling. Website browsers run strictly online directly against the central cloud API.
               </p>
               <div className="grid grid-cols-2 gap-4 pt-4">
                 <div className="p-4 bg-stone-50 dark:bg-stone-800/50 rounded-2xl border border-stone-100 dark:border-stone-800">
-                  <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">License Type</p>
-                  <p className="text-sm font-medium text-stone-900 dark:text-stone-200 mt-1">Enterprise AMCU Edition</p>
+                  <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">
+                    Runtime Mode
+                  </p>
+                  <p className="text-sm font-medium text-stone-900 dark:text-stone-200 mt-1">
+                    {isNative ? 'Android APK (Offline-First)' : 'Web Browser (Online-Only)'}
+                  </p>
                 </div>
                 <div className="p-4 bg-stone-50 dark:bg-stone-800/50 rounded-2xl border border-stone-100 dark:border-stone-800">
-                  <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">Storage Support</p>
-                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mt-1">IndexedDB / SQLite</p>
+                  <p className="text-xs font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">
+                    Persistence Engine
+                  </p>
+                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mt-1">
+                    {isNative ? 'Capacitor Native SQLite' : 'Direct Server API'}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
-              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Frequently Asked Questions</h2>
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
+                Frequently Asked Questions
+              </h2>
               <div className="space-y-4">
                 {[
-                  { q: 'How does offline mode function in Android?', a: 'DugdhaSetu contains a localized Realm/SQLite emulation database in Android. When you do not have internet, entries are stored safely in your phone\'s internal storage and will auto-sync with the society server as soon as the internet goes online.' },
-                  { q: 'Can a farmer pour milk twice in a shift?', a: 'No. To maintain complete transparency and prevent duplicate entries, the system restricts each single farmer code to exactly one pour transaction per shift (Morning / Evening).' },
-                  { q: 'How are the rates calculated?', a: 'Rates are dynamically looked up from the stored active Rate Chart matching the FAT, SNF, and cattle milk type of the individual cow/buffalo selection.' },
+                  {
+                    q: 'How does offline mode function in the Android APK?',
+                    a: 'The Android APK persists all farmers, collections, sales, and payments inside native Capacitor SQLite with idempotency keys and ordered background synchronization via WorkManager and app-resume hooks.',
+                  },
+                  {
+                    q: 'Why does the website require an internet connection?',
+                    a: 'By architecture design, website browsers always connect directly to the server with no local offline transaction queue so shared computer terminals remain strictly consistent.',
+                  },
+                  {
+                    q: 'What happens if two devices edit the same record while offline?',
+                    a: 'DugdhaSetu tracks record versions and detects conflicts during sync instead of silently overwriting data. Conflicts appear in Sync & Diagnostics for safe resolution.',
+                  },
                 ].map((faq, i) => (
-                  <div key={i} className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100 dark:border-stone-800">
+                  <div
+                    key={i}
+                    className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100 dark:border-stone-800"
+                  >
                     <p className="text-sm font-medium text-stone-900 dark:text-stone-200">{faq.q}</p>
                     <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 leading-relaxed">{faq.a}</p>
                   </div>
@@ -214,315 +295,492 @@ export default function HelpAbout() {
             </div>
           </div>
 
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-              <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white mb-4">Support Contact</h2>
+          <div className="space-y-8">
+            <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
+              <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Quick Guides</h2>
               <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl">
-                  <Mail className="text-stone-400" size={18} />
-                  <span className="text-sm text-stone-600 dark:text-stone-300">support@dugdhasetu.com</span>
+                <div className="flex items-start gap-3">
+                  <BookOpen className="text-stone-400 mt-1" size={18} />
+                  <div>
+                    <p className="text-sm font-medium text-stone-900 dark:text-stone-200">
+                      AMCU User Manual (v{APP_VERSION.split('.').slice(0, 2).join('.')})
+                    </p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
+                      Complete hardware &amp; daily operations guide
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl">
-                  <MessageCircle className="text-stone-400" size={18} />
-                  <span className="text-sm text-stone-600 dark:text-stone-300">+91 99887 76655</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl">
-                  <Globe className="text-stone-400" size={18} />
-                  <span className="text-sm text-stone-600 dark:text-stone-300">www.dugdhasetu.com</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-              <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white mb-4">System Manuals</h2>
-              <div className="space-y-2">
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
-                  <BookOpen size={18} />
-                  Amcu User Manual (v{APP_VERSION.split('.').slice(0, 2).join('.')})
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
-                  <Info size={18} />
-                  AMCU Printer Integration Guide
-                </button>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        /* The main specialized VERSION VIEW & DIAGNOSTICS screen */
         <div className="space-y-8 animate-fade-in">
-          {/* Version banner */}
           <div className="bg-white dark:bg-stone-900 p-6 md:p-8 rounded-[32px] border border-stone-100 dark:border-stone-800 shadow-sm flex flex-col md:flex-row md:items-center gap-6">
             <div className="w-16 h-16 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-3xl flex items-center justify-center shrink-0">
-              <Smartphone className="text-stone-900 dark:text-white" size={28} />
+              {isNative ? (
+                <Smartphone className="text-stone-900 dark:text-white" size={28} />
+              ) : (
+                <Globe className="text-stone-900 dark:text-white" size={28} />
+              )}
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-xl font-serif font-medium text-stone-900 dark:text-white">v{APP_VERSION} - Stable Native Release</h3>
-                <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200/50 dark:border-orange-900/35">
-                  Offline Enabled
+                <h3 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
+                  v{APP_VERSION} - {isNative ? 'Native Android Release' : 'Online Web Edition'}
+                </h3>
+                <span
+                  className={cn(
+                    'px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border',
+                    isNative
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/60'
+                      : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200/60'
+                  )}
+                >
+                  {isNative ? 'SQLite Offline-First Enabled' : 'Online-Only Direct Mode'}
                 </span>
               </div>
               <p className="text-sm text-stone-500 dark:text-stone-400">
-                Optimized for Android APK installation via Capacitor with local database engine & automatic fallback sync system. Built fully transparent: Google tracking and Firebase have been fully removed.
+                {isNative
+                  ? 'Persistent SQLite storage, idempotent synchronization, conflict tracking, and SIM SMS queue are active on this Android device.'
+                  : 'Web browser mode enforces strict online-only direct server API calls with no offline SQLite database or browser transaction queues.'}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Native Database status cards */}
-            <div className="lg:col-span-2 space-y-8">
-              {/* Table counts grid */}
-              <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
-                    <Database size={18} className="text-blue-500" />
-                    Local Database Storage Metrics
-                  </h3>
-                  <button 
-                    onClick={fetchDbStats}
-                    disabled={loading}
-                    className="p-1 px-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg text-xs font-semibold text-stone-500 transition-colors flex items-center gap-1.5"
-                  >
-                    <RefreshCw size={12} className={cn(loading && "animate-spin")} />
-                    Refresh
-                  </button>
+          {!isNative ? (
+            <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 text-center space-y-3">
+              <Globe className="mx-auto text-blue-500" size={32} />
+              <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">
+                Website Online-Only Diagnostics
+              </h3>
+              <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xl mx-auto">
+                No local SQLite database or offline transaction queue is initialized in web browsers. Install the Capacitor Android APK to use offline collections, WorkManager sync, and native SIM SMS dispatching.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-8">
+                {/* SQLite Table Metrics */}
+                <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                      <Database size={18} className="text-blue-500" />
+                      Native SQLite Storage Metrics
+                    </h3>
+                    <button
+                      onClick={fetchDbStats}
+                      disabled={loading}
+                      className="p-1 px-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg text-xs font-semibold text-stone-500 transition-colors flex items-center gap-1.5"
+                    >
+                      <RefreshCw size={12} className={cn(loading && 'animate-spin')} />
+                      Refresh
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl">
+                      <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">
+                        Farmers
+                      </span>
+                      <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">
+                        {loading ? '...' : dbStats.farmers}
+                      </span>
+                    </div>
+                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl">
+                      <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">
+                        Collections
+                      </span>
+                      <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">
+                        {loading ? '...' : dbStats.collections}
+                      </span>
+                    </div>
+                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl">
+                      <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">
+                        Queued SMS
+                      </span>
+                      <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">
+                        {loading ? '...' : dbStats.queuedSms}
+                      </span>
+                    </div>
+                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl">
+                      <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">
+                        Audit Outbox
+                      </span>
+                      <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">
+                        {loading ? '...' : dbStats.pendingAudit}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100/50 dark:border-stone-800 leading-normal">
-                    <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">Farmers</span>
-                    <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">{loading ? '...' : dbStats.farmers}</span>
-                  </div>
-                  <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100/50 dark:border-stone-800 leading-normal">
-                    <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">Collections</span>
-                    <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">{loading ? '...' : dbStats.collections}</span>
-                  </div>
-                  <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100/50 dark:border-stone-800 leading-normal">
-                    <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">Shifts</span>
-                    <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">{loading ? '...' : dbStats.shifts}</span>
-                  </div>
-                  <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-2xl border border-stone-100/50 dark:border-stone-800 leading-normal">
-                    <span className="text-[10px] font-medium text-stone-400 uppercase tracking-widest block">Payments</span>
-                    <span className="text-2xl font-semibold text-stone-900 dark:text-white mt-1 block">{loading ? '...' : dbStats.payments}</span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-stone-500 dark:text-stone-400 leading-normal bg-stone-50 dark:bg-stone-800/30 p-3 rounded-xl border border-stone-200/20 dark:border-stone-800">
-                  <strong>Hardware SQLite Emulation layer:</strong> Running IndexedDB via custom Dexie definitions to emulate the storage schema. It stores data on local phone memory directly under mobile context for offline preservation.
-                </p>
-              </div>
-
-              {/* Sync queue panel */}
-              <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
-                    <Cpu size={18} className="text-amber-500" />
-                    Outgoing Sync Queue
-                  </h3>
-                  <span className="px-2.5 py-1 text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl">
-                    {dbStats.queuedTasks} Pending Outbox Tasks
-                  </span>
-                </div>
-
-                {queuedItems.length === 0 ? (
-                  <div className="p-8 border-2 border-dashed border-stone-100 dark:border-stone-800 rounded-2xl text-center space-y-2">
-                    <CheckCircle className="text-stone-300 dark:text-stone-600 mx-auto" size={28} />
-                    <p className="text-sm font-medium text-stone-900 dark:text-white">All local transactions are synchronized!</p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500">Every change on your device is fully published to the society cloud.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
-                      {queuedItems.map((task, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-100 dark:border-stone-800">
-                          <div className="space-y-1">
-                            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider bg-amber-50 dark:bg-amber-950/30 p-1 px-2 rounded">
-                              {task.type}
+                {/* Unresolved Sync Conflicts */}
+                {conflicts.length > 0 && (
+                  <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-red-200 dark:border-red-900/50 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-serif font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
+                        <AlertTriangle size={18} />
+                        Sync Conflicts Requiring Resolution ({conflicts.length})
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      {conflicts.map((conflict) => (
+                        <div
+                          key={conflict.id}
+                          className="p-4 bg-red-50/50 dark:bg-red-950/20 rounded-2xl border border-red-200/70 dark:border-red-900/40 space-y-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                              {conflict.entityType} • ID: {conflict.entityId}
                             </span>
-                            <span className="text-[10px] text-stone-400 block pl-1">
-                              {new Date(task.timestamp).toLocaleTimeString()} - {new Date(task.timestamp).toLocaleDateString()}
+                            <span className="text-[10px] font-mono text-stone-500">
+                              Local v{conflict.localVersion ?? '?'} vs Server v{conflict.serverVersion ?? '?'}
                             </span>
                           </div>
-                          <span className="text-xs font-mono text-stone-400 dark:text-stone-500 max-w-[200px] truncate">
-                            ID: {task._id}
-                          </span>
+                          <p className="text-xs text-stone-700 dark:text-stone-300">{conflict.reason}</p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] font-mono">
+                            <div className="p-2.5 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 max-h-32 overflow-auto">
+                              <div className="text-[10px] font-bold text-stone-400 mb-1">LOCAL CHANGE</div>
+                              <pre>{JSON.stringify(conflict.localPayload, null, 2)}</pre>
+                            </div>
+                            <div className="p-2.5 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 max-h-32 overflow-auto">
+                              <div className="text-[10px] font-bold text-stone-400 mb-1">SERVER STATE</div>
+                              <pre>{JSON.stringify(conflict.serverPayload || {}, null, 2)}</pre>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <button
+                              onClick={() => handleResolveConflict(conflict, 'keep_server')}
+                              className="px-3 py-1.5 rounded-xl bg-stone-900 dark:bg-white text-white dark:text-stone-900 text-xs font-semibold"
+                            >
+                              Keep Server
+                            </button>
+                            <button
+                              onClick={() => handleResolveConflict(conflict, 'apply_local')}
+                              className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-semibold"
+                            >
+                              Apply Local
+                            </button>
+                            <button
+                              onClick={() => {
+                                setMergingConflict(conflict);
+                                setMergedJson(
+                                  JSON.stringify(
+                                    {
+                                      ...(conflict.serverPayload || {}),
+                                      ...(conflict.localPayload?.data || conflict.localPayload || {}),
+                                    },
+                                    null,
+                                    2
+                                  )
+                                );
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-700 text-xs font-semibold inline-flex items-center gap-1"
+                            >
+                              <GitMerge size={12} />
+                              Merge Edit
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* Platform info, network status, control triggers */}
-            <div className="space-y-6">
-              {/* Network Status Widget */}
-              <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
-                <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">Capacitor Network</h3>
-                <div className={cn(
-                  "p-4 rounded-2xl border flex items-center gap-4",
-                  networkState 
-                    ? "bg-emerald-50/50 border-emerald-200/50 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300" 
-                    : "bg-amber-50/50 border-amber-200/50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-300"
-                )}>
-                  {networkState ? (
-                    <>
-                      <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0 animate-pulse">
-                        <Wifi size={20} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm">Society Cloud Connected</p>
-                        <p className="text-xs opacity-80 mt-0.5">Device is online, queue and server syncing is live.</p>
-                      </div>
-                    </>
+                {/* Sync Queue Panel */}
+                <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                      <Cpu size={18} className="text-amber-500" />
+                      Outgoing Sync Queue
+                    </h3>
+                    <span className="px-2.5 py-1 text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl">
+                      {queuedItems.length} Tasks
+                    </span>
+                  </div>
+
+                  {queuedItems.length === 0 ? (
+                    <div className="p-8 border-2 border-dashed border-stone-100 dark:border-stone-800 rounded-2xl text-center space-y-2">
+                      <CheckCircle className="text-stone-300 dark:text-stone-600 mx-auto" size={28} />
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">
+                        All local transactions are synchronized!
+                      </p>
+                    </div>
                   ) : (
-                    <>
-                      <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shrink-0">
-                        <WifiOff size={20} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm">Offline Storage Engaged</p>
-                        <p className="text-xs opacity-80 mt-0.5">Transactions are enqueued locally in your phone storage.</p>
-                      </div>
-                    </>
+                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                      {queuedItems.map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex items-start justify-between gap-3 p-3 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-100 dark:border-stone-800"
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-mono font-bold text-amber-700 dark:text-amber-400 uppercase bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded">
+                                {task.type}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase text-stone-500">
+                                {task.status} (retries: {task.retryCount})
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-stone-400 block">
+                              {new Date(task.createdAt).toLocaleString()}
+                            </span>
+                            {task.lastError && (
+                              <p className="text-[11px] text-red-500 font-medium">{task.lastError}</p>
+                            )}
+                          </div>
+                          {task.status === 'failed' && (
+                            <button
+                              onClick={() => handleDiscardTask(task.id)}
+                              className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg"
+                              title="Discard failed task"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* SMS Delivery Queue Panel */}
+                <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
+                      <MessageSquare size={18} className="text-emerald-500" />
+                      Android SMS Queue &amp; Delivery Status
+                    </h3>
+                    <button
+                      onClick={handleRetrySms}
+                      className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold hover:bg-stone-200 dark:hover:bg-stone-700"
+                    >
+                      Retry Queued SMS
+                    </button>
+                  </div>
+
+                  {smsHistory.length === 0 ? (
+                    <p className="text-xs text-stone-400 italic">No SMS messages recorded on this device yet.</p>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                      {smsHistory.map((s) => (
+                        <div
+                          key={s.id}
+                          className="p-3 rounded-xl bg-stone-50 dark:bg-stone-800/40 border border-stone-100 dark:border-stone-800 flex items-start justify-between gap-3"
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-stone-900 dark:text-white">
+                                {s.recipientName || s.phone}
+                              </span>
+                              <span className="text-[11px] font-mono text-stone-500">{s.phone}</span>
+                              <span
+                                className={cn(
+                                  'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase',
+                                  s.status === 'delivered' || s.status === 'sent'
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                    : s.status === 'failed'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                )}
+                              >
+                                {s.status}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-stone-500 truncate">{s.message}</p>
+                            {s.errorMessage && <p className="text-[11px] text-red-500">{s.errorMessage}</p>}
+                          </div>
+                          <span className="text-[10px] text-stone-400 shrink-0">
+                            {new Date(s.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Native Device Storage Backup/Restore widgets */}
-              <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
-                <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">Local Device File Storage</h3>
-                <p className="text-xs text-stone-500 leading-relaxed pl-1">
-                  Ensure permanent preservation of collections data by backing up or restoring from your phone's physical files.
-                </p>
-
-                {/* File paths & structures listing like WhatsApp */}
-                <div className="bg-stone-50 dark:bg-stone-800/40 p-4 rounded-2xl border border-stone-100 dark:border-stone-800 space-y-3">
-                  <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest block pl-1">
-                    Exported Device Folders (documents root)
-                  </span>
-                  <div className="space-y-3 text-xs text-stone-600 dark:text-stone-300">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">📁 JSON Database Backup (Safe Recovery File):</span>
-                      <code className="font-mono text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 p-2 rounded select-all break-all leading-normal">
-                        DugdhaSetu_AMCU/Backups/database_backup.json
-                      </code>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">📊 Milk Collections Spreadsheet (Excel Ready):</span>
-                      <code className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded select-all break-all leading-normal">
-                        DugdhaSetu_AMCU/Reports/collections_record.csv
-                      </code>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-[11px] text-stone-700 dark:text-stone-200">👤 Registered Farmers List (Excel Ready):</span>
-                      <code className="font-mono text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/20 p-2 rounded select-all break-all leading-normal">
-                        DugdhaSetu_AMCU/Reports/farmers_register.csv
-                      </code>
-                    </div>
+              {/* Right Column: Network, SIM Preference, Files, Actions */}
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
+                  <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">
+                    Capacitor Network
+                  </h3>
+                  <div
+                    className={cn(
+                      'p-4 rounded-2xl border flex items-center gap-4',
+                      networkState
+                        ? 'bg-emerald-50/50 border-emerald-200/50 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-amber-50/50 border-amber-200/50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-300'
+                    )}
+                  >
+                    {networkState ? (
+                      <>
+                        <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0">
+                          <Wifi size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">Society Cloud Connected</p>
+                          <p className="text-xs opacity-80 mt-0.5">Auto-sync and audit flush active.</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shrink-0">
+                          <WifiOff size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">Offline SQLite Engaged</p>
+                          <p className="text-xs opacity-80 mt-0.5">Transactions stored atomically on device.</p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <p className="text-[10px] text-stone-400 dark:text-stone-500 pl-1 leading-relaxed">
-                    💡 <strong>How to view:</strong> Open your phone's default File Manager app (Google Files, Samsung My Files), tap on <strong>Documents</strong>, and look for the folder named <strong>DugdhaSetu_AMCU</strong>. You can open any of these <code>.csv</code> spreadsheet reports directly inside Excel, WPS Office, or share them over WhatsApp!
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={async () => {
-                      const id = toast.loading('Creating physical database backup and generating CSV reports...');
-                      try {
-                        await realmInstance.saveBackupToFilesystem();
-                        toast.success('Successfully backed up database and generated CSV spreadsheets in phone storage!', { id });
-                      } catch (err: any) {
-                        toast.error(`Backup failed: ${err.message || String(err)}`, { id });
-                      }
+                {/* Dual-SIM Preference */}
+                <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-3">
+                  <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">
+                    SIM Card Selection
+                  </h3>
+                  <select
+                    value={preferredSim}
+                    onChange={(e) => {
+                      const slot = Number(e.target.value);
+                      setPreferredSim(slot);
+                      smsService.setPreferredSimSlot(slot);
+                      toast.success(`SMS SIM preference set to Slot ${slot + 1}`);
                     }}
-                    className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-xs dark:text-white"
                   >
-                    <CheckCircle size={14} />
-                    Backup To Files
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (window.confirm('Warning: Restoring will overwrite existing IndexedDB tables with the duplicate files. Continue?')) {
-                        const { Capacitor } = await import('@capacitor/core');
-                        if (!Capacitor.isNativePlatform()) {
-                          triggerWebBackupRestore();
-                          return;
-                        }
+                    {availableSims.length > 0 ? (
+                      availableSims.map((sim) => (
+                        <option key={sim.subscriptionId} value={sim.slotIndex}>
+                          SIM {sim.slotIndex + 1}: {sim.displayName || sim.carrierName}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value={0}>SIM 1 (Default)</option>
+                        <option value={1}>SIM 2</option>
+                      </>
+                    )}
+                  </select>
+                </div>
 
-                        const id = toast.loading('Restoring database from physical file...');
+                {/* Native Backups */}
+                <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
+                  <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">
+                    Local Device Backups
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={async () => {
+                        const id = toast.loading('Exporting SQLite backup & CSVs...');
                         try {
-                          const restored = await realmInstance.loadBackupFromFilesystem();
-                          if (restored) {
+                          await realmInstance.saveBackupToFilesystem();
+                          toast.success('Backup & CSV spreadsheets exported!', { id });
+                        } catch (err: any) {
+                          toast.error(`Backup failed: ${err.message || String(err)}`, { id });
+                        }
+                      }}
+                      className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle size={14} />
+                      Export Backup
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Restore SQLite tables from backup file?')) return;
+                        const id = toast.loading('Restoring SQLite from backup...');
+                        try {
+                          const ok = await realmInstance.loadBackupFromFilesystem();
+                          if (ok) {
                             await fetchDbStats();
-                            toast.success('Database successfully restored from device file storage!', { id });
+                            toast.success('SQLite database restored!', { id });
                           } else {
-                            toast.error('No backup file found or restore was empty.', { id });
+                            toast.error('No backup file found.', { id });
                           }
                         } catch (err: any) {
                           toast.error(`Restore failed: ${err.message || String(err)}`, { id });
                         }
-                      }
-                    }}
-                    className="py-3 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
-                  >
-                    <Database size={14} />
-                    Restore From Files
-                  </button>
+                      }}
+                      className="py-3 border border-stone-200 dark:border-stone-700 text-xs font-medium rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <Database size={14} />
+                      Restore Backup
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Version & Build info parameters */}
-              <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
-                <h3 className="text-sm font-serif font-medium text-stone-400 uppercase tracking-widest pl-1">Build Parameters</h3>
-                <div className="space-y-3 pl-1">
-                  <div className="flex justify-between text-xs border-b border-stone-100 dark:border-stone-800/80 pb-2">
-                    <span className="text-stone-400">Target APK SDK</span>
-                    <span className="font-medium text-stone-700 dark:text-stone-300">Android API 34</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-b border-stone-100 dark:border-stone-800/80 pb-2">
-                    <span className="text-stone-400">Google Services</span>
-                    <span className="font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-1.5 rounded">Purged</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-b border-stone-100 dark:border-stone-800/80 pb-2">
-                    <span className="text-stone-400">Firebase Backend</span>
-                    <span className="font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-1.5 rounded">Deactivated</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-b border-stone-100 dark:border-stone-800/80 pb-2">
-                    <span className="text-stone-400">Network Fallback</span>
-                    <span className="font-medium text-stone-700 dark:text-stone-300">Enabled</span>
-                  </div>
-                  <div className="flex justify-between text-xs pb-1">
-                    <span className="text-stone-400">Vite Config Mode</span>
-                    <span className="font-mono font-medium text-stone-700 dark:text-stone-300">Production</span>
+                {/* Manual Action Center */}
+                <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
+                  <h3 className="text-sm font-serif font-medium text-stone-900 dark:text-white pl-1">
+                    Manual Action Center
+                  </h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleProcessSync}
+                      disabled={isSyncing}
+                      className="w-full py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 disabled:opacity-50 font-medium text-xs rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <Play size={14} />
+                      Sync Now
+                    </button>
+                    <button
+                      onClick={handleForceReSync}
+                      disabled={isSyncing}
+                      className="w-full py-3 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 disabled:opacity-50 font-medium text-xs rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={14} className={cn(isSyncing && 'animate-spin')} />
+                      Pull Master Data
+                    </button>
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
 
-              {/* Action sync triggers */}
-              <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-4">
-                <h3 className="text-sm font-serif font-medium text-stone-900 dark:text-white pl-1">Manual Action Center</h3>
-                <div className="space-y-2">
-                  <button
-                    onClick={handleProcessSync}
-                    disabled={isSyncing || dbStats.queuedTasks === 0}
-                    className="w-full py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 disabled:opacity-50 hover:bg-stone-800 dark:hover:bg-stone-100 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <Play size={14} />
-                    Process Outbox Task Queue
-                  </button>
-                  <button
-                    onClick={handleForceReSync}
-                    disabled={isSyncing}
-                    className="w-full py-3 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 disabled:opacity-50 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
-                    Download Core Master Data
-                  </button>
-                </div>
-              </div>
+      {/* Merge Conflict Modal */}
+      {mergingConflict && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif font-bold text-lg text-stone-900 dark:text-white">Merge Conflicting Record</h3>
+              <button onClick={() => setMergingConflict(null)} className="p-1 text-stone-400 hover:text-stone-900">
+                <X size={18} />
+              </button>
+            </div>
+            <textarea
+              value={mergedJson}
+              onChange={(e) => setMergedJson(e.target.value)}
+              rows={12}
+              className="w-full p-3 font-mono text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl dark:text-white"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setMergingConflict(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl border border-stone-200 dark:border-stone-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(mergedJson);
+                    void handleResolveConflict(mergingConflict, 'merged', parsed);
+                  } catch {
+                    toast.error('Invalid JSON format in merged payload.');
+                  }
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-stone-900 dark:bg-white text-white dark:text-stone-900"
+              >
+                Save Merged Resolution
+              </button>
             </div>
           </div>
         </div>

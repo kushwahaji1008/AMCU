@@ -10,6 +10,9 @@ export interface Customer {
   totalPaid: number;
   totalSales: number;
   dairyId: string;
+  defaultSaleRate?: number;
+  version?: number;
+  updatedAt?: Date | string;
   createdAt: Date;
 }
 
@@ -29,6 +32,7 @@ export interface MilkSale {
   operatorId: string;
   dairyId: string;
   messageStatus?: 'Sent' | 'Failed' | 'Pending';
+  idempotencyKey?: string;
   createdAt: Date;
 }
 
@@ -42,6 +46,7 @@ export interface CustomerPayment {
   notes?: string;
   operatorId: string;
   dairyId: string;
+  idempotencyKey?: string;
   createdAt: Date;
 }
 
@@ -55,8 +60,15 @@ export interface User {
   isEmailVerified: boolean;
   otp?: string;
   otpExpires?: Date;
+  otpAttempts?: number;
   currentSessionId?: string;
   dairyId?: string;
   databaseId: string;
   createdAt: Date;
 }
+
+export type SafeUser = Omit<User, 'passwordHash' | 'otp' | 'otpExpires' | 'otpAttempts' | 'currentSessionId'> & {
+  dairyName?: string;
+  address?: string;
+  phone?: string;
+};

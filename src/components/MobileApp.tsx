@@ -1,109 +1,270 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Smartphone, Shield, Zap, WifiOff, Camera, MessageSquare, 
-  Database, MapPin, RefreshCw, HardDrive, Cpu, CheckCircle2, 
-  AlertCircle, ShieldCheck, Bluetooth, Settings, HelpCircle, FileText
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Smartphone, Camera, MessageSquare, Database, MapPin, RefreshCw,
+  HardDrive, Cpu, ShieldCheck, Bluetooth, Wifi, WifiOff
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Network } from '@capacitor/network';
+import { SmsSender } from 'capacitor-sms-sender';
 import { toast } from 'sonner';
 import { useLanguage } from '../LanguageContext';
-import { offlineService } from '../services/offlineService';
 import { db } from '../services/offlineService';
+import { isNativeApp } from '../services/platform';
+
+interface PermissionItem {
+  id: string;
+  name: string;
+  purpose: string;
+  status: 'Granted' | 'Denied' | 'Prompt' | 'Web Mode' | 'Unsupported';
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  color: string;
+}
 
 export default function MobileApp() {
   const { t } = useLanguage();
   const [checking, setChecking] = useState(false);
-  const [deviceSpecs, setDeviceSpecs] = useState({
-    deviceModel: 'Android Device (Generic)',
-    hostPlatform: 'Capacitor Native Android Bridge',
-    androidApi: 'API 34 (Android 14)',
-    appVersion: `v${APP_VERSION} - Enterprise AMCU Release`,
-    storageFreeSpace: '14.2 GB Available',
-    ramStatus: '4.8 GB Cores Active',
-    buildId: 'DS-20260530-X86_64-RELEASE'
+  const [networkState, setNetworkState] = useState<{ connected: boolean; type: string }>({
+    connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    type: typeof navigator !== 'undefined' && navigator.onLine ? 'unknown' : 'none',
   });
 
-  // Simulated active permission states that users can request or re-evaluate.
-  // In a native app, these can request native Android permission overlays.
-  const [permissions, setPermissions] = useState([
+  const [deviceSpecs, setDeviceSpecs] = useState({
+    deviceModel: typeof navigator !== 'undefined' ? navigator.platform || 'Client Device' : 'Client Device',
+    hostPlatform: isNativeApp() ? `Capacitor Native (${Capacitor.getPlatform()})` : `Web Browser (${Capacitor.getPlatform()})`,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+    appVersion: `v${APP_VERSION}`,
+    storageEstimate: 'Checking...',
+    hardwareSummary: 'Checking...',
+  });
+
+  const [dbInfo, setDbInfo] = useState({
+    indexingEngine: 'Dexie / IndexedDB (Offline Store)',
+    farmersCached: 0,
+    collectionsCached: 0,
+    pendingSyncTasks: 0,
+    integrity: 'Checking...',
+  });
+
+  const [permissions, setPermissions] = useState<PermissionItem[]>([
     {
       id: 'camera',
-      name: 'Android Camera Access',
-      purpose: 'Required for scanning Farmer ID QR and speed barcode milk pouring.',
-      status: 'Granted',
+      name: 'Camera Access',
+      purpose: 'Required for scanning Farmer ID QR codes and barcodes.',
+      status: 'Prompt',
       icon: Camera,
-      color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/30'
+      color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/30',
     },
     {
       id: 'sms',
-      name: 'Direct SMS Sim Card Access',
-      purpose: 'Enables automatic offline printing and sending SMS slips straight from device SIM card without internet.',
-      status: 'Granted',
+      name: 'Direct SMS SIM Access',
+      purpose: 'Enables direct SMS delivery from native Android devices when enabled.',
+      status: isNativeApp() ? 'Prompt' : 'Web Mode',
       icon: MessageSquare,
-      color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/30'
+      color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/30',
     },
     {
       id: 'storage',
-      name: 'Physical Device Storage Writer',
-      purpose: 'Used to write Excel .csv logs, reports, and JSON databases to physical phone documents folder.',
+      name: 'Local Storage & File Export',
+      purpose: 'Used to persist IndexedDB cache and write CSV/PDF reports and backups.',
       status: 'Granted',
       icon: HardDrive,
-      color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+      color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30',
     },
     {
       id: 'location',
-      name: 'Coarse & Fine GPS Location',
-      purpose: 'Appends geographical metrics to milk collection journals to track local procurement routes.',
-      status: 'Granted',
+      name: 'Location Services',
+      purpose: 'Optional route tracking for mobile collection points.',
+      status: 'Prompt',
       icon: MapPin,
-      color: 'text-amber-500 bg-amber-50 dark:bg-amber-950/30'
+      color: 'text-amber-500 bg-amber-50 dark:bg-amber-950/30',
     },
     {
       id: 'bluetooth',
-      name: 'Bluetooth Low Energy (BLE) Scan',
-      purpose: 'Establishes high-speed hardware pairing with smart weighing scales, fat analyzers, and printers.',
-      status: 'Granted',
+      name: 'Bluetooth / Serial Pairing',
+      purpose: 'Connects supported scales, analyzers, and receipt printers.',
+      status: typeof navigator !== 'undefined' && 'bluetooth' in navigator ? 'Prompt' : 'Unsupported',
       icon: Bluetooth,
-      color: 'text-sky-500 bg-sky-50 dark:bg-sky-950/30'
-    }
+      color: 'text-sky-500 bg-sky-50 dark:bg-sky-950/30',
+    },
   ]);
 
-  const [dbInfo, setDbInfo] = useState({
-    indexingEngine: 'IndexedDB / Local SQLite Bridge',
-    schemaVer: 'v3 (Sync Table Engaged)',
-    integrity: 'Verified (100% Secure)',
-    diskUsage: '2.4 MB Used'
-  });
-
-  const checkHostHardware = () => {
+  const runDiagnostics = useCallback(async (showToast = false) => {
     setChecking(true);
-    toast.loading('Scanning native hardware devices and permissions...', { id: 'hw-scan' });
-    
-    setTimeout(() => {
-      setChecking(false);
-      // Simulate refreshed diagnostics
-      setDeviceSpecs(prev => ({
-        ...prev,
-        storageFreeSpace: `${(Math.random() * 5 + 10).toFixed(1)} GB Available`,
-        buildId: `DS-2026-${Math.floor(Math.random() * 900000 + 100000)}-STABLE`
-      }));
-      toast.success('Android system integrity verified. 0 defects identified!', { id: 'hw-scan' });
-    }, 1500);
-  };
-
-  const togglePermission = (id: string, currentStatus: string) => {
-    const nextStatus = currentStatus === 'Granted' ? 'Denied' : 'Granted';
-    setPermissions(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, status: nextStatus };
-      }
-      return p;
-    }));
-    
-    if (nextStatus === 'Granted') {
-      toast.success(`Successfully enabled and verified permission!`);
-    } else {
-      toast.error(`Disabled permission. Some operations might fail on device.`);
+    if (showToast) {
+      toast.loading('Running client system diagnostics...', { id: 'hw-scan' });
     }
+
+    try {
+      // 1. Network status
+      try {
+        const net = await Network.getStatus();
+        setNetworkState({ connected: net.connected, type: net.connectionType });
+      } catch {
+        setNetworkState({
+          connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
+          type: typeof navigator !== 'undefined' && navigator.onLine ? 'online' : 'offline',
+        });
+      }
+
+      // 2. Storage & Hardware capabilities
+      let storageLabel = 'Available';
+      if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+        try {
+          const est = await navigator.storage.estimate();
+          const usedMb = ((est.usage || 0) / (1024 * 1024)).toFixed(2);
+          const quotaMb = est.quota ? `${Math.round(est.quota / (1024 * 1024))} MB` : 'N/A';
+          storageLabel = `${usedMb} MB used / ${quotaMb} quota`;
+        } catch {
+          storageLabel = 'IndexedDB Active';
+        }
+      }
+
+      const memGb = typeof navigator !== 'undefined' && (navigator as any).deviceMemory
+        ? `${(navigator as any).deviceMemory} GB RAM`
+        : 'RAM N/A';
+      const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency
+        ? `${navigator.hardwareConcurrency} CPU Threads`
+        : 'CPU N/A';
+
+      setDeviceSpecs({
+        deviceModel: typeof navigator !== 'undefined' ? navigator.platform || 'Client Device' : 'Client Device',
+        hostPlatform: isNativeApp() ? `Capacitor Native (${Capacitor.getPlatform()})` : `Web Browser (${Capacitor.getPlatform()})`,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+        appVersion: `v${APP_VERSION}`,
+        storageEstimate: storageLabel,
+        hardwareSummary: `${cores} • ${memGb}`,
+      });
+
+      // 3. Offline DB metrics
+      try {
+        const [farmersDocs, collectionsDocs, queueDocs] = await Promise.all([
+          db.farmers.allDocs(),
+          db.collections.allDocs(),
+          db.syncQueue.allDocs(),
+        ]);
+        setDbInfo({
+          indexingEngine: isNativeApp() ? 'Dexie / IndexedDB + Filesystem Backup' : 'Dexie / IndexedDB (Browser)',
+          farmersCached: farmersDocs.rows.length,
+          collectionsCached: collectionsDocs.rows.length,
+          pendingSyncTasks: queueDocs.rows.length,
+          integrity: 'Verified',
+        });
+      } catch {
+        setDbInfo(prev => ({ ...prev, integrity: 'Unavailable' }));
+      }
+
+      // 4. Real Permission Queries
+      let smsStatus: PermissionItem['status'] = isNativeApp() ? 'Prompt' : 'Web Mode';
+      if (isNativeApp()) {
+        try {
+          const perm = await SmsSender.checkPermissions();
+          smsStatus = perm.send_sms === 'granted' ? 'Granted' : perm.send_sms === 'denied' ? 'Denied' : 'Prompt';
+        } catch {
+          smsStatus = 'Prompt';
+        }
+      }
+
+      const queryWebPerm = async (name: PermissionName): Promise<PermissionItem['status']> => {
+        if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'Prompt';
+        try {
+          const res = await navigator.permissions.query({ name });
+          if (res.state === 'granted') return 'Granted';
+          if (res.state === 'denied') return 'Denied';
+          return 'Prompt';
+        } catch {
+          return 'Prompt';
+        }
+      };
+
+      const [camStatus, locStatus] = await Promise.all([
+        queryWebPerm('camera' as PermissionName),
+        queryWebPerm('geolocation'),
+      ]);
+
+      setPermissions(prev =>
+        prev.map(p => {
+          if (p.id === 'sms') return { ...p, status: smsStatus };
+          if (p.id === 'camera') return { ...p, status: camStatus };
+          if (p.id === 'location') return { ...p, status: locStatus };
+          if (p.id === 'bluetooth') {
+            return {
+              ...p,
+              status: typeof navigator !== 'undefined' && 'bluetooth' in navigator ? 'Prompt' : 'Unsupported',
+            };
+          }
+          return p;
+        })
+      );
+
+      if (showToast) {
+        toast.success('System diagnostics refreshed', { id: 'hw-scan' });
+      }
+    } catch (err) {
+      if (showToast) {
+        toast.error('Diagnostic check encountered an issue', { id: 'hw-scan' });
+      }
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    runDiagnostics(false);
+  }, [runDiagnostics]);
+
+  const handleRequestPermission = async (id: string) => {
+    if (id === 'sms') {
+      if (!isNativeApp()) {
+        toast.info('Direct SIM SMS is only supported inside the native Android app.');
+        return;
+      }
+      try {
+        const res = await SmsSender.requestPermissions();
+        const granted = res.send_sms === 'granted';
+        setPermissions(prev => prev.map(p => (p.id === 'sms' ? { ...p, status: granted ? 'Granted' : 'Denied' } : p)));
+        toast[granted ? 'success' : 'error'](granted ? 'SMS permission granted' : 'SMS permission denied');
+      } catch {
+        toast.error('Failed to request SMS permission');
+      }
+      return;
+    }
+
+    if (id === 'camera') {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error('Camera API not supported in this context');
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+        setPermissions(prev => prev.map(p => (p.id === 'camera' ? { ...p, status: 'Granted' } : p)));
+        toast.success('Camera permission granted');
+      } catch {
+        setPermissions(prev => prev.map(p => (p.id === 'camera' ? { ...p, status: 'Denied' } : p)));
+        toast.error('Camera access denied');
+      }
+      return;
+    }
+
+    if (id === 'location') {
+      if (!navigator.geolocation) {
+        toast.error('Geolocation not supported');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          setPermissions(prev => prev.map(p => (p.id === 'location' ? { ...p, status: 'Granted' } : p)));
+          toast.success('Location permission granted');
+        },
+        () => {
+          setPermissions(prev => prev.map(p => (p.id === 'location' ? { ...p, status: 'Denied' } : p)));
+          toast.error('Location permission denied');
+        }
+      );
+      return;
+    }
+
+    await runDiagnostics(true);
   };
 
   return (
@@ -115,110 +276,97 @@ export default function MobileApp() {
             <Smartphone className="text-white dark:text-stone-900 w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">Android Client System</h1>
-            <p className="text-stone-500 dark:text-stone-400 mt-1">Status diagnostic, local permissions console, and client hardware details</p>
+            <h1 className="text-3xl font-serif font-medium text-stone-900 dark:text-white">{t('androidSystem')}</h1>
+            <p className="text-stone-500 dark:text-stone-400 mt-1">Client runtime diagnostics, offline store health, and device permissions</p>
           </div>
         </div>
-        
+
         <button
-          onClick={checkHostHardware}
+          onClick={() => runDiagnostics(true)}
           disabled={checking}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-all shadow-sm active:scale-95 text-xs self-start md:self-auto"
+          className="flex items-center justify-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-all shadow-sm active:scale-95 text-xs self-start md:self-auto disabled:opacity-50"
         >
-          <RefreshCw size={14} className={checking ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={checking ? 'animate-spin' : ''} />
           Run System Diagnostic
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left column: Hardware Specs & Storage Path */}
+        {/* Left column */}
         <div className="space-y-6">
-          {/* Hardware Specs */}
           <div className="bg-white dark:bg-stone-900 p-6 rounded-[28px] border border-stone-100 dark:border-stone-800 shadow-sm space-y-4 leading-normal">
             <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
               <Cpu size={18} className="text-stone-500" />
-              Device Specifications
+              Runtime Environment
             </h2>
             <div className="space-y-3 pt-2 text-xs divide-y divide-stone-50 dark:divide-stone-800/80">
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Device Model</span>
-                <span className="font-semibold text-stone-700 dark:text-stone-200">{deviceSpecs.deviceModel}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Host Platform</span>
+                <span className="font-semibold text-stone-700 dark:text-stone-200 text-right">{deviceSpecs.hostPlatform}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Android API SDK</span>
-                <span className="font-mono text-stone-700 dark:text-stone-200">{deviceSpecs.androidApi}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Device / OS ABI</span>
+                <span className="font-mono text-stone-700 dark:text-stone-200 text-right">{deviceSpecs.deviceModel}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Platform Bridge</span>
-                <span className="text-stone-700 dark:text-stone-300 font-medium">{deviceSpecs.hostPlatform}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Hardware</span>
+                <span className="text-stone-700 dark:text-stone-300 text-right">{deviceSpecs.hardwareSummary}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Available Storage</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{deviceSpecs.storageFreeSpace}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Storage Quota</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-right">{deviceSpecs.storageEstimate}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">RAM Allocation</span>
-                <span className="text-stone-700 dark:text-stone-300">{deviceSpecs.ramStatus}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Network</span>
+                <span className="flex items-center gap-1.5 font-medium text-stone-700 dark:text-stone-200">
+                  {networkState.connected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-red-500" />}
+                  {networkState.connected ? `Connected (${networkState.type})` : 'Offline'}
+                </span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Build Core ID</span>
-                <span className="font-mono text-[10px] text-stone-500 truncate max-w-[140px]">{deviceSpecs.buildId}</span>
+              <div className="flex justify-between py-2 gap-2">
+                <span className="text-stone-400 dark:text-stone-500">Build Version</span>
+                <span className="font-mono text-[11px] text-stone-600 dark:text-stone-300">{deviceSpecs.appVersion}</span>
               </div>
             </div>
           </div>
 
-          {/* SQLite Bridge metrics */}
           <div className="bg-white dark:bg-stone-900 p-6 rounded-[28px] border border-stone-100 dark:border-stone-800 shadow-sm space-y-4 leading-normal">
             <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
               <Database size={18} className="text-blue-500" />
-              Android DB Engine
+              Local Offline Store
             </h2>
             <div className="space-y-3 pt-2 text-xs divide-y divide-stone-50 dark:divide-stone-800/80">
               <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Engine Type</span>
-                <span className="text-stone-700 dark:text-stone-200 font-medium">{dbInfo.indexingEngine}</span>
+                <span className="text-stone-400 dark:text-stone-500">Engine</span>
+                <span className="text-stone-700 dark:text-stone-200 font-medium text-right">{dbInfo.indexingEngine}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Schema Version</span>
-                <span className="text-stone-700 dark:text-stone-300">{dbInfo.schemaVer}</span>
+                <span className="text-stone-400 dark:text-stone-500">Cached Farmers</span>
+                <span className="text-stone-700 dark:text-stone-300 font-mono">{dbInfo.farmersCached}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Data Integrity</span>
+                <span className="text-stone-400 dark:text-stone-500">Cached Collections</span>
+                <span className="text-stone-700 dark:text-stone-300 font-mono">{dbInfo.collectionsCached}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-stone-400 dark:text-stone-500">Pending Sync Queue</span>
+                <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{dbInfo.pendingSyncTasks}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-stone-400 dark:text-stone-500">Status</span>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">{dbInfo.integrity}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-stone-400 dark:text-stone-500">Offline Status</span>
-                <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider rounded">100% Capable</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Offline Sync State details */}
-          <div className="bg-stone-900 dark:bg-stone-950 text-white p-6 rounded-[28px] relative overflow-hidden leading-normal">
-            <div className="absolute right-0 bottom-0 translate-x-1/4 translate-y-1/4 opacity-10">
-              <Smartphone size={160} />
-            </div>
-            <span className="bg-emerald-500 text-stone-900 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full inline-block mb-3 leading-none">
-              Native Client Active
-            </span>
-            <h3 className="text-lg font-serif font-medium mb-2">Enterprise APK Architecture</h3>
-            <p className="text-xs text-stone-400 leading-relaxed mb-4">
-              All milk collection records pour directly to local Android device memory indices, ensuring instant receipt prints and offline protection even without active mobile data.
-            </p>
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-widest">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
-              Engine Verified Offline
             </div>
           </div>
         </div>
 
-        {/* Right Columns: Active Permissions list */}
+        {/* Right Columns */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-stone-900 p-8 rounded-[32px] border border-stone-100 dark:border-stone-800 shadow-sm space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Android System Permissions</h2>
-                <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">Inspect and manage requested permissions for active milk collection operations</p>
+                <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">System Permissions</h2>
+                <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">Verify and request native or browser capabilities needed for dairy operations</p>
               </div>
               <ShieldCheck className="text-emerald-600 shrink-0" size={32} />
             </div>
@@ -238,18 +386,20 @@ export default function MobileApp() {
 
                   <div className="flex items-center justify-end gap-3 self-end sm:self-auto">
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      perm.status === 'Granted' 
-                        ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/40' 
-                        : 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900/40'
+                      perm.status === 'Granted'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/40'
+                        : perm.status === 'Denied' || perm.status === 'Unsupported'
+                        ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900/40'
+                        : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/40'
                     }`}>
                       {perm.status}
                     </span>
-                    
+
                     <button
-                      onClick={() => togglePermission(perm.id, perm.status)}
+                      onClick={() => handleRequestPermission(perm.id)}
                       className="px-4 py-2 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-semibold text-xs rounded-xl transition-all shadow-sm active:scale-95 leading-none"
                     >
-                      {perm.status === 'Granted' ? 'Revoke' : 'Grant'}
+                      {perm.id === 'sms' || perm.id === 'camera' || perm.id === 'location' ? 'Verify / Request' : 'Recheck'}
                     </button>
                   </div>
                 </div>
@@ -257,16 +407,14 @@ export default function MobileApp() {
             </div>
           </div>
 
-          {/* Android File Storage Folders overview (like Android File explorer guide) */}
           <div className="bg-white dark:bg-stone-900 p-8 rounded-[32px] border border-stone-100 dark:border-stone-800 shadow-sm space-y-6 leading-normal">
             <h2 className="text-lg font-serif font-medium text-stone-900 dark:text-white flex items-center gap-2">
               <HardDrive size={18} className="text-emerald-600" />
-              Natively Preserved Folders (Android Internal Documents Root)
+              Native Export Directories (Android Documents)
             </h2>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              When physical backups or spreadsheets are written on the client device, they are placed directly into files inside the phone storage system. Open your phone's default File Manager app (Google Files, Files) and navigate to the following absolute locations:
+              When running the native Android app, backups and reports are written to the paths below:
             </p>
-
             <div className="space-y-4">
               <div className="p-4 bg-stone-50 dark:bg-stone-800/45 rounded-2xl border border-stone-100 dark:border-stone-800 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
@@ -281,17 +429,13 @@ export default function MobileApp() {
               <div className="p-4 bg-stone-50 dark:bg-stone-800/45 rounded-2xl border border-stone-100 dark:border-stone-800 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                  <span className="text-xs font-bold text-stone-700 dark:text-stone-200">Excel / WPS Spreadsheets Export Directory:</span>
+                  <span className="text-xs font-bold text-stone-700 dark:text-stone-200">Reports Export Directory:</span>
                 </div>
                 <code className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2.5 rounded select-all break-all leading-relaxed">
                   Documents/DugdhaSetu_AMCU/Reports/collections_record.csv
                 </code>
               </div>
             </div>
-
-            <p className="text-xs text-stone-400 dark:text-stone-500 bg-amber-50/50 dark:bg-amber-950/10 p-3 rounded-xl border border-amber-200/20 dark:border-amber-900/10">
-              💡 <strong>Instant WhatsApp Sharing:</strong> Because reports are compiled to standard <code>.csv</code> spreadsheet format, you can attach any file in these folders straight to WhatsApp messages to share records with farmers instantly!
-            </p>
           </div>
         </div>
       </div>

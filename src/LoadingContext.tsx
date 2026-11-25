@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onLoadingChange } from './services/axiosInstance';
 
 interface LoadingContextType {
@@ -8,7 +8,12 @@ interface LoadingContextType {
 const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
 
 export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isLoading = false;
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onLoadingChange(setIsLoading);
+    return unsubscribe;
+  }, []);
 
   return (
     <LoadingContext.Provider value={{ isLoading }}>

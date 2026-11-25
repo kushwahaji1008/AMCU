@@ -45,15 +45,16 @@ export default function ShiftManagement() {
       
       let qty = 0;
       let amt = 0;
-      let fatSum = 0;
-      let snfSum = 0;
+      let weightedFatSum = 0;
+      let weightedSnfSum = 0;
       const farmerIds = new Set();
 
       shiftCollections.forEach((data: any) => {
-        qty += data.quantity;
+        const itemQty = data.quantity || 0;
+        qty += itemQty;
         amt += data.amount || 0;
-        fatSum += data.fat;
-        snfSum += data.snf;
+        weightedFatSum += (data.fat || 0) * itemQty;
+        weightedSnfSum += (data.snf || 0) * itemQty;
         farmerIds.add(data.farmerId);
       });
 
@@ -61,8 +62,8 @@ export default function ShiftManagement() {
         totalFarmers: farmerIds.size,
         totalQuantity: Math.round(qty * 100) / 100,
         amount: Math.round(amt * 100) / 100,
-        avgFat: shiftCollections.length > 0 ? Math.round((fatSum / shiftCollections.length) * 100) / 100 : 0,
-        avgSnf: shiftCollections.length > 0 ? Math.round((snfSum / shiftCollections.length) * 100) / 100 : 0,
+        avgFat: qty > 0 ? Math.round((weightedFatSum / qty) * 100) / 100 : 0,
+        avgSnf: qty > 0 ? Math.round((weightedSnfSum / qty) * 100) / 100 : 0,
       });
 
       // Check if shift is summarized
@@ -106,8 +107,8 @@ export default function ShiftManagement() {
         avgSnf: shiftStats.avgSnf,
         amount: shiftStats.amount,
         closedAt: new Date(),
-        closedBy: profile?.name || 'Unknown',
-        dairyId: profile?.dairyId || 'global'
+        closedBy: profile?.displayName || profile?.email || 'Unknown',
+        dairyId: profile?.dairyId || profile?.databaseId || 'global'
       };
 
       await shiftApi.createSummary(summary);
@@ -227,7 +228,11 @@ export default function ShiftManagement() {
                     </>
                   )}
                 </button>
-                <button className="px-8 py-4 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400 rounded-2xl font-medium hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-8 py-4 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400 rounded-2xl font-medium hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                >
                   Print Summary
                 </button>
               </div>
@@ -315,29 +320,44 @@ export default function ShiftManagement() {
 
           <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
             <h3 className="text-sm font-serif font-medium text-stone-900 dark:text-white mb-4 uppercase tracking-wider">Today's Progress</h3>
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-stone-400 dark:text-stone-500">Morning Shift</span>
-                  <span className="text-stone-900 dark:text-white font-medium">Completed</span>
+            {(() => {
+              const todayStr = format(new Date(), 'yyyy-MM-dd');
+              const hour = new Date().getHours();
+              const morningClosed = (currentShift === 'Morning' && isShiftSummarized) ||
+                pastSummaries.some(s => String(s.date).slice(0, 10) === todayStr && s.shift === 'Morning');
+              const eveningClosed = (currentShift === 'Evening' && isShiftSummarized) ||
+                pastSummaries.some(s => String(s.date).slice(0, 10) === todayStr && s.shift === 'Evening');
+              const morningStatus = morningClosed ? 'Completed' : hour < 13 ? 'In Progress' : 'Pending Close';
+              const eveningStatus = eveningClosed ? 'Completed' : hour >= 12 ? 'In Progress' : 'Pending';
+              return (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-stone-400 dark:text-stone-500">Morning Shift</span>
+                      <span className="text-stone-900 dark:text-white font-medium">{morningStatus}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                      <div className={cn(
+                        "h-full transition-all duration-1000",
+                        morningClosed ? "w-full bg-emerald-500" : hour < 13 ? "w-1/2 bg-amber-500" : "w-3/4 bg-amber-500"
+                      )}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-stone-400 dark:text-stone-500">Evening Shift</span>
+                      <span className="text-stone-900 dark:text-white font-medium">{eveningStatus}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                      <div className={cn(
+                        "h-full transition-all duration-1000",
+                        eveningClosed ? "w-full bg-emerald-500" : hour >= 12 ? "w-1/2 bg-amber-500" : "w-0"
+                      )}></div>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-1.5 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-emerald-500"></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-stone-400 dark:text-stone-500">Evening Shift</span>
-                  <span className="text-stone-900 dark:text-white font-medium">{new Date().getHours() >= 12 ? 'In Progress' : 'Pending'}</span>
-                </div>
-                <div className="h-1.5 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
-                  <div className={cn(
-                    "h-full transition-all duration-1000",
-                    new Date().getHours() >= 12 ? "w-1/2 bg-amber-500" : "w-0"
-                  )}></div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
       </div>

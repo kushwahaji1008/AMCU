@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { farmerApi, paymentApi } from '../services/api';
 import { smsService } from '../services/smsService';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 export default function PaymentProcessing() {
   const { profile } = useAuth();
@@ -88,7 +89,15 @@ export default function PaymentProcessing() {
       // Send SMS to farmer
       if (selectedFarmer.mobile) {
         const smsMsg = `Dear ${selectedFarmer.name}, a payment of Rs.${amount} has been processed via ${paymentMethod}. Current Balance: Rs.${(balance - amount).toFixed(2)}. - DugdhaSetu`;
-        smsService.sendDirectSMS(selectedFarmer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+        smsService
+          .sendDirectSMS(selectedFarmer.mobile, smsMsg, {
+            recipientType: 'farmer',
+            recipientId: selectedFarmer.id,
+            recipientName: selectedFarmer.name,
+            triggerType: 'farmer_payment',
+            idempotencyKey: `pay_sms_${paymentData.referenceId}`,
+          })
+          .catch((err) => console.error('SMS Error:', err));
       }
 
       toast.success(`Payment of ₹${amount} processed for ${selectedFarmer.name}`);
@@ -313,8 +322,11 @@ export default function PaymentProcessing() {
                         {format(new Date(p.date), 'dd MMM yyyy')}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-stone-900 dark:text-white">
-                          {farmers.find(f => f.id === p.farmerInternalId)?.name || 'Unknown Farmer'}
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-stone-900 dark:text-white">
+                            {farmers.find(f => f.id === p.farmerInternalId)?.name || 'Unknown Farmer'}
+                          </span>
+                          <SyncStatusBadge status={(p as any)._syncStatus} />
                         </div>
                         <div className="text-xs text-stone-400">ID: {farmers.find(f => f.id === p.farmerInternalId)?.farmerId || p.farmerId}</div>
                       </td>

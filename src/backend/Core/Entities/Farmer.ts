@@ -12,6 +12,8 @@ export interface Farmer {
   createdAt: string;
   balance: number;
   dairyId: string;
+  version?: number;
+  updatedAt?: Date | string;
 }
 
 export interface FarmerSummary {

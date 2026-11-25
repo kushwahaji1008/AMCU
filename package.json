@@ -7,8 +7,8 @@
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
-    "appflow:build": "vite build && npx cap add android && npx cap sync android ",
-    "build:android": "vite build && npx cap sync android",
+    "appflow:build": "vite build && npx cap add android && node scripts/configure-android.js && npx cap sync android",
+    "build:android": "vite build && node scripts/configure-android.js && npx cap sync android",
     "postbuild": "echo Sitemap generated",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@capacitor-community/file-opener": "^6.0.0",
+    "@capacitor-community/sqlite": "^6.0.2",
     "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.0",
     "@capacitor/core": "^6.0.0",
@@ -57,7 +58,7 @@
     "mongo-sanitize": "^1.1.0",
     "mongoose": "^9.4.1",
     "motion": "^12.38.0",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^10.6.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -71,8 +72,7 @@
     "tsx": "^4.21.0",
     "uuid": "^13.0.0",
     "vite": "^6.2.0",
-    "vitest": "^4.1.8",
-    "xss-clean": "^0.1.4"
+    "vitest": "^4.1.8"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.0.0",

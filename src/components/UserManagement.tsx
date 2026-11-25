@@ -92,8 +92,8 @@ export default function UserManagement() {
       }
       setUsers(filtered.map((u: any) => ({
         uid: u.id,
-        email: u.username,
-        displayName: u.username, // Use username as display name for now
+        email: u.email || u.username,
+        displayName: u.displayName || u.name || u.username,
         role: u.role,
         status: u.status || 'active',
         dairyId: u.dairyId,
@@ -137,12 +137,13 @@ export default function UserManagement() {
     setLoading(true);
     try {
       const userData = {
-        username: newUser.username,
-        email: newUser.username,
+        username: newUser.username.trim(),
+        email: newUser.username.trim(),
+        displayName: newUser.displayName.trim() || newUser.username.trim(),
         password: newUser.password, // Require password - no default
         role: profile.role === 'super_admin' && activeTab === 'Admins' ? 'admin' : 'operator',
-        dairyId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '') : profile.dairyId,
-        databaseId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId || '(default)') : profile.databaseId,
+        dairyId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId.trim() || '') : profile.dairyId,
+        databaseId: profile.role === 'super_admin' && activeTab === 'Admins' ? (newUser.databaseId.trim() || '(default)') : profile.databaseId,
       };
 
       await userApi.create(userData);

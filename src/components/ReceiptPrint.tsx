@@ -68,7 +68,7 @@ export default function ReceiptPrint() {
         t.date ? format(new Date(t.date), 'yyyy-MM-dd HH:mm') : '',
         t.shift,
         t.farmerId,
-        `"${t.farmerName}"`,
+        `"${String(t.farmerName || '').replace(/"/g, '""')}"`,
         t.milkType,
         t.quantity,
         t.fat,
@@ -87,7 +87,35 @@ export default function ReceiptPrint() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast.success('Exported successfully');
+  };
+
+  const handleShareReceipt = async (txn: CollectionTransaction) => {
+    const receiptText = [
+      'DugdhaSetu AMCU Receipt',
+      `Receipt: #RC-${(txn.id || '000000').slice(-6).toUpperCase()}`,
+      `Farmer: ${txn.farmerName} (${txn.farmerId})`,
+      `Date: ${txn.date ? format(new Date(txn.date), 'dd/MM/yyyy HH:mm') : ''} (${txn.shift})`,
+      `Milk: ${txn.milkType} | Qty: ${(txn.quantity || 0).toFixed(1)}L`,
+      `FAT: ${(txn.fat || 0).toFixed(1)}% | SNF: ${(txn.snf || 0).toFixed(1)}%`,
+      `Rate: Rs.${(txn.rate || 0).toFixed(2)}/L | Total: Rs.${(txn.amount || 0).toFixed(2)}`,
+    ].join('\n');
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: `Receipt #${txn.farmerId}`, text: receiptText });
+        return;
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(receiptText);
+        toast.success('Receipt summary copied to clipboard');
+        return;
+      }
+      toast.info(receiptText);
+    } catch {
+      toast.error('Unable to share receipt');
+    }
   };
 
   return (
@@ -178,7 +206,11 @@ export default function ReceiptPrint() {
                     >
                       <Printer size={16} />
                     </button>
-                    <button className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors print:hidden">
+                    <button
+                      onClick={() => handleShareReceipt(txn)}
+                      title="Share Receipt"
+                      className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors print:hidden"
+                    >
                       <Share2 size={16} />
                     </button>
                   </div>
@@ -204,7 +236,7 @@ export default function ReceiptPrint() {
 
               <div className="grid grid-cols-2 gap-y-2">
                 <div className="text-stone-500">Receipt No:</div>
-                <div className="font-mono text-right">#RC-{selectedTxn.id.slice(-6).toUpperCase()}</div>
+                <div className="font-mono text-right">#RC-{(selectedTxn.id || '000000').slice(-6).toUpperCase()}</div>
                 
                 <div className="text-stone-500">Date & Time:</div>
                 <div className="text-right">

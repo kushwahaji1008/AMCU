@@ -45,7 +45,7 @@ export default function Reports() {
   }, [dateRange, activeTab]);
 
   const handleApprove = async (id: string) => {
-    if (profile?.role !== 'admin') return;
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') return;
     try {
       await collectionApi.update(id, {
         isApproved: true,
@@ -81,7 +81,8 @@ export default function Reports() {
       t.isManual ? (t.isApproved ? 'Approved Manual' : 'Pending Manual') : 'Automatic'
     ]);
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const escapeCell = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+    const csvContent = [headers, ...rows].map(row => row.map(escapeCell).join(",")).join("\n");
     const { Capacitor } = await import('@capacitor/core');
     if (Capacitor.isNativePlatform()) {
       try {
@@ -127,6 +128,7 @@ export default function Reports() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       toast.success('Report exported as CSV');
     }
   };
@@ -207,8 +209,12 @@ export default function Reports() {
 
   const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
   const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  const avgFat = transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length : 0;
-  const avgSnf = transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.snf || 0), 0) / transactions.length : 0;
+  const avgFat = totalQty > 0
+    ? transactions.reduce((sum, t) => sum + ((t.fat || 0) * (t.quantity || 0)), 0) / totalQty
+    : (transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length : 0);
+  const avgSnf = totalQty > 0
+    ? transactions.reduce((sum, t) => sum + ((t.snf || 0) * (t.quantity || 0)), 0) / totalQty
+    : (transactions.length > 0 ? transactions.reduce((sum, t) => sum + (t.snf || 0), 0) / transactions.length : 0);
 
   return (
     <div className="space-y-8">
@@ -255,7 +261,11 @@ export default function Reports() {
             <Printer size={16} />
             Export PDF
           </button>
-          <button className="flex items-center justify-center gap-2 px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl text-sm font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl text-sm font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
+          >
             <FileText size={16} />
             Print Summary
           </button>
@@ -367,7 +377,7 @@ export default function Reports() {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm font-medium text-stone-900 dark:text-white">₹{(t.amount || 0).toFixed(2)}</span>
-                      {activeTab === 'pending' && profile?.role === 'admin' && (
+                      {activeTab === 'pending' && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
                         <button
                           onClick={() => handleApprove(t.id)}
                           className="p-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"

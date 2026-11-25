@@ -20,17 +20,33 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (
+      password.length < 8 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password) ||
+      !/[!@#$%^&*(),.?":{}|<>]/.test(password)
+    ) {
+      const msg = 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setLoading(true);
     try {
       const registrationData = {
-        username: email,
-        email: email,
+        username: email.trim(),
+        email: email.trim(),
+        name: name.trim(),
         password: password,
         role: 'admin',
         dairyData: {
-          name: dairyName,
-          address: dairyAddress,
-          contact: dairyContact
+          name: dairyName.trim(),
+          address: dairyAddress.trim(),
+          contact: dairyContact.trim(),
+          phone: dairyContact.trim(),
         }
       };
 
@@ -105,10 +121,11 @@ export default function Register() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 dark:focus:ring-white/5 transition-all dark:text-white"
-                  placeholder="Minimum 6 characters"
-                  minLength={6}
+                  placeholder="Min 8 chars (A-z, 0-9, !@#)"
+                  minLength={8}
                 />
               </div>
+              <p className="text-[11px] text-stone-400">Must include uppercase, lowercase, number, and special character.</p>
             </div>
 
             <div className="pt-4 border-t border-stone-100 dark:border-stone-800">

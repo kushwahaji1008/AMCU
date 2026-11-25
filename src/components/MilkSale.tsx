@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../LanguageContext';
 import { smsService } from '../services/smsService';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 export const MilkSale: React.FC = () => {
   const { profile } = useAuth();
@@ -107,34 +108,37 @@ export const MilkSale: React.FC = () => {
       return;
     }
     
-    if (!quantity || !rate) {
-      toast.error('Please enter quantity and rate');
+    const parsedQty = parseFloat(quantity);
+    const parsedRate = parseFloat(rate);
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0 || !Number.isFinite(parsedRate) || parsedRate <= 0) {
+      toast.error('Please enter valid positive quantity and rate');
       return;
     }
 
     try {
       setLoading(true);
-      const amount = parseFloat(quantity) * parseFloat(rate);
+      const amount = Math.round(parsedQty * parsedRate * 100) / 100;
       
       const payload = {
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         customerMobile: selectedCustomer.mobile,
         milkType,
-        quantity: parseFloat(quantity),
-        rate: parseFloat(rate),
+        quantity: parsedQty,
+        rate: parsedRate,
         amount,
         paymentMode,
         notes,
         date: new Date().toISOString(),
         operatorId: profile?.uid,
-        dairyId: profile?.dairyId
+        dairyId: profile?.dairyId || profile?.databaseId || ''
       };
 
-      await saleApi.recordSale(payload);
+      const saleRes = await saleApi.recordSale(payload);
       toast.success('Sale recorded successfully!');
       
       const customerForSms = selectedCustomer;
+      const saleId = saleRes?.data?.id || saleRes?.data?._id || Date.now();
       // Send SMS - Using a small timeout to ensure state/ui responsiveness isn't blocked 
       // even if something happens with the underlying plugin
       setTimeout(() => {
@@ -143,7 +147,15 @@ export const MilkSale: React.FC = () => {
           const totalDue = (customerForSms.balance || 0) + todayDue;
           const notesStr = payload.notes ? ` (Note: ${payload.notes})` : '';
           const smsMsg = `Dear ${customerForSms.name}, Milk purchase: ${payload.quantity}L ${payload.milkType}, Rate: Rs.${payload.rate}/L, Total: Rs.${payload.amount.toFixed(2)}. Total Due: Rs.${totalDue.toFixed(2)}.${notesStr} - DugdhaSetu`;
-          smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+          smsService
+            .sendDirectSMS(customerForSms.mobile, smsMsg, {
+              recipientType: 'customer',
+              recipientId: customerForSms.id,
+              recipientName: customerForSms.name,
+              triggerType: 'milk_sale',
+              idempotencyKey: `sale_sms_${saleId}`,
+            })
+            .catch((err) => console.error('SMS Error:', err));
         }
       }, 500);
       
@@ -155,8 +167,8 @@ export const MilkSale: React.FC = () => {
       
       // Refresh list
       fetchData();
-    } catch (err) {
-      toast.error('Failed to record sale');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to record sale');
     } finally {
       setLoading(false);
     }
@@ -168,31 +180,42 @@ export const MilkSale: React.FC = () => {
       toast.error('Please select a customer');
       return;
     }
-    if (!paymentAmount) {
-      toast.error('Please enter amount');
+    const parsedAmt = parseFloat(paymentAmount);
+    if (!Number.isFinite(parsedAmt) || parsedAmt <= 0) {
+      toast.error('Please enter a valid positive payment amount');
       return;
     }
 
     try {
       setLoading(true);
-      await saleApi.recordPayment({
+      const payRes = await saleApi.recordPayment({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
-        amount: parseFloat(paymentAmount),
+        amount: parsedAmt,
         paymentMode: paymentMethod,
         notes,
         date: new Date().toISOString(),
         operatorId: profile?.uid,
-        dairyId: profile?.dairyId
+        dairyId: profile?.dairyId || profile?.databaseId || ''
       });
       toast.success('Payment recorded and balance updated!');
       
       const customerForSms = selectedCustomer;
+      const payId = payRes?.data?.id || payRes?.data?._id || Date.now();
       // Send SMS
       setTimeout(() => {
         if (customerForSms && customerForSms.mobile) {
-          const smsMsg = `Dear ${customerForSms.name}, We have received your payment of Rs.${paymentAmount}. Your updated balance is Rs.${(customerForSms.balance - parseFloat(paymentAmount)).toFixed(2)}. Thank you. - DugdhaSetu`;
-          smsService.sendDirectSMS(customerForSms.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+          const updatedBal = (customerForSms.balance || 0) - parsedAmt;
+          const smsMsg = `Dear ${customerForSms.name}, We have received your payment of Rs.${parsedAmt.toFixed(2)}. Your updated balance is Rs.${updatedBal.toFixed(2)}. Thank you. - DugdhaSetu`;
+          smsService
+            .sendDirectSMS(customerForSms.mobile, smsMsg, {
+              recipientType: 'customer',
+              recipientId: customerForSms.id,
+              recipientName: customerForSms.name,
+              triggerType: 'customer_payment',
+              idempotencyKey: `cpay_sms_${payId}`,
+            })
+            .catch((err) => console.error('SMS Error:', err));
         }
       }, 500);
 
@@ -200,8 +223,8 @@ export const MilkSale: React.FC = () => {
       setSelectedCustomer(null);
       setNotes('');
       fetchData();
-    } catch (err) {
-      toast.error('Failed to record payment');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to record payment');
     } finally {
       setLoading(false);
     }
@@ -214,7 +237,7 @@ export const MilkSale: React.FC = () => {
       const payload = {
         ...newCustomer,
         status: 'Active',
-        dairyId: profile?.dairyId
+        dairyId: profile?.dairyId || profile?.databaseId || ''
       };
       await saleApi.createCustomer(payload);
       toast.success('Customer added successfully');
@@ -493,7 +516,7 @@ export const MilkSale: React.FC = () => {
                 {selectedCustomer && paymentAmount && (
                   <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 rounded-2xl">
                     <span className="block text-[10px] text-green-600 font-bold uppercase mb-1">New Balance Preview</span>
-                    <span className="text-lg font-bold">₹{selectedCustomer.balance?.toFixed(2)} → <span className="text-green-600">₹{(selectedCustomer.balance - parseFloat(paymentAmount || '0')).toFixed(2)}</span></span>
+                    <span className="text-lg font-bold">₹{(selectedCustomer.balance || 0).toFixed(2)} → <span className="text-green-600">₹{((selectedCustomer.balance || 0) - (parseFloat(paymentAmount) || 0)).toFixed(2)}</span></span>
                   </div>
                 )}
 
@@ -591,7 +614,10 @@ export const MilkSale: React.FC = () => {
                   <div key={sale.id} className="p-5 border border-stone-100 dark:border-stone-800 rounded-2xl hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors group">
                     <div className="flex justify-between items-start mb-2">
                        <div>
-                         <span className="block font-bold text-stone-900 dark:text-white group-hover:text-stone-950 dark:group-hover:text-white transition-colors">{sale.customerName}</span>
+                         <div className="flex items-center gap-2">
+                           <span className="block font-bold text-stone-900 dark:text-white group-hover:text-stone-950 dark:group-hover:text-white transition-colors">{sale.customerName}</span>
+                           <SyncStatusBadge status={(sale as any)._syncStatus} />
+                         </div>
                          <span className="text-[10px] text-stone-400 font-medium">{format(new Date(sale.date), 'dd MMM, hh:mm a')}</span>
                        </div>
                        <span className="text-sm font-bold text-stone-900 dark:text-white">₹{sale.amount.toFixed(2)}</span>

@@ -10,6 +10,10 @@ import {
 import { cn } from '../lib/utils';
 import { paymentApi, farmerApi, saleApi } from '../services/api';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { pdfService } from '../services/pdfService';
+import { toast } from 'sonner';
 
 export default function Ledger() {
   const { t, language } = useLanguage();
@@ -47,7 +51,9 @@ export default function Ledger() {
         setFarmersList(fList);
         const fMap: Record<string, string> = {};
         fList.forEach((f: Farmer) => {
-          fMap[f.id] = f.name;
+          if (f.id) fMap[f.id] = f.name;
+          if (f.farmerId) fMap[f.farmerId] = f.name;
+          if (f.farmerCode) fMap[f.farmerCode] = f.name;
         });
         setFarmersMap(fMap);
 
@@ -88,10 +94,20 @@ export default function Ledger() {
     }
   }, [selectedCustomerId]);
 
+  const selectedFarmerObj = farmersList.find(f => f.id === selectedFarmerId);
+  const matchesSelectedFarmer = (entry: LedgerEntry) => {
+    if (!selectedFarmerId) return true;
+    return (
+      entry.farmerInternalId === selectedFarmerId ||
+      entry.farmerId === selectedFarmerId ||
+      (!!selectedFarmerObj?.farmerId && entry.farmerId === selectedFarmerObj.farmerId)
+    );
+  };
+
   // Farmer Ledger Filtering
   const filteredFarmerEntries = farmerEntries.filter(entry => {
-    const farmerName = farmersMap[entry.farmerId] || 'Unknown Farmer';
-    const matchesFarmerSelector = !selectedFarmerId || entry.farmerId === selectedFarmerId;
+    const farmerName = farmersMap[entry.farmerInternalId] || farmersMap[entry.farmerId] || 'Unknown Farmer';
+    const matchesFarmerSelector = matchesSelectedFarmer(entry);
     const matchesSearch = farmerName.toLowerCase().includes(farmerSearchTerm.toLowerCase()) || 
                           (entry.description || '').toLowerCase().includes(farmerSearchTerm.toLowerCase());
     const matchesFilter = farmerFilterType === 'All' || (entry.type || '').toLowerCase() === farmerFilterType.toLowerCase();
@@ -100,12 +116,15 @@ export default function Ledger() {
   });
 
   // Calculate Farmer Stats if a specific farmer is chosen
-  const selectedFarmerObj = farmersList.find(f => f.id === selectedFarmerId);
   const farmerStats = React.useMemo(() => {
     if (!selectedFarmerId) return null;
-    const entries = farmerEntries.filter(e => e.farmerId === selectedFarmerId);
-    const totalEarned = entries.filter(e => e.type.toLowerCase() === 'credit').reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalPaid = entries.filter(e => e.type.toLowerCase() === 'debit').reduce((sum, e) => sum + (e.amount || 0), 0);
+    const entries = farmerEntries.filter(entry =>
+      entry.farmerInternalId === selectedFarmerId ||
+      entry.farmerId === selectedFarmerId ||
+      (!!selectedFarmerObj?.farmerId && entry.farmerId === selectedFarmerObj.farmerId)
+    );
+    const totalEarned = entries.filter(e => (e.type || '').toLowerCase() === 'credit').reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalPaid = entries.filter(e => (e.type || '').toLowerCase() === 'debit').reduce((sum, e) => sum + (e.amount || 0), 0);
     return {
       totalEarned,
       totalPaid,
@@ -165,6 +184,76 @@ export default function Ledger() {
     };
   }, [selectedCustomerId, customerHistory, selectedCustomerObj]);
 
+  const handleExportPDF = async () => {
+    const doc = new jsPDF();
+    if (activeLedgerType === 'farmers') {
+      if (filteredFarmerEntries.length === 0) {
+        toast.info('No farmer ledger entries to export');
+        return;
+      }
+      doc.setFontSize(16);
+      doc.text(
+        selectedFarmerObj ? `Farmer Ledger - ${selectedFarmerObj.name} (${selectedFarmerObj.farmerId})` : 'Farmer Financial Ledger',
+        14,
+        18
+      );
+      doc.setFontSize(10);
+      doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy hh:mm a')}`, 14, 25);
+
+      autoTable(doc, {
+        startY: 32,
+        head: [['Date', 'Farmer', 'Description', 'Type', 'Amount (Rs.)', 'Balance (Rs.)']],
+        body: filteredFarmerEntries.map(entry => [
+          format(new Date(entry.date), 'dd MMM yyyy hh:mm a'),
+          farmersMap[entry.farmerInternalId] || farmersMap[entry.farmerId] || 'Unknown Farmer',
+          entry.description || '-',
+          (entry.type || '').toUpperCase(),
+          (entry.amount || 0).toFixed(2),
+          (entry.balanceAfter || 0).toFixed(2),
+        ]),
+        styles: { fontSize: 8 },
+      });
+
+      const fileName = selectedFarmerObj
+        ? `Farmer_Ledger_${selectedFarmerObj.farmerId}_${format(new Date(), 'yyyyMMdd')}.pdf`
+        : `Farmer_Ledger_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      await pdfService.saveAndOpen(doc, fileName);
+      return;
+    }
+
+    if (!selectedCustomerId) {
+      toast.info('Please select a customer first to export ledger');
+      return;
+    }
+    if (filteredCustomerHistory.length === 0) {
+      toast.info('No customer ledger entries to export');
+      return;
+    }
+
+    doc.setFontSize(16);
+    doc.text(`Customer Ledger - ${selectedCustomerObj?.name || 'Customer'}`, 14, 18);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy hh:mm a')}`, 14, 25);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [['Date', 'Type', 'Details', 'Amount (Rs.)', 'Running Balance (Rs.)']],
+      body: filteredCustomerHistory.map(item => [
+        format(new Date(item.date || item.timestamp || item.createdAt), 'dd MMM yyyy hh:mm a'),
+        item.entryType === 'sale' ? `Sale (${item.paymentMode || '-'})` : `Payment (${item.paymentMode || '-'})`,
+        item.entryType === 'sale'
+          ? `${item.quantity || 0}L ${item.milkType || ''} @ Rs.${item.rate || 0}/L`
+          : (item.notes || 'Payment Received'),
+        (item.amount || 0).toFixed(2),
+        (item.runningBalance || 0).toFixed(2),
+      ]),
+      styles: { fontSize: 8 },
+    });
+
+    const safeName = (selectedCustomerObj?.name || 'Customer').replace(/\s+/g, '_');
+    await pdfService.saveAndOpen(doc, `Customer_Ledger_${safeName}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Upper header */}
@@ -178,7 +267,10 @@ export default function Ledger() {
           </p>
         </div>
         
-        <button className="flex items-center gap-2 bg-white dark:bg-stone-900 px-4 py-2 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-all">
+        <button
+          onClick={handleExportPDF}
+          className="flex items-center gap-2 bg-white dark:bg-stone-900 px-4 py-2 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-all"
+        >
           <Download size={18} />
           {language === 'hi' ? 'पीडीएफ डाउनलोड' : 'Export PDF'}
         </button>
@@ -344,10 +436,10 @@ export default function Ledger() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500 font-bold">
-                              {farmersMap[entry.farmerId]?.charAt(0) || 'F'}
+                              {(farmersMap[entry.farmerInternalId] || farmersMap[entry.farmerId])?.charAt(0) || 'F'}
                             </div>
                             <span className="text-sm font-medium text-stone-900 dark:text-white">
-                              {farmersMap[entry.farmerId] || 'Unknown Farmer'}
+                              {farmersMap[entry.farmerInternalId] || farmersMap[entry.farmerId] || 'Unknown Farmer'}
                             </span>
                           </div>
                         </td>

@@ -15,16 +15,30 @@ export interface MilkCollection {
   amount: number;
   operatorId: string;
   dairyId: string;
+  isManual?: boolean;
+  isApproved?: boolean;
+  approvedBy?: string;
+  approvedAt?: Date | string;
+  idempotencyKey?: string;
+  version?: number;
+  updatedAt?: Date | string;
   createdAt: Date;
 }
 
 export interface RateChart {
   id: string;
-  fatMin: number;
-  fatMax: number;
-  snfMin: number;
-  snfMax: number;
-  ratePerLiter: number;
+  milkType?: 'Cow' | 'Buffalo' | 'Mixed';
+  fat?: number;
+  snf?: number;
+  rate?: number;
+  effectiveFrom?: string;
+  fatMin?: number;
+  fatMax?: number;
+  snfMin?: number;
+  snfMax?: number;
+  ratePerLiter?: number;
+  version?: number;
+  updatedAt?: Date | string;
 }
 
 export interface LedgerEntry {
@@ -41,6 +55,7 @@ export interface LedgerEntry {
   method?: string;
   reference?: string;
   operatorId?: string;
+  idempotencyKey?: string;
 }
 
 export interface ShiftSummary {
@@ -55,4 +70,5 @@ export interface ShiftSummary {
   closedAt: Date;
   closedBy: string;
   dairyId: string;
+  idempotencyKey?: string;
 }

@@ -10,6 +10,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '../lib/utils';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { smsService } from '../services/smsService';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 export default function CollectionEntry() {
   const { profile } = useAuth();
@@ -100,22 +101,22 @@ export default function CollectionEntry() {
       // 1. Check if there's an explicit rate chart entry
       const explicitRate = rateCharts.find(
         r => r.milkType === formData.milkType && 
-             fat >= (r.fatMin || r.fat || 0) && fat <= (r.fatMax || r.fat || 100) &&
-             snf >= (r.snfMin || r.snf || 0) && snf <= (r.snfMax || r.snf || 100)
+             fat >= (r.fatMin ?? r.fat ?? 0) && fat <= (r.fatMax ?? r.fat ?? 100) &&
+             snf >= (r.snfMin ?? r.snf ?? 0) && snf <= (r.snfMax ?? r.snf ?? 100)
       );
 
-      if (explicitRate && explicitRate.rate) {
+      if (explicitRate && explicitRate.rate != null) {
         rate = explicitRate.rate;
       } else if (rateSettings) {
         // 2. Use formula from settings
-        if (fat < (rateSettings.maxFatForFormula1 || 6.0)) {
+        if (fat < (rateSettings.maxFatForFormula1 ?? 6.0)) {
           // Formula 1: Rate = (FAT * fatMultiplier1) + (SNF * snfMultiplier1)
-          rate = (fat * (rateSettings.fatMultiplier1 || 3.96)) + (snf * (rateSettings.snfMultiplier1 || 2.64));
+          rate = (fat * (rateSettings.fatMultiplier1 ?? 3.96)) + (snf * (rateSettings.snfMultiplier1 ?? 2.64));
         } else {
           // Formula 2: Rate = FAT * fatMultiplier2 - SNF Deduction
           const snfKey = snf.toFixed(1);
-          const deduction = rateSettings.snfDeductions?.[snfKey] || 0;
-          rate = (fat * (rateSettings.fatMultiplier2 || 7.77)) - deduction;
+          const deduction = rateSettings.snfDeductions?.[snfKey] ?? 0;
+          rate = (fat * (rateSettings.fatMultiplier2 ?? 7.77)) - deduction;
         }
       } else {
         // 3. Fallback
@@ -264,7 +265,7 @@ export default function CollectionEntry() {
 
     // Specialized Fat and SNF validation
     let isValid = false;
-    if (fatVal >= 3.0 && fatVal <= 5.9) {
+    if (fatVal >= 3.0 && fatVal < 6.0) {
       if (snfVal >= 8.0 && snfVal <= 8.5) {
         isValid = true;
       }
@@ -302,15 +303,24 @@ export default function CollectionEntry() {
         rate: calculated.rate,
         amount: calculated.amount,
         operatorId: profile?.uid || 'unknown',
-        dairyId: profile?.dairyId || '',
+        dairyId: profile?.dairyId || profile?.databaseId || '',
       };
 
-      await collectionApi.create(txnData);
+      const savedRes = await collectionApi.create(txnData);
       
       // Send SMS to farmer
       if (farmer.mobile) {
         const smsMsg = `Dear ${farmer.name}, Milk collected: ${txnData.quantity}L, FAT: ${txnData.fat}, SNF: ${txnData.snf}, Rate: Rs.${txnData.rate}/L. Total: Rs.${calculated.amount}. - DugdhaSetu`;
-        smsService.sendDirectSMS(farmer.mobile, smsMsg).catch(err => console.error('SMS Error:', err));
+        const collId = savedRes?.data?.id || savedRes?.data?._id;
+        smsService
+          .sendDirectSMS(farmer.mobile, smsMsg, {
+            recipientType: 'farmer',
+            recipientId: farmer.id,
+            recipientName: farmer.name,
+            triggerType: 'milk_collection',
+            idempotencyKey: `coll_sms_${farmer.id}_${selectedDate}_${selectedShift}_${collId || Date.now()}`,
+          })
+          .catch((err) => console.error('SMS Error:', err));
       }
 
       setSuccess(true);
@@ -600,7 +610,10 @@ export default function CollectionEntry() {
                     {txn.date ? format(new Date(txn.date), 'hh:mm a') : '...'}
                   </td>
                   <td className="py-4 px-6">
-                    <div className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-stone-900 dark:text-white">{txn.farmerName}</span>
+                      <SyncStatusBadge status={(txn as any)._syncStatus} />
+                    </div>
                     <div className="text-xs text-stone-400 dark:text-stone-500">ID: {txn.farmerId}</div>
                   </td>
                   <td className="py-4 px-6">
@@ -627,7 +640,7 @@ export default function CollectionEntry() {
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">
+                  <td colSpan={8} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">
                     No transactions recorded for this shift.
                   </td>
                 </tr>
@@ -647,7 +660,7 @@ export default function CollectionEntry() {
 
             <div className="grid grid-cols-2 gap-y-2">
               <div className="text-stone-500">Receipt No:</div>
-              <div className="font-mono text-right">#RC-{selectedTxn.id.slice(-6).toUpperCase()}</div>
+              <div className="font-mono text-right">#RC-{(selectedTxn.id || '000000').slice(-6).toUpperCase()}</div>
               
               <div className="text-stone-500">Date & Time:</div>
               <div className="text-right">

@@ -135,11 +135,11 @@ export default function Billing() {
       const tableData = purchaseData.map((c: any, index: number) => [
         index + 1,
         c.farmerName || c.farmerId,
-        c.lacto || '-',
-        c.quantity.toFixed(2),
-        c.fat.toFixed(1),
-        c.snf.toFixed(1),
-        c.rate.toFixed(2),
+        c.lacto ?? c.clr ?? '-',
+        (c.quantity || 0).toFixed(2),
+        (c.fat || 0).toFixed(1),
+        (c.snf || 0).toFixed(1),
+        (c.rate || 0).toFixed(2),
         (c.amount || 0).toFixed(2)
       ]);
 
@@ -239,14 +239,14 @@ export default function Billing() {
         const amtRow: any[] = [];
 
         days.forEach(day => {
-          const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const morning = bill.collections.find((c: any) => {
-            const cDate = new Date(c.date);
-            return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Morning';
+            const cDate = new Date(c.date).toISOString().slice(0, 10);
+            return cDate === dateStr && c.shift === 'Morning';
           });
           const evening = bill.collections.find((c: any) => {
-            const cDate = new Date(c.date);
-            return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Evening';
+            const cDate = new Date(c.date).toISOString().slice(0, 10);
+            return cDate === dateStr && c.shift === 'Evening';
           });
 
           qtyRow.push({ content: morning ? morning.quantity.toFixed(1) : '-', styles: { halign: 'center' } });
@@ -401,21 +401,23 @@ export default function Billing() {
     
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Society: ${profile?.dairyId || '63006'}    ${profile?.dairyName || 'EKDANGA'}`, 14, 25);
-    doc.text(`Route: 313 R31 KHAIRATIYA BMC`, 120, 25);
-    doc.text(`Bill No.  ${Math.floor(Math.random() * 1000)}`, 180, 25);
+    doc.text(`Society: ${profile?.dairyId || profile?.databaseId || '-'}    ${profile?.dairyName || 'DugdhaSetu'}`, 14, 25);
+    doc.text(`Address: ${profile?.address || '-'}`, 115, 25);
+    doc.text(`Bill No. ${bill.farmerId}-${year}${String(month + 1).padStart(2, '0')}-P${period}`, 170, 25);
     
     // Bank info removed as requested
     
     doc.text(`Farmer: ${bill.farmerName} (${bill.farmerId})`, 14, 32);
     doc.text(`Milk Bill Date From: ${format(new Date(bill.startDate), 'dd/MM/yyyy')} To ${format(new Date(bill.endDate), 'dd/MM/yyyy')}`, 14, 37);
-    doc.text(`Head Load Rate: 0.00`, 160, 37);
+    doc.text(`Village: ${bill.village || '-'}`, 160, 37);
 
-    // Prepare Table Data
-    const days = [];
-    const start = new Date(bill.startDate);
-    const end = new Date(bill.endDate);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    // Prepare Table Data using UTC dates to prevent timezone day-shift
+    const days: Date[] = [];
+    const startUtcStr = new Date(bill.startDate).toISOString().slice(0, 10);
+    const endUtcStr = new Date(bill.endDate).toISOString().slice(0, 10);
+    const start = new Date(`${startUtcStr}T00:00:00.000Z`);
+    const end = new Date(`${endUtcStr}T00:00:00.000Z`);
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       days.push(new Date(d));
     }
 
@@ -424,22 +426,33 @@ export default function Billing() {
     let cowValue = 0;
     let bufQty = 0;
     let bufValue = 0;
+    let otherQty = 0;
+    let otherValue = 0;
 
     days.forEach(date => {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const morning = bill.collections.find((c: any) => format(new Date(c.date), 'yyyy-MM-dd') === dateStr && c.shift === 'Morning');
-      const evening = bill.collections.find((c: any) => format(new Date(c.date), 'yyyy-MM-dd') === dateStr && c.shift === 'Evening');
+      const dateStr = date.toISOString().slice(0, 10);
+      const morning = bill.collections.find((c: any) => new Date(c.date).toISOString().slice(0, 10) === dateStr && c.shift === 'Morning');
+      const evening = bill.collections.find((c: any) => new Date(c.date).toISOString().slice(0, 10) === dateStr && c.shift === 'Evening');
 
-      if (morning?.milkType === 'Cow' || evening?.milkType === 'Cow') {
-        cowQty += (morning?.quantity || 0) + (evening?.quantity || 0);
-        cowValue += (morning?.amount || 0) + (evening?.amount || 0);
-      } else if (morning?.milkType === 'Buffalo' || evening?.milkType === 'Buffalo') {
-        bufQty += (morning?.quantity || 0) + (evening?.quantity || 0);
-        bufValue += (morning?.amount || 0) + (evening?.amount || 0);
-      }
+      [morning, evening].forEach(entry => {
+        if (!entry) return;
+        const q = entry.quantity || 0;
+        const amt = entry.amount || 0;
+        if (entry.milkType === 'Cow') {
+          cowQty += q;
+          cowValue += amt;
+        } else if (entry.milkType === 'Buffalo') {
+          bufQty += q;
+          bufValue += amt;
+        } else {
+          otherQty += q;
+          otherValue += amt;
+        }
+      });
 
+      const dayLabel = `${String(date.getUTCDate()).padStart(2, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
       tableRows.push([
-        format(date, 'dd-MM'),
+        dayLabel,
         morning ? morning.quantity.toFixed(1) : '0.0',
         morning ? morning.fat.toFixed(1) : '0.0',
         morning ? (morning.quantity * morning.fat / 100).toFixed(3) : '0.000',
@@ -500,20 +513,21 @@ export default function Billing() {
     
     doc.line(14, finalY + 10, 100, finalY + 10);
     doc.text('All:', 14, finalY + 14);
-    doc.text(`${(bufQty + cowQty).toFixed(1)}`, 75, finalY + 14, { align: 'right' });
-    doc.text(`${(bufValue + cowValue).toFixed(2)}`, 100, finalY + 14, { align: 'right' });
+    doc.text(`${(bufQty + cowQty + otherQty).toFixed(1)}`, 75, finalY + 14, { align: 'right' });
+    doc.text(`${(bufValue + cowValue + otherValue).toFixed(2)}`, 100, finalY + 14, { align: 'right' });
 
     // Right Side Summary
+    const totalMilkValue = bufValue + cowValue + otherValue;
     const rightX = 140;
     doc.text(`Total Milk Value Rs.:`, rightX, finalY + 5);
-    doc.text(`${(bufValue + cowValue).toFixed(2)}`, 196, finalY + 5, { align: 'right' });
+    doc.text(`${totalMilkValue.toFixed(2)}`, 196, finalY + 5, { align: 'right' });
     
-    const commission = (bufValue + cowValue) * 0.025;
+    const commission = totalMilkValue * 0.025;
     doc.text(`Total Earning Amount Rs.:`, rightX, finalY + 9);
     doc.text(`${commission.toFixed(2)}`, 196, finalY + 9, { align: 'right' });
     
     doc.line(rightX, finalY + 10, 196, finalY + 10);
-    const grossTotal = (bufValue + cowValue) + commission;
+    const grossTotal = totalMilkValue + commission;
     doc.text(`Gross Total Amount Rs.:`, rightX, finalY + 14);
     doc.text(`${grossTotal.toFixed(2)}`, 196, finalY + 14, { align: 'right' });
     
@@ -542,7 +556,7 @@ export default function Billing() {
       startY: finalY + 45,
       head: [['Ed Desc', 'GPNO', 'Narr', 'Cr Amount', 'Rate', 'Qty', 'Amt Booked', 'Dr Amt', 'B.F.Amount']],
       body: [
-        ['SOC. COMMISSION', '', `${format(start, 'dd.MM')} TO ${format(end, 'dd.MM.yyyy')}`, commission.toFixed(2), '0.025', (bufValue + cowValue).toFixed(2), '', '', ''],
+        ['SOC. COMMISSION', '', `${format(start, 'dd.MM')} TO ${format(end, 'dd.MM.yyyy')}`, commission.toFixed(2), '0.025', totalMilkValue.toFixed(2), '', '', ''],
       ],
       theme: 'grid',
       styles: { fontSize: 6, cellPadding: 1 },
@@ -550,6 +564,22 @@ export default function Billing() {
       foot: [['TOTAL Credit/Debit :', '', '', commission.toFixed(2), '', '', '', commission.toFixed(2), commission.toFixed(2)]],
       footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1, lineColor: [0, 0, 0] }
     });
+  };
+
+  const downloadAllSimpleBillsPDF = async () => {
+    if (bills.length === 0) return;
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      bills.forEach((bill, index) => {
+        if (index > 0) doc.addPage();
+        generateSimpleBillPDF(doc, bill);
+      });
+      await pdfService.saveAndOpen(doc, `Farmer_Bills_Report_${year}${String(month + 1).padStart(2, '0')}_P${period}.pdf`);
+      toast.success('Farmer bills report downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.error('Failed to generate report PDF');
+    }
   };
 
   const downloadAllPDF = async () => {
@@ -651,7 +681,7 @@ export default function Billing() {
         </div>
         {(view === 'farmer' || view === 'dairy') && bills.length > 0 && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
           <button 
-            onClick={view === 'dairy' ? downloadAllPDF : () => {}}
+            onClick={view === 'dairy' ? downloadAllPDF : downloadAllSimpleBillsPDF}
             className="flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
           >
             <Download size={18} />
@@ -671,7 +701,22 @@ export default function Billing() {
 
       {(view === 'farmer' || view === 'dairy' || view === 'payment') && (
         <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wider">Year</label>
+              <select
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="w-full px-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
+              >
+                {[year - 2, year - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
+                  .filter((v, i, a) => a.indexOf(v) === i)
+                  .sort((a, b) => a - b)
+                  .map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+              </select>
+            </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wider">Month</label>
               <select 
@@ -838,14 +883,14 @@ export default function Billing() {
                             <td rowSpan={2} className="px-4 py-2 text-xs text-stone-500 text-center border-r border-stone-100 dark:border-stone-800">{idx + 1}</td>
                             <td rowSpan={2} className="px-4 py-2 text-xs font-medium text-stone-900 dark:text-white border-r border-stone-100 dark:border-stone-800">{bill.farmerName}</td>
                             {getDaysInPeriod().map(day => {
-                              const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
+                              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                               const morning = bill.collections.find((c: any) => {
-                                const cDate = new Date(c.date);
-                                return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Morning';
+                                const cDate = new Date(c.date).toISOString().slice(0, 10);
+                                return cDate === dateStr && c.shift === 'Morning';
                               });
                               const evening = bill.collections.find((c: any) => {
-                                const cDate = new Date(c.date);
-                                return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Evening';
+                                const cDate = new Date(c.date).toISOString().slice(0, 10);
+                                return cDate === dateStr && c.shift === 'Evening';
                               });
                               return (
                                 <React.Fragment key={`qty-${day}`}>
@@ -859,14 +904,14 @@ export default function Billing() {
                           </tr>
                           <tr className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors border-b border-stone-100 dark:border-stone-800">
                             {getDaysInPeriod().map(day => {
-                              const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
+                              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                               const morning = bill.collections.find((c: any) => {
-                                const cDate = new Date(c.date);
-                                return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Morning';
+                                const cDate = new Date(c.date).toISOString().slice(0, 10);
+                                return cDate === dateStr && c.shift === 'Morning';
                               });
                               const evening = bill.collections.find((c: any) => {
-                                const cDate = new Date(c.date);
-                                return format(cDate, 'yyyy-MM-dd') === dateStr && c.shift === 'Evening';
+                                const cDate = new Date(c.date).toISOString().slice(0, 10);
+                                return cDate === dateStr && c.shift === 'Evening';
                               });
                               return (
                                 <React.Fragment key={`amt-${day}`}>
@@ -978,7 +1023,7 @@ export default function Billing() {
                   <tr key={c.id || index} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/30 transition-colors">
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{index + 1}</td>
                     <td className="px-6 py-4 text-sm font-medium text-stone-900 dark:text-white">{c.farmerName} <span className="text-[10px] text-stone-400 font-mono">({c.farmerId})</span></td>
-                    <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.lacto || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.lacto ?? c.clr ?? '-'}</td>
                     <td className="px-6 py-4 text-sm text-stone-900 dark:text-white font-medium">{c.quantity.toFixed(2)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">{c.fat.toFixed(1)}</td>
                     <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-400">₹{c.rate.toFixed(2)}</td>

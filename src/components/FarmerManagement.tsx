@@ -10,6 +10,7 @@ import QRCode from 'qrcode';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 export default function FarmerManagement() {
   const { t } = useLanguage();
@@ -208,7 +209,7 @@ export default function FarmerManagement() {
           ...newFarmer,
           status: 'Active',
           balance: 0,
-          dairyId: profile?.dairyId || '',
+          dairyId: profile?.dairyId || profile?.databaseId || '',
         };
         await farmerApi.create(farmerData);
         
@@ -454,7 +455,10 @@ export default function FarmerManagement() {
                   </td>
                   <td className="px-6 py-4">
                     <Link to={`/farmers/${f.id}`} className="hover:underline group">
-                      <p className="text-sm font-medium text-stone-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{f.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-stone-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{f.name}</p>
+                        <SyncStatusBadge status={(f as any)._syncStatus} />
+                      </div>
                       <p className="text-xs text-stone-400 dark:text-stone-500">{f.mobile}</p>
                     </Link>
                   </td>
@@ -465,9 +469,12 @@ export default function FarmerManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className={cn(
+                      "flex items-center gap-1.5 text-xs font-medium",
+                      f.status === 'Inactive' ? "text-stone-400 dark:text-stone-500" : "text-emerald-600 dark:text-emerald-400"
+                    )}>
                       <Check size={14} />
-                      Active
+                      {f.status || 'Active'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -499,9 +506,6 @@ export default function FarmerManagement() {
                         title="Delete Farmer"
                       >
                         <Trash2 size={18} />
-                      </button>
-                      <button className="p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-lg">
-                        <MoreVertical size={18} />
                       </button>
                     </div>
                   </td>

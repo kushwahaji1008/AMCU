@@ -37,8 +37,9 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { profile } = useAuth();
   const { handleError } = useErrorHandler();
+  const cacheScope = profile?.databaseId || profile?.dairyId || 'default';
   const [stats, setStats] = useState(() => {
-    const cached = localStorage.getItem('dashboard_stats');
+    const cached = localStorage.getItem(`dashboard_stats_${cacheScope}`);
     return cached ? JSON.parse(cached) : {
       todayQty: 0,
       morningQty: 0,
@@ -51,11 +52,11 @@ export default function Dashboard() {
     };
   });
   const [recentTxns, setRecentTxns] = useState<CollectionTransaction[]>(() => {
-    const cached = localStorage.getItem('dashboard_recent_txns');
+    const cached = localStorage.getItem(`dashboard_recent_txns_${cacheScope}`);
     return cached ? JSON.parse(cached) : [];
   });
   const [trendData, setTrendData] = useState<any[]>(() => {
-    const cached = localStorage.getItem('dashboard_trend_data');
+    const cached = localStorage.getItem(`dashboard_trend_data_${cacheScope}`);
     return cached ? JSON.parse(cached) : [];
   });
   const [topFarmers, setTopFarmers] = useState<{name: string, qty: number}[]>([]);
@@ -64,7 +65,7 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dataSource, setDataSource] = useState<'live' | 'cache' | 'offline'>('live');
   const [lastSynced, setLastSynced] = useState<Date | null>(() => {
-    const cached = localStorage.getItem('dashboard_last_sync');
+    const cached = localStorage.getItem(`dashboard_last_sync_${cacheScope}`);
     return cached ? new Date(cached) : null;
   });
 
@@ -96,11 +97,11 @@ export default function Dashboard() {
       setTrendData(data.trendData || []);
       setLastSynced(new Date());
 
-      // Persist to cache
-      localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
-      localStorage.setItem('dashboard_recent_txns', JSON.stringify(data.recentTxns || []));
-      localStorage.setItem('dashboard_trend_data', JSON.stringify(data.trendData || []));
-      localStorage.setItem('dashboard_last_sync', new Date().toISOString());
+      // Persist to tenant-scoped cache
+      localStorage.setItem(`dashboard_stats_${cacheScope}`, JSON.stringify(newStats));
+      localStorage.setItem(`dashboard_recent_txns_${cacheScope}`, JSON.stringify(data.recentTxns || []));
+      localStorage.setItem(`dashboard_trend_data_${cacheScope}`, JSON.stringify(data.trendData || []));
+      localStorage.setItem(`dashboard_last_sync_${cacheScope}`, new Date().toISOString());
 
     } catch (error) {
       if (!isBackground) handleError(error, "Failed to fetch dashboard stats");
@@ -121,8 +122,8 @@ export default function Dashboard() {
       }
     }, 60000);
 
-    return () => clearInterval(interval);
-  }, [profile?.uid, timeRange]);
+      return () => clearInterval(interval);
+  }, [profile?.uid, cacheScope, timeRange]);
 
   useEffect(() => {
     // Calculate top farmers when trendData changes
@@ -161,8 +162,9 @@ export default function Dashboard() {
         if (milkType === 'Cow') current.cow += txn.quantity || 0;
         else if (milkType === 'Buffalo') current.buffalo += txn.quantity || 0;
         
-        current.fatSum += txn.fat || 0;
-        current.snfSum += txn.snf || 0;
+        const itemQty = txn.quantity || 0;
+        current.fatSum += (txn.fat || 0) * itemQty;
+        current.snfSum += (txn.snf || 0) * itemQty;
         current.count += 1;
       }
     });
@@ -175,8 +177,8 @@ export default function Dashboard() {
         evening: Number((data.evening || 0).toFixed(1)),
         cow: Number((data.cow || 0).toFixed(1)),
         buffalo: Number((data.buffalo || 0).toFixed(1)),
-        avgFat: data.count > 0 ? Number(((data.fatSum || 0) / data.count).toFixed(2)) : 0,
-        avgSnf: data.count > 0 ? Number(((data.snfSum || 0) / data.count).toFixed(2)) : 0,
+        avgFat: data.qty > 0 ? Number(((data.fatSum || 0) / data.qty).toFixed(2)) : 0,
+        avgSnf: data.qty > 0 ? Number(((data.snfSum || 0) / data.qty).toFixed(2)) : 0,
         fullDate: date
       }))
       .sort((a, b) => a.fullDate.localeCompare(b.fullDate));
@@ -493,11 +495,19 @@ export default function Dashboard() {
                 <Bell size={20} className="text-stone-900 dark:text-white" />
                 <h3 className="text-xl font-serif font-bold text-stone-900 dark:text-white">Alerts</h3>
               </div>
-              <span className="bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-1 rounded-full">3 New</span>
+              {alerts.length > 0 ? (
+                <span className="bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-1 rounded-full">
+                  {alerts.length} New
+                </span>
+              ) : (
+                <span className="bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full">
+                  All Clear
+                </span>
+              )}
             </div>
             <div className="divide-y divide-stone-50 dark:divide-stone-800">
-              {alerts.map((alert, idx) => (
-                <div key={alert.id || `alert-${idx}`} className="p-6 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer">
+              {alerts.length > 0 ? alerts.map((alert, idx) => (
+                <div key={alert.id || `alert-${idx}`} className="p-6 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
                   <div className="flex gap-4">
                     <div className={cn(
                       "mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
@@ -510,11 +520,18 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-8 text-center text-stone-400 dark:text-stone-500 text-xs italic">
+                  No anomalies or storage alerts detected today.
+                </div>
+              )}
             </div>
-            <button className="w-full py-4 text-xs font-bold text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors uppercase tracking-[0.2em]">
-              View All Notifications
-            </button>
+            <Link
+              to="/reports"
+              className="block text-center w-full py-4 text-xs font-bold text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white bg-stone-50/50 dark:bg-stone-800/50 transition-colors uppercase tracking-[0.2em]"
+            >
+              View All Reports
+            </Link>
           </div>
 
           {/* Top Farmers */}

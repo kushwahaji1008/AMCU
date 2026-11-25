@@ -196,9 +196,11 @@ export default function FarmerProfile() {
   const stats = useMemo(() => {
     const totalQty = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
     const totalAmt = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-    const avgFat = transactions.length > 0 
-      ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length 
-      : 0;
+    const avgFat = totalQty > 0
+      ? transactions.reduce((sum, t) => sum + ((t.fat || 0) * (t.quantity || 0)), 0) / totalQty
+      : (transactions.length > 0
+          ? transactions.reduce((sum, t) => sum + (t.fat || 0), 0) / transactions.length
+          : 0);
     
     // Calculate current balance from ledger entries
     // Credit: Milk Collection (Increase Balance), Debit: Payment (Decrease Balance)
@@ -213,12 +215,44 @@ export default function FarmerProfile() {
     return { totalQty, totalAmt, avgFat, currentBalance };
   }, [transactions, ledger]);
 
+  const handleExportCSV = () => {
+    if (!farmer || transactions.length === 0) {
+      toast.info('No transactions to export');
+      return;
+    }
+    const headers = ['Date', 'Shift', 'Milk Type', 'Quantity (kg)', 'FAT', 'SNF', 'Rate', 'Amount'];
+    const escapeCell = (val: unknown) => {
+      const s = String(val ?? '');
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const rows = transactions.map(t => [
+      format(toDate(t.date || t.timestamp), 'yyyy-MM-dd HH:mm'),
+      t.shift,
+      t.milkType,
+      (t.quantity || 0).toFixed(2),
+      (t.fat || 0).toFixed(1),
+      (t.snf || 0).toFixed(1),
+      (t.rate || 0).toFixed(2),
+      (t.amount || 0).toFixed(2),
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.map(escapeCell).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Farmer_${farmer.farmerId}_Collections_${format(new Date(), 'yyyyMMdd')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const chartData = useMemo(() => {
     return [...transactions]
       .reverse()
       .slice(-15)
       .map(t => ({
-        date: format(new Date(t.date), 'MMM dd'),
+        date: format(toDate(t.date || t.timestamp), 'MMM dd'),
         qty: t.quantity || 0,
         amt: t.amount || 0
       }));
@@ -283,7 +317,11 @@ export default function FarmerProfile() {
           >
             <QrCode size={20} />
           </button>
-          <button className="p-3 border border-stone-100 dark:border-stone-800 rounded-2xl hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors text-stone-600 dark:text-stone-400">
+          <button
+            onClick={() => window.print()}
+            className="p-3 border border-stone-100 dark:border-stone-800 rounded-2xl hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors text-stone-600 dark:text-stone-400"
+            title="Print Farmer Profile"
+          >
             <Printer size={20} />
           </button>
           <button 
@@ -412,7 +450,7 @@ export default function FarmerProfile() {
                       <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                       <Tooltip 
-                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-colors-stone-900)' }}
+                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#1c1917', color: '#f5f5f4' }}
                         itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
                         labelStyle={{ color: '#94a3b8' }}
                       />
@@ -426,7 +464,10 @@ export default function FarmerProfile() {
               <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-stone-50 dark:border-stone-800 flex items-center justify-between">
                   <h3 className="text-lg font-serif font-medium text-stone-900 dark:text-white">Recent Entries</h3>
-                  <button className="text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white flex items-center gap-1">
+                  <button
+                    onClick={handleExportCSV}
+                    className="text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white flex items-center gap-1"
+                  >
                     <Download size={14} />
                     Export CSV
                   </button>
@@ -446,7 +487,7 @@ export default function FarmerProfile() {
                       {transactions.map((t) => (
                         <tr key={t.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                           <td className="px-6 py-4 text-sm text-stone-600 dark:text-stone-300">
-                            {format(toDate(t.timestamp), 'MMM dd, yyyy')}
+                            {format(toDate(t.date || t.timestamp), 'MMM dd, yyyy')}
                           </td>
                           <td className="px-6 py-4">
                             <span className={cn(

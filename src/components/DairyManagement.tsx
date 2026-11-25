@@ -74,16 +74,33 @@ export default function DairyManagement() {
 
   const handleCreateDairy = async (e: React.FormEvent) => {
     e.preventDefault();
+    const dbId = newDairy.databaseId.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(dbId)) {
+      toast.error('Database ID must be 2-63 lowercase letters, numbers, hyphens, or underscores');
+      return;
+    }
+    const pwd = newDairy.password;
+    if (
+      pwd.length < 8 ||
+      !/[A-Z]/.test(pwd) ||
+      !/[a-z]/.test(pwd) ||
+      !/[0-9]/.test(pwd) ||
+      !/[!@#$%^&*(),.?":{}|<>]/.test(pwd)
+    ) {
+      toast.error('Admin password must be at least 8 characters with uppercase, lowercase, number, and special character');
+      return;
+    }
     try {
       await authApi.register({
-        username: newDairy.username,
+        username: newDairy.username.trim(),
         password: newDairy.password,
         role: 'admin',
         dairyData: {
-          name: newDairy.name,
-          address: newDairy.address,
-          contact: newDairy.contact,
-          databaseId: newDairy.databaseId
+          name: newDairy.name.trim(),
+          address: newDairy.address.trim(),
+          contact: newDairy.contact.trim(),
+          phone: newDairy.contact.trim(),
+          databaseId: dbId
         }
       });
       toast.success('Dairy and Admin created successfully!');
@@ -328,11 +345,12 @@ export default function DairyManagement() {
                     <label className="text-xs font-medium text-stone-400 uppercase">Password</label>
                     <input
                       required
+                      minLength={8}
                       type="password"
                       value={newDairy.password}
                       onChange={e => setNewDairy({...newDairy, password: e.target.value})}
                       className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
-                      placeholder="Admin password"
+                      placeholder="Min 8 chars (A-z, 0-9, !@#)"
                     />
                   </div>
                 </div>

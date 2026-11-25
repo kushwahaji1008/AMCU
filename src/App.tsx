@@ -39,6 +39,7 @@ import CustomerService from './components/CustomerService';
 import CustomerManagement from './components/CustomerManagement';
 import { MilkSale } from './components/MilkSale';
 import { offlineService } from './services/offlineService';
+import { isNativeApp } from './services/platform';
 
 /**
  * Higher-order component to protect routes that require authentication.
@@ -47,8 +48,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthReady } = useAuth();
   
   useEffect(() => {
-    if (user && isAuthReady) {
-      offlineService.syncFromServer().catch(console.error);
+    if (user && isAuthReady && isNativeApp()) {
+      offlineService.initialize().catch(console.error);
     }
   }, [user, isAuthReady]);
 

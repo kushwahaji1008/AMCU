@@ -13,7 +13,9 @@ export default function RateChartManagement() {
   const { handleError } = useErrorHandler();
   const [activeTab, setActiveTab] = useState<'Cow' | 'Buffalo' | 'Formula'>('Cow');
   const [rates, setRates] = useState<RateChart[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [editingRate, setEditingRate] = useState<RateChart | null>(null);
   const [loading, setLoading] = useState(false);
   const [newRate, setNewRate] = useState({
     fat: '',
@@ -86,19 +88,33 @@ export default function RateChartManagement() {
 
   const handleAddRate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedFat = parseFloat(newRate.fat);
+    const parsedSnf = parseFloat(newRate.snf);
+    const parsedRate = parseFloat(newRate.rate);
+    if (!Number.isFinite(parsedFat) || !Number.isFinite(parsedSnf) || !Number.isFinite(parsedRate)) {
+      toast.error('Please enter valid numeric values for FAT, SNF, and Rate');
+      return;
+    }
+
     setLoading(true);
     try {
       const rateData: any = {
         milkType: activeTab,
-        rate: parseFloat(newRate.rate),
-        fat: parseFloat(newRate.fat),
-        snf: parseFloat(newRate.snf),
+        rate: parsedRate,
+        fat: parsedFat,
+        snf: parsedSnf,
         effectiveFrom: newRate.effectiveFrom,
       };
 
-      await rateApi.create(rateData);
-      toast.success('Rate added successfully');
+      if (editingRate?.id) {
+        await rateApi.update(editingRate.id, rateData);
+        toast.success('Rate updated successfully');
+      } else {
+        await rateApi.create(rateData);
+        toast.success('Rate added successfully');
+      }
       setIsAdding(false);
+      setEditingRate(null);
       setNewRate({
         fat: '',
         snf: '',
@@ -111,11 +127,33 @@ export default function RateChartManagement() {
       const allRates = Array.isArray(response.data) ? response.data : [];
       setRates(allRates.filter((r: any) => r.milkType === activeTab));
     } catch (err) {
-      handleError(err, 'Failed to add rate');
+      handleError(err, editingRate ? 'Failed to update rate' : 'Failed to add rate');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleEditClick = (rate: RateChart) => {
+    setEditingRate(rate);
+    setNewRate({
+      fat: rate.fat != null ? String(rate.fat) : '',
+      snf: rate.snf != null ? String(rate.snf) : '',
+      rate: rate.rate != null ? String(rate.rate) : '',
+      effectiveFrom: rate.effectiveFrom ? String(rate.effectiveFrom).slice(0, 10) : format(new Date(), 'yyyy-MM-dd'),
+    });
+    setIsAdding(true);
+  };
+
+  const filteredRates = rates.filter(r => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.trim().toLowerCase();
+    return (
+      String(r.fat ?? '').includes(q) ||
+      String(r.snf ?? '').includes(q) ||
+      String(r.rate ?? '').includes(q) ||
+      (r.effectiveFrom || '').toLowerCase().includes(q)
+    );
+  });
 
   const handleDeleteRate = async (id: string) => {
     if (!confirm('Are you sure you want to delete this rate?')) return;
@@ -137,7 +175,11 @@ export default function RateChartManagement() {
         </div>
         {activeTab !== 'Formula' && (
           <button 
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              setEditingRate(null);
+              setNewRate({ fat: '', snf: '', rate: '', effectiveFrom: format(new Date(), 'yyyy-MM-dd') });
+              setIsAdding(true);
+            }}
             className="flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors"
           >
             <Plus size={18} />
@@ -149,8 +191,10 @@ export default function RateChartManagement() {
       {isAdding && activeTab !== 'Formula' && (
         <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">Add New {activeTab} Rate</h2>
-            <button onClick={() => setIsAdding(false)} className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white">
+            <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">
+              {editingRate ? `Edit ${activeTab} Rate` : `Add New ${activeTab} Rate`}
+            </h2>
+            <button onClick={() => { setIsAdding(false); setEditingRate(null); }} className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white">
               <X size={20} />
             </button>
           </div>
@@ -198,7 +242,7 @@ export default function RateChartManagement() {
                 className="w-full py-3 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
               >
                 <Check size={18} />
-                {loading ? 'Saving...' : 'Save Rate'}
+                {loading ? 'Saving...' : editingRate ? 'Update Rate' : 'Save Rate'}
               </button>
             </div>
           </form>
@@ -238,7 +282,10 @@ export default function RateChartManagement() {
                       type="number"
                       step="0.01"
                       value={rateSettings.fatMultiplier1}
-                      onChange={(e) => setRateSettings({ ...rateSettings, fatMultiplier1: parseFloat(e.target.value) })}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setRateSettings({ ...rateSettings, fatMultiplier1: Number.isFinite(val) ? val : 0 });
+                      }}
                       className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                     />
                   </div>
@@ -248,7 +295,10 @@ export default function RateChartManagement() {
                       type="number"
                       step="0.01"
                       value={rateSettings.snfMultiplier1}
-                      onChange={(e) => setRateSettings({ ...rateSettings, snfMultiplier1: parseFloat(e.target.value) })}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setRateSettings({ ...rateSettings, snfMultiplier1: Number.isFinite(val) ? val : 0 });
+                      }}
                       className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                     />
                   </div>
@@ -265,7 +315,10 @@ export default function RateChartManagement() {
                       type="number"
                       step="0.01"
                       value={rateSettings.fatMultiplier2}
-                      onChange={(e) => setRateSettings({ ...rateSettings, fatMultiplier2: parseFloat(e.target.value) })}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setRateSettings({ ...rateSettings, fatMultiplier2: Number.isFinite(val) ? val : 0 });
+                      }}
                       className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
                     />
                   </div>
@@ -288,10 +341,11 @@ export default function RateChartManagement() {
                             step="0.1"
                             value={deduction}
                             onChange={(e) => {
-                              const newDeductions = { ...(rateSettings.snfDeductions || {}), [snf]: parseFloat(e.target.value) };
+                              const val = parseFloat(e.target.value);
+                              const newDeductions = { ...(rateSettings.snfDeductions || {}), [snf]: Number.isFinite(val) ? val : 0 };
                               setRateSettings({ ...rateSettings, snfDeductions: newDeductions });
                             }}
-                            className="w-full p-2 bg-stone-100 dark:bg-stone-850 rounded border border-stone-100 dark:border-stone-800 focus:outline-none text-sm dark:text-white"
+                            className="w-full p-2 bg-stone-100 dark:bg-stone-800 rounded border border-stone-100 dark:border-stone-700 focus:outline-none text-sm dark:text-white"
                           />
                         </div>
                       ))}
@@ -317,7 +371,9 @@ export default function RateChartManagement() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" size={18} />
                   <input
                     type="text"
-                    placeholder="Search rates..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search FAT, SNF, rate, or date..."
                     className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none text-sm dark:text-white"
                   />
                 </div>
@@ -335,7 +391,7 @@ export default function RateChartManagement() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-50 dark:divide-stone-800">
-                    {rates.map((rate) => (
+                    {filteredRates.map((rate) => (
                       <tr key={rate.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50 transition-colors">
                         <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.fat?.toFixed(1) || '0.0'}</td>
                         <td className="py-4 px-4 text-sm text-stone-600 dark:text-stone-300 font-mono">{rate.snf?.toFixed(1) || '0.0'}</td>
@@ -343,11 +399,16 @@ export default function RateChartManagement() {
                         <td className="py-4 px-4 text-sm text-stone-500 dark:text-stone-400">{rate.effectiveFrom}</td>
                         <td className="py-4 px-4 text-right">
                           <div className="flex justify-end gap-2">
-                            <button className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
+                            <button
+                              onClick={() => handleEditClick(rate)}
+                              title="Edit Rate"
+                              className="p-2 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors"
+                            >
                               <Edit2 size={16} />
                             </button>
                             <button 
                               onClick={() => handleDeleteRate(rate.id!)}
+                              title="Delete Rate"
                               className="p-2 text-stone-400 dark:text-stone-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                             >
                               <Trash2 size={16} />
@@ -356,7 +417,7 @@ export default function RateChartManagement() {
                         </td>
                       </tr>
                     ))}
-                    {rates.length === 0 && (
+                    {filteredRates.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-12 text-center text-stone-400 dark:text-stone-500 italic">No rates defined for {activeTab}</td>
                       </tr>

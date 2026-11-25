@@ -1,93 +1,143 @@
 /**
  * AuthMiddleware
- * 
- * Provides authentication and authorization logic for API routes.
- * Includes JWT verification and session fingerprinting checks.
+ *
+ * Provides authentication and role-based authorization for API routes.
+ * Enforces JWT verification, session fingerprinting, active account checks,
+ * single-device session validation, and tenant context binding.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { requestContext } from '../../Core/RequestContext';
+import {
+  DEFAULT_DATABASE_ID,
+  UserRole,
+  isValidDatabaseId,
+  requestContext,
+} from '../../Core/RequestContext';
 import { dbManager } from '../../Infrastructure/Persistence/Mongo/DatabaseManager';
 import { JWT_CONFIG } from '../Config/Auth';
 
-/**
- * Extended Request interface to include the authenticated user.
- */
 export interface AuthRequest extends Request {
   user?: {
     id: string;
     username: string;
-    role: 'admin' | 'operator' | 'super_admin';
+    role: UserRole;
     databaseId: string;
+    dairyId: string;
     fp?: string;
     sid?: string;
   };
 }
 
 /**
- * Middleware to authenticate requests using JWT.
- * Also verifies the session fingerprint and session ID to prevent token hijacking and multiple logins.
+ * Rejects any request without a valid Bearer JWT and initializes tenant RequestContext.
  */
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  const databaseId = req.headers['x-database-id'] as string || '(default)';
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
 
-  // 1. Handle Unauthenticated Requests
   if (!token || token === 'null' || token === 'undefined') {
-    // For non-authenticated requests that still need a database context (e.g., public info)
-    return requestContext.run({ databaseId }, () => next());
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required. Please log in.',
+      code: 'AUTH_REQUIRED',
+    });
   }
 
   try {
-    // 2. Verify JWT Signature
     const decoded = jwt.verify(token, JWT_CONFIG.secret) as any;
-    
-    // 3. Verify Session Fingerprint
-    // Ensures the token is being used by the same browser/device it was issued to.
+
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication token.',
+        code: 'TOKEN_INVALID',
+      });
+    }
+
+    // Verify User-Agent session fingerprint when bound
     if (decoded.fp && decoded.fp !== 'none') {
       const currentUserAgent = req.headers['user-agent'] || '';
       const currentFingerprint = crypto.createHash('sha256').update(currentUserAgent).digest('hex');
-      
+
       if (decoded.fp !== currentFingerprint) {
-        return res.status(401).json({ 
+        return res.status(401).json({
+          success: false,
           message: 'Security Alert: Request authenticity could not be verified. Please log in again.',
-          code: 'FINGERPRINT_MISMATCH'
+          code: 'FINGERPRINT_MISMATCH',
         });
       }
     }
 
-    // 4. Verify Session ID (Single-Device Enforcement)
-    // Fetches the user from the global registry to check if a newer session exists.
-    if (decoded.sid) {
-      const userModel = await dbManager.getUserModel('(default)');
-      const user = await userModel.findById(decoded.id);
-      
-      if (!user || user.currentSessionId !== decoded.sid) {
-        return res.status(401).json({ 
-          message: 'You have been logged out because your account was logged in on another device.',
-          code: 'SESSION_INVALIDATED'
-        });
-      }
+    // Verify user status, role, and single-device session ID against the global registry
+    const userModel = await dbManager.getUserModel(DEFAULT_DATABASE_ID);
+    const user = await userModel
+      .findById(decoded.id)
+      .select('username role status databaseId dairyId currentSessionId')
+      .lean();
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User account no longer exists. Please log in again.',
+        code: 'SESSION_INVALIDATED',
+      });
     }
 
-    req.user = decoded;
-    
-    // 5. Determine Database Context
-    let effectiveDatabaseId = decoded.databaseId || '(default)';
-    
-    // Super Admin can override their database context via the header to switch between dairies
-    if (decoded.role === 'super_admin' && req.headers['x-database-id']) {
-      effectiveDatabaseId = req.headers['x-database-id'] as string;
+    if (user.status === 'inactive') {
+      return res.status(401).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.',
+        code: 'ACCOUNT_INACTIVE',
+      });
     }
-    
-    // 6. Initialize Request Context (AsyncLocalStorage)
-    requestContext.run({ 
+
+    if (user.currentSessionId !== undefined && (!decoded.sid || user.currentSessionId !== decoded.sid)) {
+      return res.status(401).json({
+        success: false,
+        message: 'You have been logged out because your account was logged in on another device or session ended.',
+        code: 'SESSION_INVALIDATED',
+      });
+    }
+
+    let effectiveDatabaseId = user.databaseId || DEFAULT_DATABASE_ID;
+    const requestedDbId = req.headers['x-database-id'] as string | undefined;
+
+    if (user.role === 'super_admin' && requestedDbId) {
+      if (!isValidDatabaseId(requestedDbId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid x-database-id header format.',
+          code: 'INVALID_DATABASE_ID',
+        });
+      }
+      effectiveDatabaseId = requestedDbId;
+    }
+
+    const effectiveDairyId =
+      user.role === 'super_admin' && requestedDbId ? requestedDbId : user.dairyId || effectiveDatabaseId;
+
+    req.user = {
+      id: decoded.id,
+      username: user.username,
+      role: user.role,
       databaseId: effectiveDatabaseId,
-      userId: decoded.id,
-      role: decoded.role
-    }, () => next());
+      dairyId: effectiveDairyId,
+      fp: decoded.fp,
+      sid: decoded.sid,
+    };
+
+    return requestContext.run(
+      {
+        databaseId: effectiveDatabaseId,
+        dairyId: effectiveDairyId,
+        userId: decoded.id,
+        username: user.username,
+        role: user.role,
+      },
+      () => next()
+    );
   } catch (error: any) {
     let message = 'Invalid or expired token';
     let code = 'AUTH_ERROR';
@@ -100,20 +150,18 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       code = 'TOKEN_INVALID';
     }
 
-    res.status(401).json({ message, code, detail: error.message });
-    
-    // Log for server-side debugging
-    console.warn(`[Auth] Authentication failed: ${message} (${error.message})`);
+    console.warn(`[Auth] Authentication failed: ${code} (${error.message})`);
+    return res.status(401).json({ success: false, message, code });
   }
 };
 
 /**
- * Middleware to authorize requests based on user roles.
+ * Middleware to restrict route access to specific roles.
  */
-export const authorize = (roles: ('admin' | 'operator' | 'super_admin')[]) => {
+export const authorize = (roles: UserRole[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ success: false, message: 'Access denied', code: 'FORBIDDEN' });
     }
     next();
   };

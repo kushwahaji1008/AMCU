@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Settings2, Save, Globe, Bell, Shield, Database, Smartphone, Moon, Sun, Building2, MapPin, Phone } from 'lucide-react';
+import { Globe, Bell, Shield, Database, Smartphone, Moon, Sun, Building2, MapPin, Phone, Save, LogOut, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../ThemeContext';
+import { useLanguage } from '../LanguageContext';
 import { useAuth } from '../AuthContext';
-import { dairyApi } from '../services/api';
+import { dairyApi, clearApiCache } from '../services/api';
+import { realmInstance } from '../services/realm';
 import { toast } from 'sonner';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<'General' | 'Dairy Profile' | 'Security' | 'Notifications' | 'System'>('General');
   const { theme, toggleTheme } = useTheme();
-  const { profile, updateProfile } = useAuth();
+  const { language, setLanguage } = useLanguage();
+  const { profile, updateProfile, logout } = useAuth();
   const { handleError } = useErrorHandler();
   const [loading, setLoading] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => localStorage.getItem('dugdhasetu_last_backup'));
 
   const [dairyInfo, setDairyInfo] = useState({
     name: profile?.dairyName || '',
@@ -32,11 +37,20 @@ export default function Settings() {
     }
   }, [profile]);
 
+  const handleSaveGeneral = () => {
+    localStorage.setItem('dugdhasetu_lang', language);
+    toast.success('General preferences saved');
+  };
+
   const handleSaveDairyInfo = async () => {
-    if (!profile?.dairyId) return;
+    const targetDairyId = profile?.dairyId || profile?.databaseId;
+    if (!targetDairyId) {
+      toast.error('No active dairy profile found');
+      return;
+    }
     setLoading(true);
     try {
-      await dairyApi.update(profile.dairyId, dairyInfo);
+      await dairyApi.update(targetDairyId, dairyInfo);
       updateProfile({
         dairyName: dairyInfo.name,
         address: dairyInfo.address,
@@ -49,6 +63,33 @@ export default function Settings() {
       setLoading(false);
     }
   };
+
+  const handleBackupNow = async () => {
+    setBackingUp(true);
+    try {
+      await realmInstance.saveBackupToFilesystem();
+      const now = new Date().toISOString();
+      localStorage.setItem('dugdhasetu_last_backup', now);
+      setLastBackupAt(now);
+      toast.success('Database backup completed');
+    } catch (err) {
+      handleError(err, 'Failed to export database backup');
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleClearCache = () => {
+    clearApiCache();
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('dashboard_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    toast.success('Local API and dashboard caches cleared');
+  };
+
+  const showSaveButton = activeTab === 'General' || activeTab === 'Dairy Profile';
 
   return (
     <div className="space-y-8">
@@ -86,14 +127,16 @@ export default function Settings() {
           <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm space-y-8">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-serif font-medium text-stone-900 dark:text-white">{activeTab} Settings</h2>
-              <button 
-                onClick={activeTab === 'Dairy Profile' ? handleSaveDairyInfo : undefined}
-                disabled={loading}
-                className="flex items-center gap-2 px-6 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors disabled:opacity-50"
-              >
-                <Save size={18} />
-                {loading ? 'Saving...' : 'Save Changes'}
-              </button>
+              {showSaveButton && (
+                <button 
+                  onClick={activeTab === 'Dairy Profile' ? handleSaveDairyInfo : handleSaveGeneral}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-6 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-xl font-medium hover:bg-stone-800 dark:hover:bg-stone-100 transition-colors disabled:opacity-50"
+                >
+                  <Save size={18} />
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
             </div>
 
             <div className="space-y-6">
@@ -101,15 +144,19 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Language</label>
-                    <select className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white">
-                      <option>English</option>
-                      <option>Hindi</option>
-                      <option>Marathi</option>
+                    <select
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value as 'en' | 'hi')}
+                      className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl focus:outline-none dark:text-white"
+                    >
+                      <option value="en">English</option>
+                      <option value="hi">Hindi (हिन्दी)</option>
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">Appearance</label>
                     <button 
+                      type="button"
                       onClick={toggleTheme}
                       className="w-full flex items-center justify-between p-3 bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
                     >
@@ -173,6 +220,42 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'Security' && (
+                <div className="space-y-4">
+                  <div className="p-6 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500 dark:text-stone-400">Signed-in Account</span>
+                      <span className="font-medium text-stone-900 dark:text-white">{profile?.displayName || profile?.email}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500 dark:text-stone-400">Assigned Role</span>
+                      <span className="font-mono uppercase text-xs font-bold px-2.5 py-0.5 rounded-full bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
+                        {profile?.role || 'unknown'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500 dark:text-stone-400">Active Tenant Database</span>
+                      <span className="font-mono text-xs text-stone-700 dark:text-stone-300">{profile?.databaseId || '(default)'}</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">Active Session</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">Invalidate your current JWT session token and sign out immediately.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => logout()}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/30 rounded-xl text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      <LogOut size={14} />
+                      Sign Out Session
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'Notifications' && (
                 <div className="space-y-6">
                   <div className="p-6 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 space-y-4">
@@ -181,25 +264,46 @@ export default function Settings() {
                       SMS & WhatsApp Notifications
                     </div>
                     <p className="text-sm text-stone-500 dark:text-stone-400 leading-relaxed">
-                      Notifications are currently running in <strong>Simulation Mode</strong>. 
-                      Real-time SMS and WhatsApp delivery is disabled for this version.
+                      On web browsers, SMS notifications run in <strong>Simulation Mode</strong>. Native Android builds dispatch SMS via the device SIM when granted SMS permission.
                     </p>
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-amber-700 dark:text-amber-400 text-xs">
                       <p className="font-medium mb-1">Notice:</p>
-                      <p>All notification requests will be logged to the server console instead of being sent to actual mobile numbers.</p>
+                      <p>Web browser sessions log outgoing SMS previews to the browser console instead of transmitting over a carrier network.</p>
                     </div>
                   </div>
                 </div>
               )}
+
               {activeTab === 'System' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700">
                     <div>
-                      <p className="text-sm font-medium text-stone-900">Database Backup</p>
-                      <p className="text-xs text-stone-500">Last backup: 2 hours ago</p>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">Database Backup</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">
+                        {lastBackupAt ? `Last backup: ${new Date(lastBackupAt).toLocaleString()}` : 'No manual backup exported in this browser yet'}
+                      </p>
                     </div>
-                    <button className="px-4 py-2 bg-white border border-stone-100 rounded-xl text-xs font-medium hover:bg-stone-50 transition-colors">
-                      Backup Now
+                    <button
+                      type="button"
+                      onClick={handleBackupNow}
+                      disabled={backingUp}
+                      className="px-4 py-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-xs font-medium text-stone-900 dark:text-white hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors disabled:opacity-50"
+                    >
+                      {backingUp ? 'Exporting...' : 'Backup Now'}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700">
+                    <div>
+                      <p className="text-sm font-medium text-stone-900 dark:text-white">Clear Client Cache</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">Clears in-memory API response cache and cached dashboard metrics.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearCache}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-xs font-medium text-stone-900 dark:text-white hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      <RefreshCw size={13} />
+                      Clear Cache
                     </button>
                   </div>
                 </div>

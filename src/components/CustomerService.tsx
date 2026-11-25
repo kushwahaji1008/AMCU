@@ -64,9 +64,18 @@ export default function CustomerService() {
       setTimeout(async () => {
         try {
           const message = `Dear ${customer.name}, your milk due is Rs.${(customer.balance || 0).toFixed(2)}. Please settle this soon. Thank you. - DugdhaSetu`;
-          const res = await smsService.sendDirectSMS(customer.mobile, message);
+          const res = await smsService.sendDirectSMS(customer.mobile, message, {
+            recipientType: 'customer',
+            recipientId: customer.id,
+            recipientName: customer.name,
+            triggerType: 'payment_reminder',
+          });
           if (res.success) {
-            toast.success(`Request sent to ${customer.name}`);
+            toast.success(
+              res.simulated
+                ? `Reminder logged (simulated on web browser) for ${customer.name}`
+                : `SMS dispatched to ${customer.name}`
+            );
           } else {
             toast.error(`Failed to send SMS: ${res.message}`);
           }

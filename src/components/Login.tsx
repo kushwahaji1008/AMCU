@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useLanguage } from '../LanguageContext';
@@ -15,8 +15,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { signInWithEmail, signInSuperAdmin } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -34,14 +41,18 @@ export default function Login() {
   }, []);
 
   const handleLogoClick = () => {
-    setClickCount(prev => prev + 1);
-    if (clickCount + 1 >= 3) {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+    }
+    const nextCount = clickCount + 1;
+    if (nextCount >= 3) {
       setIsSuperAdminMode(true);
       setClickCount(0);
       toast.info('SuperAdmin Mode Activated');
+      return;
     }
-    // Reset click count after 2 seconds
-    setTimeout(() => setClickCount(0), 2000);
+    setClickCount(nextCount);
+    clickTimerRef.current = setTimeout(() => setClickCount(0), 2000);
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -147,10 +158,13 @@ export default function Login() {
               >
                 <option value="en" className="dark:bg-stone-900">English</option>
                 <option value="hi" className="dark:bg-stone-900">Hindi (हिन्दी)</option>
-                <option value="mr" className="dark:bg-stone-900">Marathi (मराठी)</option>
               </select>
             </div>
-            <button type="button" className="text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={() => toast.info('Please contact your Dairy Administrator or Super Admin to reset your password.')}
+              className="text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors"
+            >
               Forgot Password?
             </button>
           </div>
