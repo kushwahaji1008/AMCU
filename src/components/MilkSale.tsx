@@ -22,6 +22,8 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../LanguageContext';
 import { smsService } from '../services/smsService';
+import { offlineService } from '../services/offlineService';
+import { isNativeApp } from '../services/platform';
 import { SyncStatusBadge } from './SyncStatusBadge';
 
 export const MilkSale: React.FC = () => {
@@ -32,6 +34,7 @@ export const MilkSale: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recentSales, setRecentSales] = useState<MilkSaleType[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerHistory, setCustomerHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -58,6 +61,21 @@ export const MilkSale: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let lastObservedSyncAt = offlineService.getSyncState().lastSyncAt;
+    let wasOnline = offlineService.isOnline;
+    return offlineService.subscribeSyncState((snap) => {
+      const syncAdvanced = snap.lastSyncAt && snap.lastSyncAt !== lastObservedSyncAt;
+      const cameOnline = !wasOnline && snap.isOnline;
+      lastObservedSyncAt = snap.lastSyncAt;
+      wasOnline = snap.isOnline;
+      if ((syncAdvanced || cameOnline) && !snap.isSyncing) {
+        fetchData();
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -96,10 +114,15 @@ export const MilkSale: React.FC = () => {
     }
   };
 
-  const filteredCustomers = customers.filter(c => 
-    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.mobile || '').includes(searchTerm)
-  );
+  const normalizedQuery = searchTerm.trim().toLowerCase();
+  const filteredCustomers = customers.filter((c) => {
+    if (!normalizedQuery) return true;
+    return (
+      (c.name || '').toLowerCase().includes(normalizedQuery) ||
+      (c.mobile || '').toLowerCase().includes(normalizedQuery) ||
+      (c.village || '').toLowerCase().includes(normalizedQuery)
+    );
+  });
 
   const handleSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,6 +195,141 @@ export const MilkSale: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderCustomerLookup = ({
+    placeholder,
+    balanceColorClass = 'text-stone-900 dark:text-white',
+    applyDefaultRate = false,
+  }: {
+    placeholder: string;
+    balanceColorClass?: string;
+    applyDefaultRate?: boolean;
+  }) => {
+    const showDropdown = isCustomerDropdownOpen || searchTerm.trim().length > 0;
+    const handlePickCustomer = (customer: (typeof filteredCustomers)[number]) => {
+      setSelectedCustomer(customer);
+      if (applyDefaultRate && customer.defaultSaleRate) {
+        setRate(customer.defaultSaleRate.toString());
+      }
+      setSearchTerm('');
+      setIsCustomerDropdownOpen(false);
+    };
+
+    return (
+      <div className="relative group">
+        <div className="flex items-center justify-between px-2 mb-2">
+          <span className="text-[11px] font-semibold text-stone-400">
+            {customers.length} {customers.length === 1 ? 'customer' : 'customers'} loaded
+          </span>
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            disabled={loading}
+            className="text-[11px] font-bold text-stone-500 hover:text-stone-900 dark:hover:text-white underline disabled:opacity-50"
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+        <div className="relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-300 group-focus-within:text-stone-900 dark:group-focus-within:text-white transition-colors">
+            <Search className="w-4 h-4" />
+          </div>
+          <input
+            type="text"
+            placeholder={placeholder}
+            className="w-full pl-14 pr-4 py-5 bg-stone-50 dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white font-medium"
+            value={searchTerm}
+            onFocus={() => setIsCustomerDropdownOpen(true)}
+            onClick={() => setIsCustomerDropdownOpen(true)}
+            onBlur={() => {
+              setTimeout(() => setIsCustomerDropdownOpen(false), 200);
+            }}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsCustomerDropdownOpen(true);
+            }}
+          />
+          {showDropdown && (
+            <div
+              onMouseDown={(e) => e.preventDefault()}
+              className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[2rem] shadow-2xl z-50 max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2"
+            >
+              {filteredCustomers.length > 0 ? (
+                filteredCustomers.map((c) => {
+                  const displayName = c.name || 'Customer';
+                  const subDetails = [c.mobile, c.village].filter(Boolean).join(' • ') || 'No contact info';
+                  return (
+                    <button
+                      key={c.id || `${displayName}-${c.mobile}`}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handlePickCustomer(c);
+                      }}
+                      onClick={() => handlePickCustomer(c)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center font-serif font-bold text-stone-900 dark:text-white group-hover:bg-stone-200 dark:group-hover:bg-stone-700 transition-colors">
+                          {displayName.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="block font-bold text-stone-900 dark:text-white">{displayName}</span>
+                          <span className="text-xs text-stone-400 font-medium">{subDetails}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Balance</span>
+                        <span className={cn('font-serif font-bold', balanceColorClass)}>
+                          ₹{Number(c.balance ?? 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="p-6 text-center space-y-3">
+                  <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+                    {loading
+                      ? 'Loading customers...'
+                      : customers.length === 0
+                        ? 'No customers found yet.'
+                        : `No customers match "${searchTerm.trim()}".`}
+                  </p>
+                  {!loading && customers.length === 0 && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        fetchData();
+                      }}
+                      onClick={() => fetchData()}
+                      className="px-4 py-2 rounded-xl bg-stone-900 dark:bg-white text-white dark:text-stone-900 text-xs font-bold"
+                    >
+                      Tap to Refresh Customers
+                    </button>
+                  )}
+                  {!loading && customers.length > 0 && searchTerm.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSearchTerm('');
+                      }}
+                      onClick={() => setSearchTerm('')}
+                      className="px-4 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 text-xs font-bold"
+                    >
+                      Show All Customers ({customers.length})
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -301,48 +459,10 @@ export const MilkSale: React.FC = () => {
                 <div className="space-y-4">
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Select Customer for Sale</label>
                   {!selectedCustomer ? (
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-300 group-focus-within:text-stone-900 dark:group-focus-within:text-white transition-colors">
-                        <Search className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Search by name, mobile or village..."
-                        className="w-full pl-14 pr-4 py-5 bg-stone-50 dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white font-medium"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                      {searchTerm && filteredCustomers.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[2rem] shadow-2xl z-50 max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2">
-                          {filteredCustomers.map(c => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedCustomer(c);
-                                if (c.defaultSaleRate) setRate(c.defaultSaleRate.toString());
-                                setSearchTerm('');
-                              }}
-                              className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center font-serif font-bold text-stone-900 dark:text-white group-hover:bg-stone-200 dark:group-hover:bg-stone-700 transition-colors">
-                                  {c.name.charAt(0)}
-                                </div>
-                                <div>
-                                  <span className="block font-bold text-stone-900 dark:text-white">{c.name}</span>
-                                  <span className="text-xs text-stone-400 font-medium">{c.mobile} • {c.village}</span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Balance</span>
-                                <span className="font-serif font-bold text-stone-900 dark:text-white">₹{c.balance?.toFixed(2)}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    renderCustomerLookup({
+                      placeholder: 'Search by name, mobile or village...',
+                      applyDefaultRate: true,
+                    })
                   ) : (
                     <div className="flex items-center justify-between p-6 bg-stone-900 dark:bg-white rounded-[2rem] text-white dark:text-stone-900 shadow-xl animate-in zoom-in-95 duration-200">
                       <div className="flex items-center gap-5">
@@ -429,52 +549,15 @@ export const MilkSale: React.FC = () => {
                 <div className="space-y-4">
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Select Customer to Pay</label>
                   {!selectedCustomer ? (
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-lg text-stone-300 group-focus-within:text-stone-900 dark:group-focus-within:text-white transition-colors">
-                        <Search className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Search for customer paying dues..."
-                        className="w-full pl-14 pr-4 py-5 bg-stone-50 dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-stone-900/5 transition-all text-stone-900 dark:text-white font-medium"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                      {searchTerm && filteredCustomers.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[2rem] shadow-2xl z-50 max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2">
-                          {filteredCustomers.map(c => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedCustomer(c);
-                                setSearchTerm('');
-                              }}
-                              className="w-full p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-800 rounded-2xl transition-colors text-left group"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center font-serif font-bold text-stone-900 dark:text-white group-hover:bg-stone-200 dark:group-hover:bg-stone-700 transition-colors">
-                                  {c.name.charAt(0)}
-                                </div>
-                                <div>
-                                  <span className="block font-bold text-stone-900 dark:text-white">{c.name}</span>
-                                  <span className="text-xs text-stone-400 font-medium">{c.mobile} • {c.village}</span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">Balance</span>
-                                <span className="font-serif font-bold text-orange-600 dark:text-orange-400">₹{c.balance?.toFixed(2)}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    renderCustomerLookup({
+                      placeholder: 'Search for customer paying dues...',
+                      balanceColorClass: 'text-orange-600 dark:text-orange-400',
+                    })
                   ) : (
                     <div className="flex items-center justify-between p-6 bg-emerald-600 rounded-[2rem] text-white shadow-xl animate-in zoom-in-95 duration-200">
                       <div className="flex items-center gap-5">
                         <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center font-serif font-bold text-xl text-white">
-                          {selectedCustomer.name.charAt(0)}
+                          {(selectedCustomer.name || '?').charAt(0)}
                         </div>
                         <div>
                           <h3 className="font-bold text-lg leading-none mb-1">{selectedCustomer.name}</h3>
@@ -484,7 +567,7 @@ export const MilkSale: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className="text-right px-4 border-r border-white/20">
                           <span className="block text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none mb-1">Current Debt</span>
-                          <span className="font-serif font-bold text-lg leading-none">₹{selectedCustomer.balance?.toFixed(2)}</span>
+                          <span className="font-serif font-bold text-lg leading-none">₹{Number(selectedCustomer.balance ?? 0).toFixed(2)}</span>
                         </div>
                         <button 
                           type="button"

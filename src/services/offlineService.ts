@@ -295,6 +295,28 @@ class OfflineService {
   }
 
   /**
+   * Probes live network state on Android via @capacitor/network so callers do not miss
+   * connectivity when initialize() is still in flight or navigator.onLine is stale.
+   */
+  public async checkLiveNetworkStatus(): Promise<boolean> {
+    if (!isNativeApp()) {
+      return typeof navigator !== 'undefined' ? navigator.onLine : this.isOnline;
+    }
+    try {
+      const netStatus = await Network.getStatus();
+      const connected = Boolean(netStatus?.connected);
+      if (connected !== this.isOnline) {
+        this.isOnline = connected;
+        this.state.isOnline = connected;
+        this.emitSyncState();
+      }
+      return connected;
+    } catch {
+      return this.isOnline;
+    }
+  }
+
+  /**
    * Initializes Capacitor SQLite, Network, App Resume, and WorkManager listeners
    * strictly inside Capacitor Native APK runtime. Website remains 100% online-only.
    */
@@ -873,13 +895,13 @@ class OfflineService {
         }
 
         await this.syncCollection('farmers', '/farmers');
-        await this.syncCollection('collections', '/collections');
-        await this.syncCollection('shifts', '/shifts/recent?limit=50');
         await this.syncCollection('sales_customers', '/customers');
-        await this.syncCollection('sales_records', '/sales');
-        await this.syncCollection('customer_payments', '/customer-payments');
         await this.syncCollection('rates', '/rates');
         await this.syncSettings();
+        await this.syncCollection('collections', '/collections');
+        await this.syncCollection('shifts', '/shifts/recent?limit=50');
+        await this.syncCollection('sales_records', '/sales');
+        await this.syncCollection('customer_payments', '/customer-payments');
         await this.syncCollection('ledgers', '/ledger');
 
         if (role === 'admin' || role === 'super_admin') {
@@ -913,16 +935,46 @@ class OfflineService {
     }
   }
 
-  public async syncCollection(schemaName: string, endpoint: string) {
-    if (!sqliteDb.isEnabled() || !ENTITY_TABLE_SET.has(schemaName)) return;
+  public async syncCollection(
+    schemaName: string,
+    endpoint: string
+  ): Promise<{ items: any[]; syncedToSqlite: boolean }> {
+    if (!sqliteDb.isEnabled() || !ENTITY_TABLE_SET.has(schemaName)) {
+      return { items: [], syncedToSqlite: false };
+    }
     try {
       const res = await api.get(endpoint);
-      const data = res.data?.data || res.data;
-      if (Array.isArray(data)) {
-        await sqliteDb.mergeServerEntities(schemaName as EntityTableName, data);
+      const rawPayload = res.data;
+      const data = Array.isArray(rawPayload)
+        ? rawPayload
+        : Array.isArray(rawPayload?.data)
+          ? rawPayload.data
+          : Array.isArray(rawPayload?.customers)
+            ? rawPayload.customers
+            : Array.isArray(rawPayload?.items)
+              ? rawPayload.items
+              : null;
+
+      if (!data) {
+        return { items: [], syncedToSqlite: false };
       }
-    } catch {
-      // Best-effort endpoint pull
+
+      const normalized = data.map((item: any) =>
+        item && typeof item === 'object' && !item.id && item._id
+          ? { ...item, id: String(item._id) }
+          : item
+      );
+
+      try {
+        await sqliteDb.mergeServerEntities(schemaName as EntityTableName, normalized);
+        return { items: normalized, syncedToSqlite: true };
+      } catch (sqliteError) {
+        console.warn(`[OfflineSync] Failed to persist ${schemaName} into SQLite:`, sqliteError);
+        return { items: normalized, syncedToSqlite: false };
+      }
+    } catch (networkError) {
+      console.warn(`[OfflineSync] Failed to fetch ${endpoint} for ${schemaName}:`, networkError);
+      return { items: [], syncedToSqlite: false };
     }
   }
 
@@ -1097,7 +1149,9 @@ class OfflineService {
 
   async getSalesCustomers(): Promise<any[]> {
     if (!sqliteDb.isEnabled()) return [];
-    return await sqliteDb.getAllEntities('sales_customers');
+    await sqliteDb.init();
+    const customers = await sqliteDb.getAllEntities<any>('sales_customers');
+    return customers.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
   }
 
   async addCustomerOffline(payload: any) {

@@ -12,15 +12,24 @@ vi.mock('capacitor-sms-sender', () => ({
   },
 }));
 
+vi.mock('@capacitor/network', () => ({
+  Network: {
+    getStatus: vi.fn(async () => ({ connected: true, connectionType: 'wifi' })),
+    addListener: vi.fn(async () => ({ remove: async () => {} })),
+  },
+}));
+
 import { SmsSender } from 'capacitor-sms-sender';
 import { sqliteDb, SQLiteDriverAdapter, SQLITE_MIGRATIONS } from '../sqliteDatabase';
 import { offlineService } from '../offlineService';
 import { smsService } from '../smsService';
+import { Network } from '@capacitor/network';
 import axiosInstance from '../axiosInstance';
-import { farmerApi, authApi, clearApiCache } from '../api';
+import { farmerApi, saleApi, authApi, clearApiCache } from '../api';
 
 class InMemorySQLiteDriver implements SQLiteDriverAdapter {
   public tables = new Map<string, any[]>();
+  public tableColumns = new Map<string, Set<string>>();
   private snapshot: Map<string, any[]> | null = null;
   public executedDdl: string[] = [];
 
@@ -33,10 +42,29 @@ class InMemorySQLiteDriver implements SQLiteDriverAdapter {
 
   async execute(statements: string): Promise<any> {
     this.executedDdl.push(statements);
-    const regex = /CREATE TABLE IF NOT EXISTS\s+(\w+)/gi;
+    const createRegex = /CREATE TABLE IF NOT EXISTS\s+(\w+)\s*\(([\s\S]*?)\)\s*;/gi;
     let m: RegExpExecArray | null;
-    while ((m = regex.exec(statements)) !== null) {
-      this.ensureTable(m[1]);
+    while ((m = createRegex.exec(statements)) !== null) {
+      const table = m[1];
+      this.ensureTable(table);
+      if (!this.tableColumns.has(table)) {
+        const cols = new Set<string>();
+        m[2]
+          .split(',')
+          .map((part) => part.trim())
+          .filter((part) => part && !/^PRIMARY\s+KEY/i.test(part) && !/^UNIQUE/i.test(part))
+          .forEach((part) => {
+            const colName = part.split(/\s+/)[0];
+            if (colName) cols.add(colName);
+          });
+        this.tableColumns.set(table, cols);
+      }
+    }
+    const alterRegex = /ALTER TABLE\s+(\w+)\s+ADD COLUMN\s+(?:IF NOT EXISTS\s+)?(\w+)/gi;
+    while ((m = alterRegex.exec(statements)) !== null) {
+      const cols = this.tableColumns.get(m[1]) || new Set<string>();
+      cols.add(m[2]);
+      this.tableColumns.set(m[1], cols);
     }
     return { changes: { changes: 0 } };
   }
@@ -149,6 +177,11 @@ class InMemorySQLiteDriver implements SQLiteDriverAdapter {
 
   async query(statement: string, values: any[] = []): Promise<{ values?: any[] }> {
     const sql = statement.trim();
+    const pragmaMatch = sql.match(/^PRAGMA\s+table_info\((\w+)\)/i);
+    if (pragmaMatch) {
+      const cols = Array.from(this.tableColumns.get(pragmaMatch[1]) || []);
+      return { values: cols.map((name) => ({ name })) };
+    }
     const countMatch = sql.match(/^SELECT COUNT\(\*\) AS cnt FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/i);
     if (countMatch) {
       const rows = this.ensureTable(countMatch[1]);
@@ -477,5 +510,124 @@ describe('Platform Isolation, Android SQLite Sync, Conflict & SMS Engine Tests',
     await new Promise((r) => setTimeout(r, 20));
     const history = await smsService.getLocalSmsHistory();
     expect(history[0].status).toBe('delivered');
+  });
+
+  it('hydrates and returns MilkSale customers on Android APK with stale isOnline, SQLite fallback, and offline mode', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    sqliteDb.setTestDriver(driver);
+    await sqliteDb.init();
+
+    // Simulate stale offlineService.isOnline on cold boot while native Network is actually connected
+    offlineService.isOnline = false;
+    const netSpy = vi
+      .spyOn(Network, 'getStatus')
+      .mockResolvedValue({ connected: true, connectionType: 'wifi' });
+
+    axiosInstance.defaults.adapter = async (config) => {
+      if (config.method === 'get' && config.url === '/customers') {
+        return {
+          data: [
+            { _id: 'cust_srv_2', name: 'Zaid Dairy', mobile: '9111122222', village: 'Rampur', balance: 150, defaultSaleRate: 60 },
+            { id: 'cust_srv_1', name: 'Asha Sweets', mobile: '9000011111', village: 'Kashi', balance: 0, defaultSaleRate: 58 },
+          ],
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        };
+      }
+      throw new Error(`Unexpected request: ${config.method} ${config.url}`);
+    };
+
+    const onlineRes = await saleApi.getCustomers();
+    expect(netSpy).toHaveBeenCalled();
+    expect(offlineService.isOnline).toBe(true);
+    expect(onlineRes.data.map((c: any) => c.name)).toEqual(['Asha Sweets', 'Zaid Dairy']);
+    expect(onlineRes.data.find((c: any) => c.name === 'Zaid Dairy')?.id).toBe('cust_srv_2');
+
+    // Offline read serves persisted SQLite sales_customers cleanly
+    offlineService.isOnline = false;
+    netSpy.mockResolvedValue({ connected: false, connectionType: 'none' });
+    axiosInstance.defaults.adapter = async () => {
+      throw new Error('Network should not be called while offline');
+    };
+    const offlineRes = await saleApi.getCustomers();
+    expect(offlineRes.data.map((c: any) => c.name)).toEqual(['Asha Sweets', 'Zaid Dairy']);
+
+    // Offline customer creation persists into sales_customers and appears in getCustomers
+    await offlineService.addCustomerOffline({
+      name: 'Local Chai Stall',
+      mobile: '9777766666',
+      village: 'Bazar',
+      defaultSaleRate: 62,
+    });
+    const withOfflineCustomer = await saleApi.getCustomers();
+    expect(withOfflineCustomer.data.some((c: any) => c.name === 'Local Chai Stall' && Boolean(c.id))).toBe(true);
+
+    // If SQLite write fails during live sync, live server customers are still returned instead of []
+    driver.tables.set('sales_customers', []);
+    netSpy.mockResolvedValue({ connected: true, connectionType: 'cellular' });
+    vi.spyOn(sqliteDb, 'mergeServerEntities').mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+    axiosInstance.defaults.adapter = async (config) => {
+      if (config.method === 'get' && config.url === '/customers') {
+        return {
+          data: {
+            data: [{ _id: 'cust_live_1', name: 'Live Fallback Customer', mobile: '9888877777', village: 'Patna', balance: 40 }],
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        };
+      }
+      return { data: {}, status: 200, statusText: 'OK', headers: {}, config };
+    };
+    const fallbackRes = await saleApi.getCustomers();
+    expect(fallbackRes.data).toHaveLength(1);
+    expect(fallbackRes.data[0].id).toBe('cust_live_1');
+    expect(fallbackRes.data[0].name).toBe('Live Fallback Customer');
+  });
+
+  it('repairs missing sync columns on upgraded Android SQLite sales_customers table and keeps Website online-only', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    driver.tables.set('sales_customers', []);
+    driver.tableColumns.set('sales_customers', new Set(['id', 'data']));
+    sqliteDb.setTestDriver(driver);
+    await sqliteDb.init();
+
+    const repairedCols = driver.tableColumns.get('sales_customers');
+    expect(repairedCols?.has('sync_status')).toBe(true);
+    expect(repairedCols?.has('updated_at')).toBe(true);
+    expect(repairedCols?.has('version')).toBe(true);
+
+    await sqliteDb.upsertEntity(
+      'sales_customers',
+      { id: 'c_repaired', name: 'Repaired Shop', mobile: '9000099999', balance: 25 },
+      'synced'
+    );
+    const localCustomers = await offlineService.getSalesCustomers();
+    expect(localCustomers).toHaveLength(1);
+    expect(localCustomers[0].id).toBe('c_repaired');
+
+    // Website mode remains direct-server without touching SQLite
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    sqliteDb.setTestDriver(null);
+    let directHits = 0;
+    axiosInstance.defaults.adapter = async (config) => {
+      if (config.method === 'get' && config.url === '/customers') {
+        directHits += 1;
+        return {
+          data: [{ id: 'web_c1', name: 'Web Direct Customer', mobile: '9123456789' }],
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        };
+      }
+      throw new Error(`Unexpected web request: ${config.method} ${config.url}`);
+    };
+    const webRes = await saleApi.getCustomers();
+    expect(directHits).toBe(1);
+    expect(webRes.data).toEqual([{ id: 'web_c1', name: 'Web Direct Customer', mobile: '9123456789' }]);
   });
 });

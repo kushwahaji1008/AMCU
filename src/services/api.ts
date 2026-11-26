@@ -411,11 +411,19 @@ export const shiftApi = {
 export const saleApi = {
   getCustomers: async () => {
     if (!isNativeApp()) return api.get('/customers');
-    if (offlineService.isOnline) {
-      try {
-        await offlineService.syncCollection('sales_customers', '/customers');
-      } catch (err) {
-        console.error('Failed to quick-sync sales customers:', err);
+    await sqliteDb.init();
+    const isOnline = await offlineService.checkLiveNetworkStatus();
+    if (isOnline) {
+      const syncResult = await offlineService.syncCollection('sales_customers', '/customers');
+      const localDocs = await offlineService.getSalesCustomers();
+      if (localDocs.length > 0) {
+        return { data: localDocs };
+      }
+      if (syncResult.items.length > 0) {
+        // Fallback if local SQLite persistence hit an unexpected error after live API succeeded
+        return {
+          data: syncResult.items.map((item: any) => ({ ...item, id: item.id || item._id })),
+        };
       }
     }
     const docs = await offlineService.getSalesCustomers();
@@ -478,6 +486,22 @@ export const saleApi = {
   },
   getRecent: async (limit: number = 20) => {
     if (!isNativeApp()) return api.get('/sales/recent', { params: { limit } });
+    await sqliteDb.init();
+    const isOnline = await offlineService.checkLiveNetworkStatus();
+    if (isOnline) {
+      const syncResult = await offlineService.syncCollection('sales_records', '/sales');
+      const localDocs = await offlineService.getRecentSales(limit);
+      if (localDocs.length > 0) {
+        return { data: localDocs };
+      }
+      if (syncResult.items.length > 0) {
+        return {
+          data: [...syncResult.items]
+            .sort((a: any, b: any) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
+            .slice(0, limit),
+        };
+      }
+    }
     const docs = await offlineService.getRecentSales(limit);
     return { data: docs };
   },

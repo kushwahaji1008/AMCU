@@ -424,6 +424,32 @@ export class SqliteDatabaseService {
   private async ensureSchemaStatements(): Promise<void> {
     if (!this.db) return;
     await this.db.execute([...SCHEMA_V1_STATEMENTS, ...SCHEMA_V2_STATEMENTS].join('\n'), false);
+
+    // Defensive column repair for upgraded APK installs where an older table existed without newer columns
+    for (const table of ALL_ENTITY_TABLES) {
+      try {
+        const info = await this.db.query(`PRAGMA table_info(${table})`);
+        const cols = new Set((info.values || []).map((c: any) => String(c.name || '').toLowerCase()));
+        if (cols.size === 0) continue;
+
+        const alterStatements: string[] = [];
+        if (!cols.has('sync_status')) {
+          alterStatements.push(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'synced';`);
+        }
+        if (!cols.has('updated_at')) {
+          alterStatements.push(`ALTER TABLE ${table} ADD COLUMN updated_at TEXT;`);
+        }
+        if (['farmers', 'collections', 'sales_customers', 'rates'].includes(table) && !cols.has('version')) {
+          alterStatements.push(`ALTER TABLE ${table} ADD COLUMN version INTEGER DEFAULT 1;`);
+        }
+        if (alterStatements.length > 0) {
+          await this.db.execute(alterStatements.join('\n'), false);
+        }
+      } catch (err) {
+        console.warn(`[SQLite] Column repair skipped for ${table}:`, err);
+      }
+    }
+
     await this.db.run(
       `INSERT OR REPLACE INTO kv_metadata (key, value, updated_at) VALUES (?, ?, ?)`,
       ['schema_version', String(SQLITE_DB_VERSION), Date.now()],
@@ -579,11 +605,13 @@ export class SqliteDatabaseService {
   public async getAllEntities<T = any>(table: EntityTableName): Promise<T[]> {
     if (!this.isEnabled()) return [];
     const db = await this.ensureDb();
-    const res = await db.query(`SELECT data, sync_status, version FROM ${table}`);
+    const res = await db.query(`SELECT id, data, sync_status, version FROM ${table}`);
     return (res.values || []).map((row: any) => {
       const parsed = safeJsonParse<any>(row.data, {});
+      const resolvedId = parsed.id || parsed._id || row.id;
       return {
         ...parsed,
+        ...(resolvedId ? { id: String(resolvedId) } : {}),
         _syncStatus: row.sync_status || parsed._syncStatus || 'synced',
         version: row.version ?? parsed.version ?? 1,
       } as T;
